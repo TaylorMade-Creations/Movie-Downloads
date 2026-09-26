@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "posters": "node scripts/fetch-posters.mjs",
+    "metadata:sync": "node scripts/sync-jellyfin-metadata.mjs",
+    "metadata:watch": "node scripts/sync-jellyfin-metadata.mjs --watch",
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local server.js",
     "test": "node --test"
   },

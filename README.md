@@ -100,6 +100,8 @@ Vercel cannot reach `127.0.0.1` on the Windows computer. Keep the hosted deploym
 
 Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descriptions, ratings, and organization while resolving playback from the matching OneDrive file. Configure both the `JELLYFIN_*` and `ONEDRIVE_*` values shown above. Movie Room keeps Jellyfin item IDs for viewer history and UI state, matches them to OneDrive by the underlying filename, proxies artwork from Jellyfin, and returns a fresh OneDrive playback URL when a movie is selected.
 
+To keep matching metadata beside the locally synced OneDrive files, run `npm run metadata:sync` after a Jellyfin scan. It writes only generated `*.jellyfin.json` sidecars next to matching video files, so OneDrive can sync the metadata without copying media into Jellyfin. `npm run metadata:watch` repeats the check every five minutes for newly indexed files. These commands require a current local `JELLYFIN_API_KEY`; a 401 means the key needs to be refreshed in the private local environment file.
+
 ## Canonical home library
 
 The supported local library root is the user's OneDrive Desktop folder:
