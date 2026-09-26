@@ -1,6 +1,6 @@
 Taylor-Made Movies / Movie Room build
 
-Source commit: e6743e5
+Source commit: 8c3d1a0
 Web app: public/ plus server.js and lib/
 Android and Fire TV app module: firetv/
 Debug APKs: MovieRoom-Android-latest.apk and MovieRoom-FireTV-latest.apk
@@ -10,6 +10,7 @@ This build includes:
 - Separate Genres browsing tab and genre shelves.
 - Jellyfin metadata labels and Jellyfin metadata IDs on hybrid catalog entries.
 - OneDrive-backed playback with fresh playback links.
+- Optional local Jellyfin sidecar sync (`npm run metadata:sync` or `npm run metadata:watch`) that lets OneDrive sync matching metadata beside each video.
 - Fire TV/Android branding aligned with the web app and a three-title discovery shelf.
 
 Deployment note:
