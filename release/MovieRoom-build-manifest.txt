@@ -1,0 +1,18 @@
+Taylor-Made Movies / Movie Room build
+
+Source commit: e6743e5
+Web app: public/ plus server.js and lib/
+Android and Fire TV app module: firetv/
+Debug APKs: MovieRoom-Android-latest.apk and MovieRoom-FireTV-latest.apk
+
+This build includes:
+- New & In Theaters three-title carousel using the newest Jellyfin dates when theatrical flags are unavailable.
+- Separate Genres browsing tab and genre shelves.
+- Jellyfin metadata labels and Jellyfin metadata IDs on hybrid catalog entries.
+- OneDrive-backed playback with fresh playback links.
+- Fire TV/Android branding aligned with the web app and a three-title discovery shelf.
+
+Deployment note:
+The hosted app detects new OneDrive files whenever the catalog is refreshed. Jellyfin must be reachable by the hosted runtime for live Jellyfin metadata. The production OneDrive token currently uses read access, so the app does not silently write metadata sidecars back to OneDrive. Write-back requires an explicit Microsoft Graph Files.ReadWrite permission and a separate approval.
+
+The source bundle intentionally contains no passwords, API keys, refresh tokens, or session secrets. Configure those privately in Vercel or in a local environment file.
