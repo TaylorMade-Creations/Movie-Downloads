@@ -2452,6 +2452,8 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
             json: async () => ({
               value: [
                 { id: "folder-1", name: "Collections", folder: {} },
+                { id: "recovery", name: "_Recovery", folder: {} },
+                { id: "old-release", name: "www.Torrenting.com - Bomb.Girls.Facing.the.Enemy.2014.1080p.WEB.H264-DiMEPiECE", folder: {} },
                 { id: "movie-1", name: "Movie-One.mp4", file: {}, size: 1024 },
               ],
             }),
