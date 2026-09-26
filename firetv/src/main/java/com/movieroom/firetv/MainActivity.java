@@ -43,6 +43,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import java.security.SecureRandom;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.json.JSONObject;
 
@@ -416,7 +417,7 @@ public class MainActivity extends Activity {
         TextView subtitle = text("MOVIE ROOM  •  YOUR PRIVATE CINEMA", 16);
         subtitle.setTextColor(0xffbdb5a2);
         root.addView(subtitle);
-        TextView hero = text("Recently downloaded\nContinue watching from where you left off.", 24);
+        TextView hero = text("NEW & IN THEATERS\nThe newest three titles in Movie Room.", 24);
         hero.setTextColor(0xfff5f5f5);
         hero.setPadding(0, dp(16), 0, dp(14));
         root.addView(hero);
@@ -439,10 +440,20 @@ public class MainActivity extends Activity {
         root.addView(actions);
 
         ScrollView scrollView = new ScrollView(this);
+        LinearLayout shelfColumn = new LinearLayout(this);
+        shelfColumn.setOrientation(LinearLayout.VERTICAL);
+        GridLayout heroGrid = new GridLayout(this);
+        heroGrid.setColumnCount(isTelevision() ? 3 : 2);
+        heroGrid.setPadding(0, dp(4), 0, dp(12));
+        shelfColumn.addView(heroGrid);
+        TextView allHeading = text("ALL MOVIES  •  BROWSE BY GENRE", 22);
+        allHeading.setTextColor(0xffffd166);
+        shelfColumn.addView(allHeading);
         GridLayout grid = new GridLayout(this);
         grid.setColumnCount(isTelevision() ? 3 : 2);
-        grid.setPadding(0, dp(12), 0, dp(24));
-        scrollView.addView(grid);
+        grid.setPadding(0, dp(4), 0, dp(24));
+        shelfColumn.addView(grid);
+        scrollView.addView(shelfColumn);
         root.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
@@ -467,8 +478,17 @@ public class MainActivity extends Activity {
                         }
                     }
                     status.setText(library.movies.size() + " movies found" + (inProgress > 0 ? "  •  " + inProgress + " continue watching" : ""));
+                    List<MovieRoomModels.Movie> newest = new ArrayList<>(library.movies);
+                    newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.dateAdded == null ? "" : movie.dateAdded).reversed()
+                            .thenComparing(movie -> movie.title == null ? "" : movie.title));
+                    heroGrid.removeAllViews();
+                    for (int index = 0; index < Math.min(3, newest.size()); index++) {
+                        heroGrid.addView(movieCard(newest.get(index), status));
+                    }
+                    newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.genres == null ? "" : movie.genres)
+                            .thenComparing(movie -> movie.title == null ? "" : movie.title));
                     grid.removeAllViews();
-                    for (MovieRoomModels.Movie movie : library.movies) {
+                    for (MovieRoomModels.Movie movie : newest) {
                         grid.addView(movieCard(movie, status));
                     }
                 });

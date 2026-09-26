@@ -22,6 +22,19 @@ function movieSearchableText(movie) {
   return `${source.title || ""} ${source.fileName || ""} ${source.folder || ""} ${genres} ${tags}`;
 }
 
+function metadataSourceLabel(movie) {
+  const source = String((movie && (movie.metadataSource || movie.source)) || "").toLowerCase();
+  return source === "jellyfin" || source === "hybrid" ? "Jellyfin metadata" : "Metadata pending";
+}
+
+function movieAddedTimestamp(movie) {
+  const value = movie && (movie.dateAdded || movie.premiered || movie.createdDateTime) || "";
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) return parsed;
+  const year = Number(movie && movie.year);
+  return Number.isFinite(year) && year > 0 ? Date.UTC(year, 0, 1) : 0;
+}
+
 function classifyMovie(movie) {
   const searchable = movieSearchableText(movie);
   if (KIDS_MOVIE_PATTERN.test(searchable)) {
@@ -191,6 +204,9 @@ function createApp({
   heroDescription,
   heroPlay,
   heroDetails,
+  heroPrev,
+  heroNext,
+  heroIndicator,
   continueWatchingShelf,
   continueSummary,
   recentlyAddedShelf,
@@ -243,6 +259,8 @@ function createApp({
   let activeFolder = "all";
   let activeCategory = "all";
   let activeLibraryView = "movies";
+  let heroMovies = [];
+  let heroIndex = 0;
   let searchTerm = "";
   let playerVisible = false;
   let wakeLock = null;
@@ -1350,6 +1368,7 @@ function createApp({
     const viewGroups = [
       ["movies", "Movies", allMovies.filter((movie) => !isSampleMovie(movie) && movie.contentType !== "episode" && !movie.seriesName).length],
       ["collections", "Collections", collectionFolders.length + seriesCount],
+      ["genres", "Genres", new Set(allMovies.flatMap((movie) => Array.isArray(movie.genres) ? movie.genres : [])).size],
     ];
     const categoryGroups = [
       ["all", "All"],
@@ -1399,7 +1418,7 @@ function createApp({
       return button;
     }));
     categoryShelf.replaceChildren(...buttons);
-    const folderPanel = folderShelf && folderShelf.parentElement;
+      const folderPanel = folderShelf && folderShelf.parentElement;
     if (folderPanel) {
       folderPanel.hidden = activeLibraryView !== "collections";
     }
@@ -1572,7 +1591,7 @@ function createApp({
 
       const meta = documentRef.createElement("span");
       meta.className = "movie-meta";
-      meta.textContent = [movieFolderLabel(movie), movieAvailabilityLabel(movie)].join(" • ");
+      meta.textContent = [movie.year, movie.runtime, Array.isArray(movie.genres) ? movie.genres.slice(0, 2).join(", ") : "", metadataSourceLabel(movie), movieAvailabilityLabel(movie)].filter(Boolean).join(" • ");
 
       const badge = documentRef.createElement("span");
       badge.className = ready ? "ready-badge" : "upload-badge";
@@ -1740,6 +1759,33 @@ function createApp({
       return button;
     }
 
+    if (activeLibraryView === "genres") {
+      const groups = new Map();
+      for (const movie of filteredMovies) {
+        const genres = Array.isArray(movie.genres) && movie.genres.length ? movie.genres : ["Uncategorized"];
+        for (const genre of genres) {
+          const label = String(genre || "Uncategorized").trim() || "Uncategorized";
+          if (!groups.has(label)) groups.set(label, []);
+          groups.get(label).push(movie);
+        }
+      }
+      const sections = [...groups.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([genre, movies]) => {
+          const section = documentRef.createElement("section");
+          section.className = "genre-group";
+          const heading = documentRef.createElement("h3");
+          heading.textContent = genre;
+          const grid = documentRef.createElement("div");
+          grid.className = "genre-group-grid";
+          grid.append(...movies.sort((left, right) => String(left.title || "").localeCompare(String(right.title || ""))).map(createMovieCard));
+          section.append(heading, grid);
+          return section;
+        });
+      movieGrid.replaceChildren(...sections);
+      return;
+    }
+
     const seriesGroups = seriesGroupForMovies(filteredMovies);
     const episodeIds = new Set(seriesGroups.flatMap((series) => series.episodes.map((movie) => movie.id)));
     const collectionGroups = collectionGroupsForMovies(filteredMovies);
@@ -1851,7 +1897,9 @@ function createApp({
     title.textContent = movie.title || movie.fileName || "Untitled movie";
     const meta = documentRef.createElement("span");
     meta.className = "movie-meta";
-    meta.textContent = shelfType === "continue" ? remainingLabel(viewerRecord(movie.id)) : movieFolderLabel(movie);
+    meta.textContent = shelfType === "continue"
+      ? remainingLabel(viewerRecord(movie.id))
+      : [movie.year, movie.runtime, metadataSourceLabel(movie)].filter(Boolean).join(" • ");
     info.append(title, meta);
     const record = viewerRecord(movie.id);
     if (shelfType === "continue" && record) {
@@ -1896,7 +1944,7 @@ function createApp({
       })
       .sort((left, right) => (viewerRecord(right.id).lastWatchedAt || 0) - (viewerRecord(left.id).lastWatchedAt || 0));
     const browseable = playable.filter((movie) => movie.contentType !== "episode" && !movie.seriesName);
-    const recentMovies = [...browseable].slice().reverse();
+    const recentMovies = [...browseable].sort((left, right) => movieAddedTimestamp(right) - movieAddedTimestamp(left));
     const picks = browseable.filter((movie) => classifyMovie(movie) === "kids").concat(browseable.filter((movie) => classifyMovie(movie) !== "kids")).slice(0, 12);
     renderShelf(continueWatchingShelf, continueMovies, "Start a movie and your progress will appear here.");
     renderShelf(recentlyAddedShelf, recentMovies, "Newly uploaded movies will appear here.");
@@ -1904,15 +1952,20 @@ function createApp({
     if (continueSummary) {
       continueSummary.textContent = continueMovies.length ? `${continueMovies.length} in progress` : "Nothing started yet";
     }
-    const featured = picks[0] || playable[0];
+
+    const inTheaters = browseable.filter((movie) => movie.inTheaters || movie.isInTheaters || movie.releaseStatus === "in_theaters");
+    heroMovies = [...(inTheaters.length ? inTheaters : recentMovies)].slice(0, 3);
+    heroIndex = Math.min(heroIndex, Math.max(0, heroMovies.length - 1));
+    const featured = heroMovies[heroIndex] || browseable[0] || playable[0];
     if (featured) {
       if (heroMovie) heroMovie.hidden = false;
       if (heroBackdrop) { heroBackdrop.src = featured.backdropUrl || featured.posterUrl || "/movie-room-hero.png"; heroBackdrop.alt = `${featured.title || "Featured movie"} backdrop`; }
       if (heroTitle) heroTitle.textContent = featured.title || featured.fileName || "Featured movie";
-      if (heroMeta) heroMeta.textContent = [featured.year, featured.rating, featured.runtime, movieFolderLabel(featured)].filter(Boolean).join(" • ");
-      if (heroDescription) heroDescription.textContent = featured.description || "A Taylor-Made pick from your private movie collection.";
+      if (heroMeta) heroMeta.textContent = [featured.year, featured.rating, featured.runtime, metadataSourceLabel(featured)].filter(Boolean).join(" • ");
+      if (heroDescription) heroDescription.textContent = featured.description || "Newly added to your Taylor-Made movie room.";
       if (heroPlay) heroPlay.onclick = () => { movieSelect.value = featured.id; playSelectedMovie({ scrollToPlayer: true }).catch((error) => updateStatus(error.message)); };
       if (heroDetails) heroDetails.onclick = () => openMovieDetails(featured);
+      if (heroIndicator) heroIndicator.textContent = `${heroIndex + 1} / ${Math.max(1, heroMovies.length)}`;
     }
     if (upNextPanel) {
       const next = (viewerState.queue || []).map((id) => playable.find((movie) => movie.id === id)).find(Boolean);
@@ -2488,6 +2541,17 @@ function createApp({
       });
     }
 
+    if (heroPrev) heroPrev.addEventListener("click", () => {
+      if (!heroMovies.length) return;
+      heroIndex = (heroIndex - 1 + heroMovies.length) % heroMovies.length;
+      renderDiscovery();
+    });
+    if (heroNext) heroNext.addEventListener("click", () => {
+      if (!heroMovies.length) return;
+      heroIndex = (heroIndex + 1) % heroMovies.length;
+      renderDiscovery();
+    });
+
     if (theaterModeButton) theaterModeButton.addEventListener("click", () => setPlayerMode(playerMode === "theater" ? "normal" : "theater"));
     if (miniplayerModeButton) miniplayerModeButton.addEventListener("click", () => setPlayerMode(playerMode === "miniplayer" ? "normal" : "miniplayer"));
     if (upNextPlay) upNextPlay.addEventListener("click", () => playNextFromQueue());
@@ -2858,6 +2922,9 @@ if (typeof document !== "undefined") {
     heroDescription: document.getElementById("hero-description"),
     heroPlay: document.getElementById("hero-play"),
     heroDetails: document.getElementById("hero-details"),
+    heroPrev: document.getElementById("hero-prev"),
+    heroNext: document.getElementById("hero-next"),
+    heroIndicator: document.getElementById("hero-indicator"),
     continueWatchingShelf: document.getElementById("continue-watching-shelf"),
     continueSummary: document.getElementById("continue-summary"),
     recentlyAddedShelf: document.getElementById("recently-added-shelf"),

@@ -63,9 +63,11 @@ public final class MovieRoomModels {
         public final String runtime;
         public final String genres;
         public final String contentType;
+        public final String dateAdded;
 
         public Movie(String id, String title, String fileName, String folder, String posterUrl, long size,
-                     String overview, String year, String rating, String runtime, String genres, String contentType) {
+                     String overview, String year, String rating, String runtime, String genres, String contentType,
+                     String dateAdded) {
             this.id = id;
             this.title = title;
             this.fileName = fileName;
@@ -78,6 +80,7 @@ public final class MovieRoomModels {
             this.runtime = runtime;
             this.genres = genres;
             this.contentType = contentType;
+            this.dateAdded = dateAdded;
         }
 
         public boolean isPlayable() {
@@ -117,7 +120,8 @@ public final class MovieRoomModels {
                             movie.optString("rating", ""),
                             movie.optString("runtime", ""),
                             movie.optJSONArray("genres") == null ? "" : movie.optJSONArray("genres").join(", ").replace("\"", ""),
-                            movie.optString("contentType", "movie")));
+                            movie.optString("contentType", "movie"),
+                            movie.optString("dateAdded", movie.optString("premiered", ""))));
                 }
             }
             List<String> folders = new ArrayList<>();
