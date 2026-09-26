@@ -267,7 +267,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams qrParams = new LinearLayout.LayoutParams(dp(300), dp(300));
         qrParams.setMargins(0, dp(16), 0, dp(8));
         root.addView(qrCode, qrParams);
-        TextView qrInstructions = text("Scan this code with your phone to sign in and approve this TV.", 18);
+        TextView qrInstructions = text("Scan with your phone or open the link on Windows. No Mac is required.", 18);
         qrInstructions.setGravity(Gravity.CENTER);
         root.addView(qrInstructions);
         Button retry = button("New Code");
