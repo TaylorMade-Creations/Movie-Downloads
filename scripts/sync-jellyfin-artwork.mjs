@@ -15,6 +15,7 @@ const configuredRoot = path.resolve(
     || "C:/Users/kylet/OneDrive/Desktop/Movie downloads",
 );
 const moviesRoot = path.join(configuredRoot, "Movies");
+const tvRoot = path.join(configuredRoot, "TV Shows");
 const jellyfinUrl = String(process.env.JELLYFIN_URL || "http://127.0.0.1:8096").replace(/\/+$/, "");
 const apiKey = String(process.env.JELLYFIN_API_KEY || "").trim();
 const force = process.argv.includes("--force");
@@ -181,7 +182,7 @@ async function collectEntries(rootDir) {
       } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".jellyfin.json")) {
         try {
           const metadata = JSON.parse(await fs.readFile(fullPath, "utf8"));
-          if (!metadata.seriesName) sidecars.set(path.dirname(fullPath), { directory: path.dirname(fullPath), metadata });
+          sidecars.set(path.dirname(fullPath), { directory: path.dirname(fullPath), metadata });
         } catch (error) {
           console.warn(`skip invalid sidecar ${fullPath}: ${error.message}`);
         }
@@ -205,6 +206,27 @@ async function collectEntries(rootDir) {
     });
   }
   return [...sidecars.values()];
+}
+
+async function collectEpisodeSidecars(rootDir) {
+  const results = [];
+  async function walk(currentDir) {
+    let entries;
+    try { entries = await fs.readdir(currentDir, { withFileTypes: true }); }
+    catch (error) { if (error.code === "ENOENT") return; throw error; }
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) await walk(fullPath);
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".jellyfin.json")) {
+        try {
+          const metadata = JSON.parse(await fs.readFile(fullPath, "utf8"));
+          if (metadata.seriesName) results.push({ directory: currentDir, stem: entry.name.replace(/\.jellyfin\.json$/i, ""), metadata });
+        } catch { /* metadata sync will repair malformed sidecars */ }
+      }
+    }
+  }
+  await walk(rootDir);
+  return results;
 }
 
 async function syncEntry({ directory, metadata }) {
@@ -277,7 +299,26 @@ async function syncEntry({ directory, metadata }) {
   }
 }
 
-const entries = await collectEntries(moviesRoot);
+async function syncEpisodeThumbnail({ directory, stem, metadata }) {
+  if (!metadata.providerId || !metadata.poster) return false;
+  const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Primary?maxWidth=900&quality=92`;
+  const bytes = await fetchImage(url, { allowAnonymousRetry: true });
+  // Episode artwork may be a landscape still rather than a portrait poster;
+  // it is still the authoritative Jellyfin thumbnail for that episode.
+  if (!bytes) return false;
+  const safeStem = stem.replace(/[^a-z0-9._ -]+/gi, " ").replace(/\s+/g, " ").trim();
+  await Promise.all([
+    writeIfChanged(path.join(directory, `${safeStem}-thumb.jpg`), bytes),
+    writeIfChanged(path.join(directory, `${safeStem}-poster.jpg`), bytes),
+  ]);
+  return true;
+}
+
+const entries = [
+  ...(await collectEntries(moviesRoot)),
+  ...(await collectEntries(tvRoot)),
+];
+const episodeEntries = await collectEpisodeSidecars(tvRoot);
 if (!entries.length) {
   console.warn(`No movie sidecars or videos found under ${moviesRoot}`);
   process.exitCode = 1;
@@ -289,5 +330,10 @@ if (!entries.length) {
       console.warn(`artwork failed ${entry.metadata?.title || entry.directory}: ${error.message}`);
     }
   }
-  console.log(`Artwork scan complete: ${entries.length} movie folders checked.`);
+  let episodeArtworkCount = 0;
+  for (const episode of episodeEntries) {
+    try { if (await syncEpisodeThumbnail(episode)) episodeArtworkCount += 1; }
+    catch (error) { console.warn(`episode artwork failed ${episode.stem}: ${error.message}`); }
+  }
+  console.log(`Artwork scan complete: ${entries.length} movie folders checked, ${episodeArtworkCount} episode thumbnails refreshed.`);
 }
