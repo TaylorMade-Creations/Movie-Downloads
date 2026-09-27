@@ -19,6 +19,16 @@ try {
     if ($LASTEXITCODE -ne 0) { Write-Warning "Jellyfin metadata sync failed with exit code $LASTEXITCODE. Existing sidecars will still be used for artwork." }
     & node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/sync-jellyfin-artwork.mjs
     if ($LASTEXITCODE -ne 0) { throw "Movie artwork sync failed with exit code $LASTEXITCODE." }
+
+    # Keep the cloud-backed library from consuming local disk after a sync.
+    # Files On-Demand leaves the files visible and streamable while the
+    # application/build and recovery folders remain local.
+    foreach ($relativeRoot in @('Movies', 'TV Shows')) {
+        $onlineOnlyRoot = Join-Path $env:MOVIE_LIBRARY_ROOT $relativeRoot
+        if (Test-Path -LiteralPath $onlineOnlyRoot) {
+            & attrib.exe +U -P (Join-Path $onlineOnlyRoot '*') /S /D | Out-Null
+        }
+    }
 } finally {
     Pop-Location
 }
