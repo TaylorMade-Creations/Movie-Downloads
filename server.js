@@ -1414,6 +1414,18 @@ function createRequestHandler(options = {}) {
         return;
       }
 
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/api/onedrive/image/")) {
+        await context.sessionManager.get(request, true);
+        if (typeof context.provider.proxyArtwork !== "function") {
+          throw new HttpError(404, "OneDrive artwork is not enabled.");
+        }
+        const itemId = decodeURIComponent(url.pathname.slice("/api/onedrive/image/".length));
+        if (!itemId) throw new HttpError(400, "A OneDrive artwork id is required.");
+        const upstream = await context.provider.proxyArtwork(itemId, request);
+        await proxyFetchResponse(request, response, upstream);
+        return;
+      }
+
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/jellyfin/stream") {
         await context.sessionManager.get(request, true);
         if (context.provider.kind !== "jellyfin") {

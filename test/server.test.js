@@ -2506,7 +2506,7 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
     movies.map((movie) => ({ title: movie.title, folder: movie.folder, posterUrl: movie.posterUrl, backdropUrl: movie.backdropUrl || "" })),
     [
       { title: "Movie One", folder: "", posterUrl: "", backdropUrl: "" },
-      { title: "Movie Two", folder: "Collections", posterUrl: "https://thumbs.example/movie-two-poster.jpg", backdropUrl: "https://thumbs.example/movie-two.jpg" },
+      { title: "Movie Two", folder: "Collections", posterUrl: "/api/onedrive/image/poster-2", backdropUrl: "" },
     ],
   );
 
