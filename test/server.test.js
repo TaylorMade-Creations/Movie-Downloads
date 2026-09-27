@@ -2520,6 +2520,56 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
   assert.equal(requests[0].options.body.get("scope"), "offline_access Files.Read");
 });
 
+test("matches Jellyfin sidecars when a title contains a decimal point", async () => {
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+    },
+    fetchImpl: async (url) => {
+      const value = String(url);
+      if (value.includes("/oauth2/v2.0/token")) {
+        return { ok: true, json: async () => ({ access_token: "access-token", expires_in: 3600 }) };
+      }
+      if (value.includes("/root-item/children")) {
+        return { ok: true, json: async () => ({ value: [{ id: "folder-1", name: "Movies", folder: {} }] }) };
+      }
+      if (value.includes("/folder-1/children")) {
+        return {
+          ok: true,
+          json: async () => ({ value: [
+            { id: "movie-1", name: "Jackass 2.5 2007 1080p.mkv", file: {}, size: 100 },
+            { id: "sidecar-1", name: "Jackass 2.5 2007 1080p.jellyfin.json", file: {}, size: 100 },
+          ] }),
+        };
+      }
+      if (value.includes("/sidecar-1/content")) {
+        return {
+          status: 302,
+          headers: { get: (name) => name === "location" ? "https://content.example/sidecar" : "" },
+        };
+      }
+      if (value === "https://content.example/sidecar") {
+        return {
+          ok: true,
+          json: async () => ({ provider: "jellyfin", title: "Jackass 2.5", year: 2007, overview: "metadata" }),
+        };
+      }
+      throw new Error(`Unexpected request ${value}`);
+    },
+  });
+
+  const library = await provider.listLibrary();
+  assert.equal(library.movies.length, 1);
+  assert.equal(library.movies[0].metadataSource, "jellyfin");
+  assert.equal(library.movies[0].title, "Jackass 2.5");
+  assert.equal(library.movies[0].year, 2007);
+});
+
 test("keeps the last complete OneDrive library when a refresh is temporarily rejected", async () => {
   const store = new MemoryStore();
   let childrenCalls = 0;
