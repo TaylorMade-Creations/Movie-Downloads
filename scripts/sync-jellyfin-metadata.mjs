@@ -36,6 +36,7 @@ function metadataFromItem(item) {
     originalTitle: item.OriginalTitle || "",
     year: item.ProductionYear || null,
     premiered: item.PremiereDate || "",
+    dateAdded: item.DateCreated || "",
     rating: item.CommunityRating || null,
     contentRating: item.OfficialRating || "",
     runtimeTicks: item.RunTimeTicks || null,
@@ -57,7 +58,7 @@ async function fetchItems(config) {
   const params = new URLSearchParams({
     Recursive: "true",
     IncludeItemTypes: "Movie,Episode",
-    Fields: "Path,Genres,ProductionYear,Overview,SeriesName,ParentIndexNumber,IndexNumber,People,Tags,OriginalTitle,Tagline,OfficialRating,CommunityRating,PremiereDate,RunTimeTicks,ImageTags,BackdropImageTags",
+    Fields: "Path,Genres,ProductionYear,Overview,SeriesName,ParentIndexNumber,IndexNumber,People,Tags,OriginalTitle,Tagline,OfficialRating,CommunityRating,PremiereDate,DateCreated,RunTimeTicks,ImageTags,BackdropImageTags",
     Limit: "10000",
   });
   if (config.libraryId) params.set("ParentId", config.libraryId);
