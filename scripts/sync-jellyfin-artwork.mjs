@@ -213,15 +213,19 @@ async function syncEntry({ directory, metadata }) {
   const slug = posterSlugFromTitle(title);
   const localPoster = path.join(directory, "poster.jpg");
   const localFolderPoster = path.join(directory, "folder.jpg");
+  const localThumb = path.join(directory, "thumb.jpg");
   const deployedPoster = path.join(repoRoot, "public", "posters", `${slug}.jpg`);
   const localBackdrop = path.join(directory, "backdrop.jpg");
   const deployedBackdrop = path.join(repoRoot, "public", "backdrops", `${slug}.jpg`);
 
-  let posterBytes = !force ? await readIfPresent(localPoster) : null;
+  const existingPosterBytes = await readIfPresent(localPoster);
+  let posterBytes = !force ? existingPosterBytes : null;
   let posterSource = posterBytes && isPoster(posterBytes) ? "existing movie folder" : "";
+  let jellyfinPrimaryBytes = null;
   if (!posterSource && metadata.providerId && metadata.poster) {
     const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Primary?maxWidth=900&quality=92`;
     const candidate = await fetchImage(url, { allowAnonymousRetry: true });
+    jellyfinPrimaryBytes = candidate;
     if (candidate && isPoster(candidate)) {
       posterBytes = candidate;
       posterSource = "Jellyfin";
@@ -234,10 +238,19 @@ async function syncEntry({ directory, metadata }) {
       posterSource = official.source;
     }
   }
+  if (!posterSource && jellyfinPrimaryBytes) {
+    posterBytes = jellyfinPrimaryBytes;
+    posterSource = "Jellyfin thumbnail";
+  }
+  if (!posterSource && existingPosterBytes) {
+    posterBytes = existingPosterBytes;
+    posterSource = "existing Jellyfin folder artwork";
+  }
   if (posterSource) {
     await Promise.all([
       writeIfChanged(localPoster, posterBytes),
       writeIfChanged(localFolderPoster, posterBytes),
+      writeIfChanged(localThumb, posterBytes),
       writeIfChanged(deployedPoster, posterBytes),
     ]);
     console.log(`poster ${title} (${metadata.year || "year unknown"}) <- ${posterSource}`);

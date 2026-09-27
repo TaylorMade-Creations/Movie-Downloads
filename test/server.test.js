@@ -2479,7 +2479,7 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
               },
               {
                 id: "poster-2",
-                name: "poster.jpg",
+                name: "thumb.jpg",
                 file: { mimeType: "image/jpeg" },
                 size: 4096,
                 thumbnails: [{ large: { url: "https://thumbs.example/movie-two-poster.jpg" } }],
