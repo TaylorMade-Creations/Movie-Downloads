@@ -1136,6 +1136,23 @@ function createApp({
     return `${movie.title || movie.fileName || "Movie"} cover`;
   }
 
+  function attachArtworkImage(image, url, onFailure) {
+    let attempts = 0;
+    const load = () => {
+      const separator = String(url).includes("?") ? "&" : "?";
+      image.src = `${url}${separator}artworkRetry=${attempts}`;
+    };
+    image.addEventListener("error", () => {
+      if (attempts < 2) {
+        attempts += 1;
+        setTimeoutImpl(load, attempts * 350);
+        return;
+      }
+      if (typeof onFailure === "function") onFailure();
+    }, { once: false });
+    load();
+  }
+
   function displayFolderLabel(folder) {
     const parts = String(folder || "").split(/[\\/]/).filter(Boolean);
     const leaf = parts.length ? parts[parts.length - 1] : "";
@@ -1616,10 +1633,7 @@ function createApp({
         image.alt = posterAltText(movie);
         image.loading = "lazy";
         image.decoding = "async";
-        image.src = movie.posterUrl;
-        image.addEventListener("error", () => {
-          image.remove();
-        }, { once: true });
+        attachArtworkImage(image, movie.posterUrl, () => image.remove());
         poster.prepend(image);
       }
       installHoverPreview(button, poster, movie, ready);
@@ -1689,10 +1703,10 @@ function createApp({
       strip.className = "collection-preview-strip";
       for (const movie of previewMovies) {
         const image = documentRef.createElement("img");
-        image.src = movie.posterUrl;
         image.alt = "";
         image.loading = "lazy";
         image.decoding = "async";
+        attachArtworkImage(image, movie.posterUrl, () => image.remove());
         strip.append(image);
       }
       container.append(strip);
@@ -1718,8 +1732,7 @@ function createApp({
         image.alt = `${series.title} series cover`;
         image.loading = "lazy";
         image.decoding = "async";
-        image.src = series.posterUrl;
-        image.addEventListener("error", () => image.remove(), { once: true });
+        attachArtworkImage(image, series.posterUrl, () => image.remove());
         poster.prepend(image);
       }
       addCollectionPreview(poster, series.episodes);
@@ -1788,8 +1801,7 @@ function createApp({
         image.alt = `${collection.title} collection cover`;
         image.loading = "lazy";
         image.decoding = "async";
-        image.src = collection.posterUrl;
-        image.addEventListener("error", () => image.remove(), { once: true });
+        attachArtworkImage(image, collection.posterUrl, () => image.remove());
         poster.prepend(image);
       }
       addCollectionPreview(poster, collection.movies);
@@ -1952,8 +1964,7 @@ function createApp({
       const image = documentRef.createElement("img");
       image.alt = posterAltText(movie);
       image.loading = "lazy";
-      image.src = movie.posterUrl;
-      image.addEventListener("error", () => image.remove(), { once: true });
+      attachArtworkImage(image, movie.posterUrl, () => image.remove());
       poster.prepend(image);
     }
     installHoverPreview(card, poster, movie, ready);
