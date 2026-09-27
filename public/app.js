@@ -302,6 +302,7 @@ function createApp({
   let pendingFireTvCode = "";
   const expectedLibraryCount = 16;
   const permissionStorageKey = "movie_room_permissions_v1";
+  const libraryStorageKey = "movie_room_library_cache_v1";
   const profileStorageKey = "movie_room_viewer_profile_v1";
   const profileLastMoviePrefix = "movie_room_last_movie_v1_";
   const viewerProfiles = {
@@ -337,6 +338,17 @@ function createApp({
       }
     } catch {
       // Private browsing can disable local storage. Profiles still work for this page view.
+    }
+  }
+
+  function readCachedLibrary() {
+    try {
+      const raw = readLocalValue(libraryStorageKey);
+      if (!raw) return null;
+      const payload = JSON.parse(raw);
+      return payload && Array.isArray(payload.movies) ? normalizeLibraryPayload(payload) : null;
+    } catch {
+      return null;
     }
   }
 
@@ -2159,12 +2171,20 @@ function createApp({
       }
     }
 
-    const response = await handleApiResponse(
-      await fetchImpl("/api/library", { credentials: "same-origin" }),
-      "Unable to load movie library.",
-    );
-
-    const library = normalizeLibraryPayload(await response.json());
+    let library;
+    let usingCachedLibrary = false;
+    try {
+      const response = await handleApiResponse(
+        await fetchImpl("/api/library", { credentials: "same-origin" }),
+        "Unable to load movie library.",
+      );
+      library = normalizeLibraryPayload(await response.json());
+      writeLocalValue(libraryStorageKey, JSON.stringify(library));
+    } catch (error) {
+      library = readCachedLibrary();
+      if (!library) throw error;
+      usingCachedLibrary = true;
+    }
     const movies = library.movies;
     allMovies = movies;
     allFolders = library.folders;
@@ -2213,10 +2233,12 @@ function createApp({
     movieSelect.disabled = false;
     if (!playerVisible) {
       updateNowPlaying(null);
-      updateStatus("Library ready. Choose a movie to start streaming.");
+      updateStatus(usingCachedLibrary
+        ? "Showing your last complete library while OneDrive reconnects."
+        : "Library ready. Choose a movie to start streaming.");
     } else {
       updateNowPlaying(selectedMovie());
-      updateStatus("Library ready.");
+      updateStatus(usingCachedLibrary ? "Showing the saved library while OneDrive reconnects." : "Library ready.");
     }
     renderLibrary();
     return playableMovies;

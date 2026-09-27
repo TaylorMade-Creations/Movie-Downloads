@@ -2520,6 +2520,40 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
   assert.equal(requests[0].options.body.get("scope"), "offline_access Files.Read");
 });
 
+test("keeps the last complete OneDrive library when a refresh is temporarily rejected", async () => {
+  const store = new MemoryStore();
+  let childrenCalls = 0;
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+    },
+    store,
+    fetchImpl: async (url) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("/oauth2/v2.0/token")) {
+        return { ok: true, json: async () => ({ access_token: "access-token", expires_in: 3600 }) };
+      }
+      if (requestUrl.includes("/root-item/children")) {
+        childrenCalls += 1;
+        if (childrenCalls > 1) return { ok: false, status: 503, headers: new Headers() };
+        return { ok: true, json: async () => ({ value: [{ id: "movie-1", name: "Home-Alone.mp4", file: {}, size: 123 }] }) };
+      }
+      return { ok: true, json: async () => ({ value: [] }) };
+    },
+  });
+
+  const first = await provider.listLibrary();
+  const second = await provider.listLibrary();
+  assert.equal(first.movies[0].title, "Home Alone");
+  assert.equal(second.movies[0].title, "Home Alone");
+  assert.equal(second.cacheStatus, "stale");
+});
+
 test("uses the OneDrive content redirect when a file response omits its download URL", async () => {
   const provider = createOneDriveProvider({
     env: {
