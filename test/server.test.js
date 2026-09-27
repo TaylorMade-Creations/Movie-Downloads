@@ -2478,6 +2478,13 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
                 thumbnails: [{ medium: { url: "https://thumbs.example/movie-two.jpg" } }],
               },
               {
+                id: "poster-cover-2",
+                name: "poster.jpg",
+                file: { mimeType: "image/jpeg" },
+                size: 4096,
+                thumbnails: [{ large: { url: "https://thumbs.example/movie-two-cover.jpg" } }],
+              },
+              {
                 id: "poster-2",
                 name: "thumb.jpg",
                 file: { mimeType: "image/jpeg" },
@@ -2506,7 +2513,7 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
     movies.map((movie) => ({ title: movie.title, folder: movie.folder, posterUrl: movie.posterUrl, backdropUrl: movie.backdropUrl || "" })),
     [
       { title: "Movie One", folder: "", posterUrl: "", backdropUrl: "" },
-      { title: "Movie Two", folder: "Collections", posterUrl: "/api/onedrive/image/poster-2", backdropUrl: "" },
+      { title: "Movie Two", folder: "Collections", posterUrl: "/api/onedrive/image/poster-cover-2", backdropUrl: "" },
     ],
   );
 
