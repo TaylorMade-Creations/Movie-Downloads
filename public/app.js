@@ -288,6 +288,7 @@ function createApp({
   let activeLibraryView = "movies";
   let heroMovies = [];
   let heroIndex = 0;
+  let heroSelectionInitialized = false;
   let searchTerm = "";
   let playerVisible = false;
   let wakeLock = null;
@@ -2007,13 +2008,26 @@ function createApp({
       continueSummary.textContent = continueMovies.length ? `${continueMovies.length} in progress` : "Nothing started yet";
     }
 
-    const inTheaters = browseable.filter((movie) => movie.inTheaters || movie.isInTheaters || movie.releaseStatus === "in_theaters");
-    heroMovies = [...(inTheaters.length ? inTheaters : recentMovies)].slice(0, 3);
+    // The hero is a "recently added" shelf, not a theatrical-status shelf.
+    // Jellyfin's DateCreated is carried through as dateAdded by the provider;
+    // premiere/year are only fallbacks when a library item has no created date.
+    heroMovies = recentMovies.slice(0, 5);
+    if (heroMovies.length && !heroSelectionInitialized) {
+      heroIndex = Math.floor(Math.random() * heroMovies.length);
+      heroSelectionInitialized = true;
+    }
     heroIndex = Math.min(heroIndex, Math.max(0, heroMovies.length - 1));
     const featured = heroMovies[heroIndex] || browseable[0] || playable[0];
     if (featured) {
       if (heroMovie) heroMovie.hidden = false;
-      if (heroBackdrop) { heroBackdrop.src = featured.backdropUrl || featured.posterUrl || "/movie-room-hero.png"; heroBackdrop.alt = `${featured.title || "Featured movie"} backdrop`; }
+      const backdropUrl = featured.backdropUrl || featured.posterUrl || "/movie-room-hero.png";
+      if (heroBackdrop) { heroBackdrop.src = backdropUrl; heroBackdrop.alt = `${featured.title || "Featured movie"} backdrop`; }
+      if (documentRef && documentRef.body && backdropUrl) {
+        const safeBackdropUrl = String(backdropUrl).replaceAll('"', "%22");
+        documentRef.body.style.backgroundImage = `linear-gradient(180deg, rgba(9,10,11,.96), rgba(9,10,11,.98)), url("${safeBackdropUrl}")`;
+        documentRef.body.style.backgroundSize = "cover";
+        documentRef.body.style.backgroundPosition = "center top";
+      }
       if (heroTitle) heroTitle.textContent = featured.title || featured.fileName || "Featured movie";
       if (heroMeta) heroMeta.textContent = [featured.year, featured.rating, featured.runtime, metadataSourceLabel(featured)].filter(Boolean).join(" • ");
       if (heroDescription) heroDescription.textContent = featured.description || "Newly added to your Taylor-Made movie room.";

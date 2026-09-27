@@ -62,7 +62,11 @@ async function fetchItems(config) {
   });
   if (config.libraryId) params.set("ParentId", config.libraryId);
   const response = await fetch(`${config.jellyfinUrl}/Items?${params.toString()}`, {
-    headers: { Accept: "application/json", "X-Emby-Token": config.apiKey },
+    headers: {
+      Accept: "application/json",
+      "X-Emby-Token": config.apiKey,
+      Authorization: `MediaBrowser Client="Movie Room", Device="Movie Room Server", DeviceId="movie-room-server", Version="1.0.0", Token="${config.apiKey}"`,
+    },
   });
   if (!response.ok) throw new Error(`Jellyfin returned HTTP ${response.status}.`);
   const payload = await response.json();
@@ -76,6 +80,12 @@ async function syncOnce() {
   let skipped = 0;
   for (const item of items) {
     const mediaPath = path.resolve(item.Path);
+    try {
+      await fs.access(mediaPath);
+    } catch {
+      skipped += 1;
+      continue;
+    }
     const relative = path.relative(config.libraryRoot, mediaPath);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
       skipped += 1;

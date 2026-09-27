@@ -421,7 +421,7 @@ public class MainActivity extends Activity {
         TextView subtitle = text("MOVIE ROOM  •  YOUR PRIVATE CINEMA", 16);
         subtitle.setTextColor(0xffbdb5a2);
         root.addView(subtitle);
-        TextView hero = text("NEW & IN THEATERS\nThe newest three titles in Movie Room.", 24);
+        TextView hero = text("NEWEST FROM JELLYFIN\nThe five most recently added titles in Movie Room.", 24);
         hero.setTextColor(0xfff5f5f5);
         hero.setPadding(0, dp(16), 0, dp(14));
         root.addView(hero);
@@ -486,7 +486,7 @@ public class MainActivity extends Activity {
                     newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.dateAdded == null ? "" : movie.dateAdded).reversed()
                             .thenComparing(movie -> movie.title == null ? "" : movie.title));
                     heroGrid.removeAllViews();
-                    for (int index = 0; index < Math.min(3, newest.size()); index++) {
+                    for (int index = 0; index < Math.min(5, newest.size()); index++) {
                         heroGrid.addView(movieCard(newest.get(index), status));
                     }
                     newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.genres == null ? "" : movie.genres)

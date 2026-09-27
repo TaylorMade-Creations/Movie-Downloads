@@ -1,18 +1,19 @@
 Taylor-Made Movies / Movie Room build
 
-Source commit: 109bef4
+Source commit: 810d733
 Web app: public/ plus server.js and lib/
 Android and Fire TV app module: firetv/
 Debug APKs: MovieRoom-Android-latest.apk and MovieRoom-FireTV-latest.apk
 
 This build includes:
-- New & In Theaters three-title carousel using the newest Jellyfin dates when theatrical flags are unavailable.
+- Newest-from-Jellyfin five-title carousel ordered by Jellyfin DateCreated, with a changing backdrop on each page load.
 - Separate Genres browsing tab and genre shelves.
 - All Movies opens collection cards first, with Home Alone, Fifty Shades, Jackass movies, Jackass series, and Northern Exposure grouped instead of loose episode/movie cards.
 - Jellyfin metadata labels and Jellyfin metadata IDs on hybrid catalog entries.
 - OneDrive-backed playback with fresh playback links.
 - Optional local Jellyfin sidecar sync (`npm run metadata:sync` or `npm run metadata:watch`) that lets OneDrive sync matching metadata beside each video.
-- Fire TV/Android branding aligned with the web app and a three-title discovery shelf.
+- A safe completed-download normalizer and 15-minute Windows watcher for Movies and TV Shows (`scripts/normalize-movie-library.ps1` and `scripts/install-movie-library-watcher.ps1`).
+- Fire TV/Android branding aligned with the web app and a five-title discovery shelf.
 
 Deployment note:
 The hosted app detects new OneDrive files whenever the catalog is refreshed. Jellyfin must be reachable by the hosted runtime for live Jellyfin metadata. The production OneDrive token currently uses read access, so the app does not silently write metadata sidecars back to OneDrive. Write-back requires an explicit Microsoft Graph Files.ReadWrite permission and a separate approval.
