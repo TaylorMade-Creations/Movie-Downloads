@@ -102,6 +102,8 @@ Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descri
 
 To keep matching metadata beside the locally synced OneDrive files, run `npm run metadata:sync` after a Jellyfin scan. It writes only generated `*.jellyfin.json` sidecars next to matching video files, so OneDrive can sync the metadata without copying media into Jellyfin. `npm run metadata:watch` repeats the check every five minutes for newly indexed files. These commands require a current local `JELLYFIN_API_KEY`; a 401 means the key needs to be refreshed in the private local environment file.
 
+When those sidecars are synchronized into OneDrive, the hosted OneDrive provider reads them as Jellyfin metadata. This lets the live Movie Room show Jellyfin titles, dates, descriptions, ratings, genres, and series fields without requiring Vercel to reach the Windows Jellyfin server.
+
 ## Canonical home library
 
 The supported local library root is the user's OneDrive Desktop folder:
