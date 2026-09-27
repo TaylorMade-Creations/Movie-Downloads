@@ -58,6 +58,8 @@ test("Jellyfin provider lists playable movies and episodes with app artwork URLs
 
   const library = await provider.listLibrary();
   assert.equal(library.movies.length, 2);
+  assert.equal(library.movies[0].fileName, "Toy Story 5.mp4");
+  assert.equal(library.movies[1].fileName, "episode.avi");
   assert.equal(library.movies[0].posterUrl, "/api/jellyfin/image/movie-1");
   assert.equal(library.movies[0].backdropUrl, "/api/jellyfin/image/movie-1?type=Backdrop");
   assert.equal(library.movies[1].posterUrl, "");

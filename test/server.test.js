@@ -2517,7 +2517,11 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
     ],
   );
 
+  const scansBeforePlayback = requests.filter(request => request.url.includes("/children")).length;
   const playback = await provider.resolvePlayback("movie-1");
+  await provider.resolvePlayback("movie-1");
+  assert.equal(requests.filter(request => request.url.includes("/children")).length, scansBeforePlayback);
+  assert.equal(requests.filter(request => request.url.includes("/items/movie-1?")).length, 2);
   assert.deepEqual(playback, {
     url: "https://download.example/movie-one",
     expiresAt: null,

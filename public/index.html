@@ -1004,6 +1004,35 @@
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
       }
+      /* Brighter blue and turquoise surfaces, with full-size integrated cover art. */
+      :root { --gold: #62e3db; --gold-soft: #a8fff0; --ink: #15365b; --panel: #204269; --panel-raised: #2c527a; --line: #527598; background: #15365b; }
+      body { background: #15365b; }
+      body::before { background-color: #205078; filter: blur(12px) saturate(1.15); opacity: .28; }
+      body::after { background: radial-gradient(ellipse at 92% 0%, rgba(36,205,205,.30), transparent 55%), linear-gradient(150deg, rgba(32,80,131,.82), rgba(20,47,80,.9)); }
+      .topbar { background: rgba(22,54,91,.94); border-color: #527598; box-shadow: 0 8px 28px #09213c33; }
+      .brand-primary { color: #a8fff0; }
+      .brand-secondary { font-size: 12px; color: #d5e8fb; }
+      .search-wrap input, input, select { background: #21486f; color: #fff; border-color: #6688a7; }
+      input::placeholder { color: #c5d9ed; }
+      button.secondary, .profile-toggle, .profile-menu, .auth-panel, .movie-details-dialog, .mobile-nav { background: #23486e; border-color: #527598; }
+      button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #a8fff0; outline-offset: 3px; }
+      .category-chip, .folder-chip { background: #284e75; color: #e9f5ff; border-color: #527598; }
+      .category-chip.active, .category-chip[aria-pressed="true"] { background: #62e3db; border-color: #62e3db; color: #102e49; }
+      .movie-card, .movie-card.unavailable { background: #254b73; border-color: #527598; border-radius: 14px; }
+      .movie-card:hover, .movie-card:focus-visible { box-shadow: 0 12px 30px #081f3b66, 0 0 0 2px #62e3db; }
+      .poster { border-radius: 13px 13px 0 0; background: linear-gradient(145deg, #336d94, #21446e); }
+      .poster > img { position: absolute; inset: 0; object-fit: cover; }
+      .poster-preview-video { object-fit: contain; }
+      .movie-meta { font-size: 14px; color: #d4e6f6; }
+      .movie-info { min-height: 100px; }
+      .hero-movie { border-color: #648daf; background: #21456d; box-shadow: 0 20px 50px #081f3b40; }
+      .hero-movie::after { background: linear-gradient(90deg, #163659, #163659de 36%, #16365930 75%, #16365980); }
+      .hero-movie img { opacity: 1; }
+      .hero-meta, .hero-description, .library-summary, .empty-state, .status { color: #d4e6f6; }
+      .hero-carousel-nav button { background: #244a70; border-color: #648daf; }
+      .catalog-status { margin: 0 0 16px; padding: 10px 14px; border-left: 3px solid #62e3db; color: #e3f3ff; background: #284e7577; border-radius: 5px; font-size: 14px; }
+      .movie-card.preview-loading .poster::after { content: "5 sec preview"; font-size: 12px; letter-spacing: 0; text-transform: none; }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     </style>
   </head>
   <body>
@@ -1090,10 +1119,11 @@
     </section>
 
     <main id="library-panel" class="page" hidden>
+      <p id="catalog-status" class="catalog-status" role="status" aria-live="polite">Loading your library…</p>
       <section id="hero-movie" class="hero-movie" aria-labelledby="hero-title">
         <img id="hero-backdrop" src="/movie-room-hero.png" alt="" />
         <div class="hero-copy">
-          <p class="eyebrow">Newest from Jellyfin</p>
+          <p class="eyebrow">Featured in your library</p>
           <h1 id="hero-title">Your private movie room</h1>
           <p id="hero-meta" class="hero-meta"></p>
           <p id="hero-description" class="hero-description">Choose a title below and settle in for the next scene.</p>
@@ -1102,7 +1132,7 @@
             <button id="hero-details" class="secondary" type="button">More info</button>
           </div>
         </div>
-        <div class="hero-carousel-nav" aria-label="Newest from Jellyfin carousel">
+        <div class="hero-carousel-nav" aria-label="Featured in your library carousel">
           <button id="hero-prev" type="button" aria-label="Previous featured movie">‹</button>
           <span id="hero-indicator" class="hero-carousel-indicator">1 / 5</span>
           <button id="hero-next" type="button" aria-label="Next featured movie">›</button>
@@ -1259,8 +1289,8 @@
         window.__onGCastApiAvailable = (isAvailable) => resolve(Boolean(isAvailable));
       });
     </script>
-    <script src="/viewer-state.js?v=20260927" defer></script>
+    <script src="/viewer-state.js?v=20260927-cloud-previews" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260927" defer></script>
+    <script src="/app.js?v=20260927-cloud-previews" defer></script>
   </body>
 </html>
