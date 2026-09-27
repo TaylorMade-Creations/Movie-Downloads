@@ -1,6 +1,6 @@
 Taylor-Made Movies / Movie Room build
 
-Source commit: 810d733
+Source commit: 8d5b6d4
 Web app: public/ plus server.js and lib/
 Android and Fire TV app module: firetv/
 Debug APKs: MovieRoom-Android-latest.apk and MovieRoom-FireTV-latest.apk
