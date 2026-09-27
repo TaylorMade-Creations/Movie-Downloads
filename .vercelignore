@@ -1,0 +1,14 @@
+.env
+.env.*
+.vercel/
+.gradle/
+**/build/
+local.properties
+node_modules/
+movies/
+.agents/
+test-results/
+tmp-runtime/
+*.apk
+skills-lock.json
+0

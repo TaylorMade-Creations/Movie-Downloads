@@ -1,0 +1,22 @@
+{
+  "headers": [
+    {
+      "source": "/(app|viewer-state).js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "autoplay=(self), fullscreen=(self), geolocation=(self), local-network=(self), local-network-access=(self), loopback-network=(self), picture-in-picture=(self), screen-wake-lock=(self)"
+        }
+      ]
+    }
+  ]
+}
