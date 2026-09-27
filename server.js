@@ -1416,13 +1416,14 @@ function createRequestHandler(options = {}) {
 
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/api/onedrive/image/")) {
         await context.sessionManager.get(request, true);
-        if (typeof context.provider.proxyArtwork !== "function") {
+        if (typeof context.provider.resolveArtwork !== "function") {
           throw new HttpError(404, "OneDrive artwork is not enabled.");
         }
         const itemId = decodeURIComponent(url.pathname.slice("/api/onedrive/image/".length));
         if (!itemId) throw new HttpError(400, "A OneDrive artwork id is required.");
-        const upstream = await context.provider.proxyArtwork(itemId, request);
-        await proxyFetchResponse(request, response, upstream);
+        const artworkUrl = await context.provider.resolveArtwork(itemId);
+        response.writeHead(307, noStoreHeaders({ Location: artworkUrl }));
+        response.end();
         return;
       }
 
