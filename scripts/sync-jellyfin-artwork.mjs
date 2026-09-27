@@ -268,6 +268,18 @@ async function syncEntry({ directory, metadata }) {
     posterBytes = existingPosterBytes;
     posterSource = "existing Jellyfin folder artwork";
   }
+  // Some older downloads have a valid backdrop but no portrait poster. Keep
+  // those titles visible and stable by using the existing artwork as a
+  // last-resort poster; future Jellyfin metadata can replace it deliberately.
+  if (!posterSource) {
+    const fallbackArtwork = await readIfPresent(path.join(directory, "folder.jpg"))
+      || await readIfPresent(path.join(directory, "thumb.jpg"))
+      || await readIfPresent(localBackdrop);
+    if (fallbackArtwork) {
+      posterBytes = fallbackArtwork;
+      posterSource = "existing artwork fallback";
+    }
+  }
   if (posterSource) {
     await Promise.all([
       writeIfChanged(localPoster, posterBytes),
@@ -300,9 +312,17 @@ async function syncEntry({ directory, metadata }) {
 }
 
 async function syncEpisodeThumbnail({ directory, stem, metadata }) {
-  if (!metadata.providerId || !metadata.poster) return false;
-  const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Primary?maxWidth=900&quality=92`;
-  const bytes = await fetchImage(url, { allowAnonymousRetry: true });
+  let bytes = null;
+  if (metadata.providerId && metadata.poster) {
+    const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Primary?maxWidth=900&quality=92`;
+    bytes = await fetchImage(url, { allowAnonymousRetry: true });
+  }
+  if (!bytes) {
+    bytes = await readIfPresent(path.join(directory, "poster.jpg"))
+      || await readIfPresent(path.join(directory, "thumb.jpg"))
+      || await readIfPresent(path.join(path.dirname(directory), "poster.jpg"))
+      || await readIfPresent(path.join(path.dirname(directory), "thumb.jpg"));
+  }
   // Episode artwork may be a landscape still rather than a portrait poster;
   // it is still the authoritative Jellyfin thumbnail for that episode.
   if (!bytes) return false;
