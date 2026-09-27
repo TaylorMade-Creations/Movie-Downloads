@@ -2024,9 +2024,7 @@ function createApp({
       if (heroBackdrop) { heroBackdrop.src = backdropUrl; heroBackdrop.alt = `${featured.title || "Featured movie"} backdrop`; }
       if (documentRef && documentRef.body && backdropUrl) {
         const safeBackdropUrl = String(backdropUrl).replaceAll('"', "%22");
-        documentRef.body.style.backgroundImage = `linear-gradient(180deg, rgba(9,10,11,.96), rgba(9,10,11,.98)), url("${safeBackdropUrl}")`;
-        documentRef.body.style.backgroundSize = "cover";
-        documentRef.body.style.backgroundPosition = "center top";
+        documentRef.body.style.setProperty("--page-backdrop", `url("${safeBackdropUrl}")`);
       }
       if (heroTitle) heroTitle.textContent = featured.title || featured.fileName || "Featured movie";
       if (heroMeta) heroMeta.textContent = [featured.year, featured.rating, featured.runtime, metadataSourceLabel(featured)].filter(Boolean).join(" • ");

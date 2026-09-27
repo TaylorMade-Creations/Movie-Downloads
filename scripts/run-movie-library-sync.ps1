@@ -12,7 +12,9 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
     & node scripts/sync-jellyfin-metadata.mjs
-    if ($LASTEXITCODE -ne 0) { throw "Jellyfin metadata sync failed with exit code $LASTEXITCODE." }
+    if ($LASTEXITCODE -ne 0) { Write-Warning "Jellyfin metadata sync failed with exit code $LASTEXITCODE. Existing sidecars will still be used for artwork." }
+    & node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/sync-jellyfin-artwork.mjs
+    if ($LASTEXITCODE -ne 0) { throw "Movie artwork sync failed with exit code $LASTEXITCODE." }
 } finally {
     Pop-Location
 }

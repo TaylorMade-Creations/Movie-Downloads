@@ -130,6 +130,10 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   const appSource = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
   assert.match(html, /id="hero-movie"/);
   assert.match(html, /hero-movie \{[^}]*min-height: clamp\(220px, 30vw, 360px\)/);
+  assert.match(html, /background-image: var\(--page-backdrop/);
+  assert.match(html, /aspect-ratio: 2 \/ 3/);
+  assert.match(html, /\.poster > img \+ \.poster-fallback/);
+  assert.match(appSource, /style\.setProperty\("--page-backdrop"/);
   assert.match(html, /id="recent-title">Recently Downloaded/);
   assert.ok(html.indexOf('id="hero-movie"') < html.indexOf('id="category-shelf"'));
   assert.ok(html.indexOf('id="category-shelf"') < html.indexOf('id="continue-watching-shelf"'));
@@ -2473,6 +2477,13 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
                 size: 2048,
                 thumbnails: [{ medium: { url: "https://thumbs.example/movie-two.jpg" } }],
               },
+              {
+                id: "poster-2",
+                name: "poster.jpg",
+                file: { mimeType: "image/jpeg" },
+                size: 4096,
+                thumbnails: [{ large: { url: "https://thumbs.example/movie-two-poster.jpg" } }],
+              },
             ],
           }),
         };
@@ -2492,10 +2503,10 @@ test("recursively lists OneDrive items and resolves fresh playback links", async
 
   const movies = await provider.listMovies();
   assert.deepEqual(
-    movies.map((movie) => ({ title: movie.title, folder: movie.folder, posterUrl: movie.posterUrl })),
+    movies.map((movie) => ({ title: movie.title, folder: movie.folder, posterUrl: movie.posterUrl, backdropUrl: movie.backdropUrl || "" })),
     [
-      { title: "Movie One", folder: "", posterUrl: "/posters/movie-one.jpg" },
-      { title: "Movie Two", folder: "Collections", posterUrl: "https://thumbs.example/movie-two.jpg" },
+      { title: "Movie One", folder: "", posterUrl: "", backdropUrl: "" },
+      { title: "Movie Two", folder: "Collections", posterUrl: "https://thumbs.example/movie-two-poster.jpg", backdropUrl: "https://thumbs.example/movie-two.jpg" },
     ],
   );
 

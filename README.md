@@ -12,7 +12,7 @@ A lightweight browser app for browsing and streaming a shared movie library behi
 - Opaque, time-limited Cast playback tickets so TVs never receive the browser session cookie
 - Safari AirPlay support remains available for iPhone and iPad
 - YouTube-style responsive thumbnails, compact cleaned titles, and local Home, Family, and Guest viewer profiles
-- OneDrive video thumbnails use Microsoft Graph's generated frame when a downloaded title poster is unavailable, so every uploaded movie can still be recognized
+- Poster cards prefer artwork synchronized from Jellyfin, then verified bundled artwork, and use a clean TaylorMade fallback instead of a OneDrive scene frame; video frames remain available only as wide hero/backdrop fallbacks
 - A prominent Full Screen action that disappears after the video enters full-screen mode
 - Fire TV playback sets the Android keep-screen-on flag until you return to the library, preventing the TV screensaver during a movie
 - Vercel-compatible request handling with durable KV-backed sessions, throttling, and token persistence
@@ -100,7 +100,7 @@ Vercel cannot reach `127.0.0.1` on the Windows computer. Keep the hosted deploym
 
 Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descriptions, ratings, and organization while resolving playback from the matching OneDrive file. Configure both the `JELLYFIN_*` and `ONEDRIVE_*` values shown above. Movie Room keeps Jellyfin item IDs for viewer history and UI state, matches them to OneDrive by the underlying filename, proxies artwork from Jellyfin, and returns a fresh OneDrive playback URL when a movie is selected.
 
-To keep matching metadata beside the locally synced OneDrive files, run `npm run metadata:sync` after a Jellyfin scan. It writes only generated `*.jellyfin.json` sidecars next to matching video files, so OneDrive can sync the metadata without copying media into Jellyfin. `npm run metadata:watch` repeats the check every five minutes for newly indexed files. These commands require a current local `JELLYFIN_API_KEY`; a 401 means the key needs to be refreshed in the private local environment file.
+To keep matching metadata beside the locally synced OneDrive files, run `npm run metadata:sync` after a Jellyfin scan. It writes generated `*.jellyfin.json` sidecars next to matching video files, so OneDrive can sync the metadata without copying media into Jellyfin. Run `npm run artwork:sync` to place validated portrait posters and landscape backdrops beside each movie and in the deployable web bundle. The installed Windows library task runs every six hours. Metadata refresh requires a current local `JELLYFIN_API_KEY`; a 401 means the key needs to be refreshed in the private local environment file. Artwork sync can still reuse existing sidecars and retry locally accessible Jellyfin artwork without the stale key.
 
 When those sidecars are synchronized into OneDrive, the hosted OneDrive provider reads them as Jellyfin metadata. This lets the live Movie Room show Jellyfin titles, dates, descriptions, ratings, genres, and series fields without requiring Vercel to reach the Windows Jellyfin server.
 
@@ -175,6 +175,8 @@ Use Node.js 22.9 or newer. `npm start` loads `.env` and then the ignored `.env.l
 - For production, configure the environment variables in Vercel before testing
 
 ## Commands
+
+- `npm run artwork:sync` - synchronize Jellyfin-first poster and backdrop artwork into movie folders and the web bundle
 
 - `npm start` — start the app locally
 - `npm test` — run the test suite

@@ -37,6 +37,7 @@ test("Jellyfin provider lists playable movies and episodes with app artwork URLs
             Studios: [{ Name: "Taylor-Made Pictures" }],
             Tags: ["family", "adventure"],
             Genres: ["Family"],
+            ImageTags: { Primary: "poster" },
             BackdropImageTags: ["backdrop"],
           },
           {
@@ -59,6 +60,7 @@ test("Jellyfin provider lists playable movies and episodes with app artwork URLs
   assert.equal(library.movies.length, 2);
   assert.equal(library.movies[0].posterUrl, "/api/jellyfin/image/movie-1");
   assert.equal(library.movies[0].backdropUrl, "/api/jellyfin/image/movie-1?type=Backdrop");
+  assert.equal(library.movies[1].posterUrl, "");
   assert.equal(library.movies[0].description, "A family adventure.");
   assert.equal(library.movies[0].runtime, "2h 08m");
   assert.equal(library.movies[0].rating, "8.2");
@@ -68,6 +70,7 @@ test("Jellyfin provider lists playable movies and episodes with app artwork URLs
   assert.equal(library.folders.some((folder) => folder.path === "Northern Exposure/Season 3"), true);
   assert.match(requests[0].url, /\/Items\?/);
   assert.match(requests[0].url, /ParentId=library-1/);
+  assert.match(requests[0].url, /ImageTags/);
   assert.match(requests[0].options.headers.Authorization, /Client="Movie Room"/);
   assert.match(requests[0].options.headers.Authorization, /Token="server-key"/);
   assert.equal(requests[0].options.headers["X-Emby-Token"], "server-key");
