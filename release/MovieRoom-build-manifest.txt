@@ -1,6 +1,6 @@
 Taylor-Made Movies / Movie Room build
 
-Source commit: b91dd26
+Source commit: 5a4e935
 Web app: public/ plus server.js and lib/
 Android and Fire TV app module: firetv/
 Debug APKs: MovieRoom-Android-latest.apk and MovieRoom-FireTV-latest.apk
@@ -8,6 +8,7 @@ Debug APKs: MovieRoom-Android-latest.apk and MovieRoom-FireTV-latest.apk
 This build includes:
 - New & In Theaters three-title carousel using the newest Jellyfin dates when theatrical flags are unavailable.
 - Separate Genres browsing tab and genre shelves.
+- All Movies opens collection cards first, with Home Alone, Fifty Shades, Jackass movies, Jackass series, and Northern Exposure grouped instead of loose episode/movie cards.
 - Jellyfin metadata labels and Jellyfin metadata IDs on hybrid catalog entries.
 - OneDrive-backed playback with fresh playback links.
 - Optional local Jellyfin sidecar sync (`npm run metadata:sync` or `npm run metadata:watch`) that lets OneDrive sync matching metadata beside each video.
