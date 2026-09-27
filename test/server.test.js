@@ -140,9 +140,11 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   assert.match(html, /id="movie-details-dialog"/);
   assert.match(html, /id="mobile-nav"/);
   assert.match(appSource, /\["all", "All"\]/);
-  assert.match(appSource, /\["mom", "Mom"\]/);
   assert.match(appSource, /\["family", "Family"\]/);
-  assert.match(appSource, /\["alpha-a-c", "A-C"\]/);
+  assert.match(appSource, /\["horror", "Horror"\]/);
+  assert.match(appSource, /\["action", "Action"\]/);
+  assert.match(appSource, /function genresForMovie/);
+  assert.match(appSource, /collection-preview-strip/);
   assert.match(appSource, /function installHoverPreview/);
   assert.match(appSource, /preview\.muted = true/);
 

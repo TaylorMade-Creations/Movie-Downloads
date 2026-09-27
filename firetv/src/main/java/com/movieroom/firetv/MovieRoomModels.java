@@ -64,10 +64,14 @@ public final class MovieRoomModels {
         public final String genres;
         public final String contentType;
         public final String dateAdded;
+        public final String seriesName;
+        public final String seriesPath;
+        public final int seasonNumber;
+        public final int episodeNumber;
 
         public Movie(String id, String title, String fileName, String folder, String posterUrl, long size,
                      String overview, String year, String rating, String runtime, String genres, String contentType,
-                     String dateAdded) {
+                     String dateAdded, String seriesName, String seriesPath, int seasonNumber, int episodeNumber) {
             this.id = id;
             this.title = title;
             this.fileName = fileName;
@@ -81,6 +85,10 @@ public final class MovieRoomModels {
             this.genres = genres;
             this.contentType = contentType;
             this.dateAdded = dateAdded;
+            this.seriesName = seriesName;
+            this.seriesPath = seriesPath;
+            this.seasonNumber = seasonNumber;
+            this.episodeNumber = episodeNumber;
         }
 
         public boolean isPlayable() {
@@ -121,7 +129,11 @@ public final class MovieRoomModels {
                             movie.optString("runtime", ""),
                             movie.optJSONArray("genres") == null ? "" : movie.optJSONArray("genres").join(", ").replace("\"", ""),
                             movie.optString("contentType", "movie"),
-                            movie.optString("dateAdded", movie.optString("premiered", ""))));
+                            movie.optString("dateAdded", movie.optString("premiered", "")),
+                            movie.optString("seriesName", ""),
+                            movie.optString("seriesPath", ""),
+                            movie.optInt("seasonNumber", 0),
+                            movie.optInt("episodeNumber", 0)));
                 }
             }
             List<String> folders = new ArrayList<>();

@@ -44,7 +44,11 @@ import java.security.SecureRandom;
 import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
@@ -488,8 +492,29 @@ public class MainActivity extends Activity {
                     newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.genres == null ? "" : movie.genres)
                             .thenComparing(movie -> movie.title == null ? "" : movie.title));
                     grid.removeAllViews();
+                    Map<String, List<MovieRoomModels.Movie>> groups = new LinkedHashMap<>();
                     for (MovieRoomModels.Movie movie : newest) {
-                        grid.addView(movieCard(movie, status));
+                        String groupKey = collectionGroupKey(movie);
+                        if (groupKey != null) {
+                            groups.computeIfAbsent(groupKey, key -> new ArrayList<>()).add(movie);
+                        }
+                    }
+                    Set<String> groupedIds = new HashSet<>();
+                    if (!groups.isEmpty()) grid.addView(gridSectionHeading("COLLECTIONS & SERIES", grid.getColumnCount()));
+                    for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : groups.entrySet()) {
+                        for (MovieRoomModels.Movie movie : entry.getValue()) groupedIds.add(movie.id);
+                        grid.addView(groupCard(entry.getKey(), entry.getValue(), status));
+                    }
+                    Map<String, List<MovieRoomModels.Movie>> genreGroups = new LinkedHashMap<>();
+                    for (MovieRoomModels.Movie movie : newest) {
+                        if (!groupedIds.contains(movie.id)) {
+                            genreGroups.computeIfAbsent(nativeGenre(movie), key -> new ArrayList<>()).add(movie);
+                        }
+                    }
+                    if (!genreGroups.isEmpty()) grid.addView(gridSectionHeading("ALL MOVIES", grid.getColumnCount()));
+                    for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : genreGroups.entrySet()) {
+                        grid.addView(gridSectionHeading(entry.getKey(), grid.getColumnCount()));
+                        for (MovieRoomModels.Movie movie : entry.getValue()) grid.addView(movieCard(movie, status));
                     }
                 });
             } catch (MovieRoomApi.MovieRoomApiException error) {
@@ -562,6 +587,120 @@ public class MainActivity extends Activity {
 
         loadPosterIntoCard(movie, card, fallback);
         return card;
+    }
+
+    private String collectionGroupKey(MovieRoomModels.Movie movie) {
+        if (movie == null) return null;
+        if (movie.seriesName != null && !movie.seriesName.isEmpty() && movie.seriesPath != null && !movie.seriesPath.isEmpty()) {
+            return "SERIES|" + movie.seriesPath + "|" + movie.seriesName;
+        }
+        String folder = movie.folder == null ? "" : movie.folder;
+        String[] parts = folder.split("[/\\\\]");
+        for (int index = 0; index < parts.length; index++) {
+            if (parts[index].toLowerCase(Locale.US).contains("collection")) {
+                return "COLLECTION|" + String.join("/", java.util.Arrays.copyOfRange(parts, 0, index + 1));
+            }
+        }
+        return null;
+    }
+
+    private String collectionGroupTitle(String key) {
+        String[] parts = key.split("\\|", 3);
+        if (parts.length == 3 && "SERIES".equals(parts[0])) return parts[2];
+        if (parts.length >= 2) {
+            String[] pathParts = parts[1].split("[/\\\\]");
+            return pathParts.length == 0 ? parts[1] : pathParts[pathParts.length - 1];
+        }
+        return "Collection";
+    }
+
+    private TextView gridSectionHeading(String value, int columns) {
+        TextView heading = text(value, 20);
+        heading.setTextColor(0xffffd166);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+        params.width = LinearLayout.LayoutParams.MATCH_PARENT;
+        params.columnSpec = GridLayout.spec(0, columns);
+        params.setMargins(dp(8), dp(16), dp(8), dp(4));
+        heading.setLayoutParams(params);
+        return heading;
+    }
+
+    private String nativeGenre(MovieRoomModels.Movie movie) {
+        String genres = movie == null ? "" : movie.genres;
+        if (genres != null && !genres.trim().isEmpty()) {
+            return genres.split(",")[0].trim();
+        }
+        String searchable = ((movie == null ? "" : movie.title) + " " + (movie == null ? "" : movie.fileName)).toLowerCase(Locale.US);
+        if (searchable.matches(".*(home alone|toy story|paw patrol|magic faraway tree|frozen).*")) return "Kids / Family";
+        if (searchable.matches(".*(horror|scary|backrooms|haunt|obsession).*")) return "Horror";
+        if (searchable.matches(".*(jurassic|superman|spider|mutiny|jackass|masters of the universe|the fix).*")) return "Action";
+        if (searchable.matches(".*(fifty shades|mamma mia|northern exposure|bomb girls|love hypothesis).*")) return "Drama";
+        if (searchable.matches(".*(comedy|jackass).*")) return "Comedy";
+        return "Other";
+    }
+
+    private View groupCard(String key, List<MovieRoomModels.Movie> members, TextView status) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setFocusable(true);
+        card.setClickable(true);
+        card.setPadding(dp(10), dp(10), dp(10), dp(10));
+        card.setBackground(roundedBackground(0xff171717, 0xff6d5420, 1));
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+        params.width = dp(isTelevision() ? 270 : 160);
+        params.height = GridLayout.LayoutParams.WRAP_CONTENT;
+        params.setMargins(dp(8), dp(8), dp(8), dp(12));
+        card.setLayoutParams(params);
+
+        TextView cover = text(initials(collectionGroupTitle(key)), 42);
+        cover.setGravity(Gravity.CENTER);
+        cover.setTextColor(0xffffd166);
+        cover.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
+        card.addView(cover, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(isTelevision() ? 152 : 112)));
+        TextView title = text(collectionGroupTitle(key), 18);
+        title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        card.addView(title);
+        TextView meta = text(members.size() + (key.startsWith("SERIES|") ? " episodes" : " movies") + "  •  Open folder", 14);
+        meta.setTextColor(0xffffd166);
+        card.addView(meta);
+        card.setOnFocusChangeListener((view, hasFocus) -> {
+            view.setScaleX(hasFocus ? 1.04f : 1.0f);
+            view.setScaleY(hasFocus ? 1.04f : 1.0f);
+            view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff171717, hasFocus ? 0xffffd166 : 0xff6d5420, 2));
+        });
+        card.setOnClickListener(view -> showGroupedMovies(collectionGroupTitle(key), members));
+        return card;
+    }
+
+    private void showGroupedMovies(String titleText, List<MovieRoomModels.Movie> members) {
+        setScreen();
+        TextView brand = text("TAYLOR-MADE MOVIES", 30);
+        brand.setTextColor(0xffffd166);
+        brand.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(brand);
+        TextView heading = text(titleText, 24);
+        heading.setTextColor(0xfff5f5f5);
+        root.addView(heading);
+        Button back = button("Back to All Movies");
+        back.setOnClickListener(view -> showLibraryScreen());
+        root.addView(back);
+        TextView status = text(members.size() + " titles in this folder", 18);
+        root.addView(status);
+        ScrollView scrollView = new ScrollView(this);
+        GridLayout grid = new GridLayout(this);
+        grid.setColumnCount(isTelevision() ? 3 : 2);
+        grid.setPadding(0, dp(12), 0, dp(24));
+        List<MovieRoomModels.Movie> sorted = new ArrayList<>(members);
+        sorted.sort(Comparator.comparingInt((MovieRoomModels.Movie movie) -> movie.seasonNumber)
+                .thenComparingInt(movie -> movie.episodeNumber)
+                .thenComparing(movie -> movie.title == null ? "" : movie.title));
+        for (MovieRoomModels.Movie movie : sorted) grid.addView(movieCard(movie, status));
+        scrollView.addView(grid);
+        root.addView(scrollView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
     }
 
     private void loadPosterIntoCard(MovieRoomModels.Movie movie, LinearLayout card, TextView fallback) {

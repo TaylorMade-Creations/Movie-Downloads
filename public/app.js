@@ -49,6 +49,29 @@ function classifyMovie(movie) {
   return "adults";
 }
 
+const GENRE_PATTERNS = {
+  horror: /\b(?:horror|scary|haunt|haunted|backrooms|obsession|the end of oak street)\b/i,
+  action: /\b(?:action|jurassic|superman|spider\s*man|mutiny|the fix|jackass|masters of the universe)\b/i,
+  comedy: /\b(?:comedy|home\s+alone|jackass|paw\s+patrol|toy\s+story|magic faraway tree)\b/i,
+  drama: /\b(?:drama|fifty\s+shades|mamma\s+mia|northern\s+exposure|bomb\s+girls|love hypothesis)\b/i,
+  family: FAMILY_MOVIE_PATTERN,
+  kids: KIDS_MOVIE_PATTERN,
+};
+
+function genresForMovie(movie) {
+  const metadataGenres = Array.isArray(movie && movie.genres)
+    ? movie.genres.map((genre) => String(genre || "").trim()).filter(Boolean)
+    : [];
+  const searchable = movieSearchableText(movie);
+  const inferred = Object.entries(GENRE_PATTERNS)
+    .filter(([, pattern]) => pattern.test(searchable))
+    .map(([genre]) => genre.charAt(0).toUpperCase() + genre.slice(1));
+  const combined = [...metadataGenres, ...inferred];
+  return combined.length
+    ? combined.filter((genre, index, genres) => genres.findIndex((value) => value.toLowerCase() === genre.toLowerCase()) === index)
+    : ["Uncategorized"];
+}
+
 function movieInAudience(movie, category) {
   if (category === "all") {
     return true;
@@ -68,6 +91,10 @@ function movieInAudience(movie, category) {
     return !KIDS_MOVIE_PATTERN.test(searchable)
       && !FAMILY_MOVIE_PATTERN.test(searchable)
       && !MOM_MOVIE_PATTERN.test(searchable);
+  }
+
+  if (GENRE_PATTERNS[category]) {
+    return genresForMovie(movie).some((genre) => genre.toLowerCase() === category);
   }
 
   return true;
@@ -1368,18 +1395,17 @@ function createApp({
     const viewGroups = [
       ["movies", "Movies", allMovies.filter((movie) => !isSampleMovie(movie) && movie.contentType !== "episode" && !movie.seriesName).length],
       ["collections", "Collections", collectionFolders.length + seriesCount],
-      ["genres", "Genres", new Set(allMovies.flatMap((movie) => Array.isArray(movie.genres) ? movie.genres : [])).size],
+      ["genres", "Genres", new Set(allMovies.flatMap((movie) => genresForMovie(movie))).size],
     ];
     const categoryGroups = [
       ["all", "All"],
       ["adults", "Adults"],
       ["kids", "Kids"],
-      ["mom", "Mom"],
       ["family", "Family"],
-      ["alpha-a-c", "A-C"],
-      ["alpha-d-h", "D-H"],
-      ["alpha-i-n", "I-N"],
-      ["alpha-o-z", "O-Z"],
+      ["horror", "Horror"],
+      ["action", "Action"],
+      ["comedy", "Comedy"],
+      ["drama", "Drama"],
     ];
     const buttons = viewGroups.map(([view, label, count]) => {
       const button = documentRef.createElement("button");
@@ -1643,6 +1669,22 @@ function createApp({
       return [...groups.values()].sort((left, right) => left.title.localeCompare(right.title));
     }
 
+    function addCollectionPreview(container, members) {
+      const previewMovies = (Array.isArray(members) ? members : []).filter((movie) => movie && movie.posterUrl).slice(0, 4);
+      if (!previewMovies.length) return;
+      const strip = documentRef.createElement("span");
+      strip.className = "collection-preview-strip";
+      for (const movie of previewMovies) {
+        const image = documentRef.createElement("img");
+        image.src = movie.posterUrl;
+        image.alt = "";
+        image.loading = "lazy";
+        image.decoding = "async";
+        strip.append(image);
+      }
+      container.append(strip);
+    }
+
     function createSeriesCard(series) {
       const button = documentRef.createElement("button");
       button.type = "button";
@@ -1667,6 +1709,7 @@ function createApp({
         image.addEventListener("error", () => image.remove(), { once: true });
         poster.prepend(image);
       }
+      addCollectionPreview(poster, series.episodes);
       const info = documentRef.createElement("span");
       info.className = "movie-info";
       const title = documentRef.createElement("span");
@@ -1681,6 +1724,7 @@ function createApp({
       info.append(title, meta, badge);
       button.append(poster, info);
       button.addEventListener("click", () => {
+        activeLibraryView = "movies";
         activeFolder = series.seriesPath;
         renderLibrary();
         if (movieGrid && typeof movieGrid.scrollIntoView === "function") {
@@ -1735,6 +1779,7 @@ function createApp({
         image.addEventListener("error", () => image.remove(), { once: true });
         poster.prepend(image);
       }
+      addCollectionPreview(poster, collection.movies);
       const info = documentRef.createElement("span");
       info.className = "movie-info";
       const title = documentRef.createElement("span");
@@ -1762,7 +1807,7 @@ function createApp({
     if (activeLibraryView === "genres") {
       const groups = new Map();
       for (const movie of filteredMovies) {
-        const genres = Array.isArray(movie.genres) && movie.genres.length ? movie.genres : ["Uncategorized"];
+        const genres = genresForMovie(movie);
         for (const genre of genres) {
           const label = String(genre || "Uncategorized").trim() || "Uncategorized";
           if (!groups.has(label)) groups.set(label, []);
@@ -1790,7 +1835,10 @@ function createApp({
     const episodeIds = new Set(seriesGroups.flatMap((series) => series.episodes.map((movie) => movie.id)));
     const collectionGroups = collectionGroupsForMovies(filteredMovies);
     const collectionMovieIds = new Set(collectionGroups.flatMap((collection) => collection.movies.map((movie) => movie.id)));
-    const standaloneMovies = filteredMovies.filter((movie) => (
+    const seriesDetail = activeFolder !== "all" && seriesGroups.some((series) => series.seriesPath === activeFolder);
+    const standaloneMovies = seriesDetail
+      ? filteredMovies
+      : filteredMovies.filter((movie) => (
       !episodeIds.has(movie.id) && !collectionMovieIds.has(movie.id)
     ));
     const cards = activeLibraryView === "collections"
@@ -1798,6 +1846,12 @@ function createApp({
         ...seriesGroups.map(createSeriesCard),
         ...collectionGroups.map(createCollectionCard),
       ]
+      : activeLibraryView === "movies" && activeFolder === "all"
+        ? [
+          ...seriesGroups.map(createSeriesCard),
+          ...collectionGroups.map(createCollectionCard),
+          ...standaloneMovies.map(createMovieCard),
+        ]
       : standaloneMovies.map(createMovieCard);
 
     if (!cards.length) {
