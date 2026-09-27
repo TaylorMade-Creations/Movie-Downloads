@@ -114,9 +114,22 @@ if (-not $FolderizeMovies -and -not $OrganizeSeries) {
     $OrganizeSeries = $true
 }
 
-$files = Get-ChildItem -LiteralPath $root -Recurse -File -Force |
-    Where-Object { Test-IntakeCandidate $_ } |
-    Sort-Object FullName
+$files = @()
+$files += @(Get-ChildItem -LiteralPath $root -File -Force)
+$topLevelDirectories = Get-ChildItem -LiteralPath $root -Directory -Force
+foreach ($directory in $topLevelDirectories) {
+    if ($directory.Name -in @('Applications', '_Recovery', 'TV Shows', '.incomplete', 'Mac')) {
+        continue
+    }
+    if ($directory.Name -eq 'Movies') {
+        # qBittorrent is configured to place completed files directly here.
+        # Do not recurse through already-organized title folders.
+        $files += @(Get-ChildItem -LiteralPath $directory.FullName -File -Force)
+        continue
+    }
+    $files += @(Get-ChildItem -LiteralPath $directory.FullName -Recurse -File -Force)
+}
+$files = @($files | Where-Object { Test-IntakeCandidate $_ } | Sort-Object FullName)
 $summary = [ordered]@{ Examined = 0; Stable = 0; Moved = 0; Conflicts = 0; Skipped = 0 }
 
 foreach ($file in $files) {
