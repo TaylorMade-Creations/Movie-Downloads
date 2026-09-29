@@ -10,3 +10,4 @@ movies/*
 !.env.example
 skills-lock.json
 0
+.vercel

@@ -257,6 +257,7 @@ function createApp({
   upNextPanel,
   upNextTitle,
   upNextPlay,
+  closePlayerPage,
   fetchImpl,
   locationOrigin,
   createOption,
@@ -291,6 +292,7 @@ function createApp({
   let activeFolder = "all";
   let activeCategory = "all";
   let activeLibraryView = "movies";
+  let activePage = "home";
   let heroMovies = [];
   let heroIndex = 0;
   let heroSelectionInitialized = false;
@@ -551,8 +553,35 @@ function createApp({
     if (watchMeta) {
       watchMeta.hidden = !playerVisible;
     }
-    if (scroll && playerVisible && watchStage && typeof watchStage.scrollIntoView === "function") {
-      watchStage.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (watchStage && watchStage.classList) watchStage.classList.toggle("player-page", playerVisible);
+    // Playback is a dedicated overlay, so a selection never moves the user away from its card or shelf.
+    void scroll;
+  }
+
+  function setActivePage(page) {
+    activePage = ["home", "library", "user"].includes(page) ? page : "home";
+    const homeVisible = activePage === "home";
+    const libraryVisible = activePage === "library";
+    const userVisible = activePage === "user";
+    if (heroMovie) heroMovie.hidden = !homeVisible;
+    if (continueWatchingShelf && continueWatchingShelf.closest) {
+      const shelves = continueWatchingShelf.closest(".discovery-shelves");
+      if (shelves) shelves.hidden = !homeVisible;
+    }
+    if (movieGrid && movieGrid.closest) {
+      const browse = movieGrid.closest(".browse-section");
+      if (browse) browse.hidden = !libraryVisible;
+    }
+    if (categoryShelf && categoryShelf.parentElement) categoryShelf.parentElement.hidden = !libraryVisible;
+    if (folderShelf && folderShelf.parentElement) folderShelf.parentElement.hidden = !libraryVisible;
+    if (profileMenu) {
+      profileMenu.hidden = !userVisible;
+      if (profileToggle && typeof profileToggle.setAttribute === "function") profileToggle.setAttribute("aria-expanded", userVisible ? "true" : "false");
+    }
+    if (documentRef && typeof documentRef.querySelectorAll === "function") {
+      for (const button of documentRef.querySelectorAll("[data-page]")) {
+        button.classList.toggle("active", button.dataset.page === activePage);
+      }
     }
   }
 
@@ -1193,6 +1222,28 @@ function createApp({
     };
   }
 
+  function generatedPosterUrl(movie) {
+    const title = String(movie.title || movie.fileName || "Movie").trim().slice(0, 80);
+    const initials = movieInitials(movie);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" role="img" aria-label="${title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#32769d"/><stop offset="1" stop-color="#102b4a"/></linearGradient></defs><rect width="600" height="900" fill="url(#g)"/><circle cx="480" cy="130" r="160" fill="#62e3db" opacity=".22"/><path d="M0 670 600 370v530H0z" fill="#061a31" opacity=".42"/><text x="48" y="75" fill="#a8fff0" font-family="Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="4">TAYLORMADE MOVIES</text><text x="48" y="460" fill="white" font-family="Arial,sans-serif" font-size="176" font-weight="800">${initials}</text><foreignObject x="48" y="605" width="504" height="210"><div xmlns="http://www.w3.org/1999/xhtml" style="color:white;font:700 45px Arial,sans-serif;line-height:1.12;overflow:hidden">${title.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div></foreignObject></svg>`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
+
+  function appendPosterImage(poster, movie, alt = posterAltText(movie)) {
+    const documentRef = poster && poster.ownerDocument;
+    if (!documentRef || !hasMethod(documentRef, "createElement")) return;
+    const image = documentRef.createElement("img");
+    const fallbackUrl = generatedPosterUrl(movie);
+    image.alt = alt;
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.src = fallbackUrl;
+    if (movie.posterUrl) {
+      attachArtworkImage(image, movie.posterUrl, () => { image.src = fallbackUrl; }, movie.posterFallbackUrl);
+    }
+    poster.prepend(image);
+  }
+
   function attachArtworkImage(image, url, onFailure, fallbackUrl = "") {
     let attempts = 0;
     const load = () => {
@@ -1606,14 +1657,7 @@ function createApp({
       fallbackTitle.textContent = movie.title || movie.fileName || "Movie";
       fallback.append(initials, fallbackTitle);
       poster.append(fallback);
-      if (movie.posterUrl) {
-        const image = documentRef.createElement("img");
-        image.alt = posterAltText(movie);
-        image.loading = "lazy";
-        image.decoding = "async";
-        attachArtworkImage(image, movie.posterUrl, () => image.remove(), movie.posterFallbackUrl);
-        poster.prepend(image);
-      }
+      appendPosterImage(poster, movie);
       installHoverPreview(button, poster, movie, ready);
 
       const title = documentRef.createElement("span");
@@ -1707,14 +1751,7 @@ function createApp({
       fallbackTitle.textContent = series.title;
       fallback.append(initials, fallbackTitle);
       poster.append(fallback);
-      if (series.posterUrl) {
-        const image = documentRef.createElement("img");
-        image.alt = `${series.title} series cover`;
-        image.loading = "lazy";
-        image.decoding = "async";
-        attachArtworkImage(image, series.posterUrl, () => image.remove(), series.posterFallbackUrl);
-        poster.prepend(image);
-      }
+      appendPosterImage(poster, { ...series, fileName: series.title }, `${series.title} series cover`);
       addCollectionPreview(poster, series.episodes);
       const info = documentRef.createElement("span");
       info.className = "movie-info";
@@ -1777,14 +1814,7 @@ function createApp({
       fallbackTitle.textContent = collection.title;
       fallback.append(initials, fallbackTitle);
       poster.append(fallback);
-      if (collection.posterUrl) {
-        const image = documentRef.createElement("img");
-        image.alt = `${collection.title} collection cover`;
-        image.loading = "lazy";
-        image.decoding = "async";
-        attachArtworkImage(image, collection.posterUrl, () => image.remove(), collection.posterFallbackUrl);
-        poster.prepend(image);
-      }
+      appendPosterImage(poster, { ...collection, fileName: collection.title }, `${collection.title} collection cover`);
       addCollectionPreview(poster, collection.movies);
       const info = documentRef.createElement("span");
       info.className = "movie-info";
@@ -1941,13 +1971,7 @@ function createApp({
     fallbackTitle.textContent = movie.title || movie.fileName || "Movie";
     fallback.append(initials, fallbackTitle);
     poster.append(fallback);
-    if (movie.posterUrl) {
-      const image = documentRef.createElement("img");
-      image.alt = posterAltText(movie);
-      image.loading = "lazy";
-      attachArtworkImage(image, movie.posterUrl, () => image.remove(), movie.posterFallbackUrl);
-      poster.prepend(image);
-    }
+    appendPosterImage(poster, movie);
     installHoverPreview(card, poster, movie, ready);
     const info = documentRef.createElement("span");
     info.className = "movie-info";
@@ -2052,6 +2076,7 @@ function createApp({
     renderFolderShelf();
     renderMovieGrid();
     renderDiscovery();
+    setActivePage(activePage);
   }
 
   function setPlayerMode(mode) {
@@ -2581,6 +2606,22 @@ function createApp({
   }
 
   function initialize() {
+    if (documentRef && typeof documentRef.querySelectorAll === "function") {
+      for (const button of documentRef.querySelectorAll("[data-page]")) {
+        button.addEventListener("click", () => {
+          const page = button.dataset ? button.dataset.page : "home";
+          setActivePage(page);
+        });
+      }
+    }
+    if (closePlayerPage) {
+      closePlayerPage.addEventListener("click", () => {
+        savePlaybackProgress("pause").catch(() => {});
+        if (hasMethod(player, "pause")) player.pause();
+        setPlayerVisibility(false);
+        setActivePage(activePage === "user" ? "home" : activePage);
+      });
+    }
     if (detailsClose && movieDetailsDialog) {
       detailsClose.addEventListener("click", () => {
         if (typeof movieDetailsDialog.close === "function") movieDetailsDialog.close();
@@ -2635,12 +2676,13 @@ function createApp({
 
 
     initializeViewerProfile();
+    setActivePage(activePage);
     pendingFireTvCode = readFireTvCodeFromUrl();
 
     movieSelect.addEventListener("change", () => {
       rememberMovieForProfile(movieSelect.value);
       updateNowPlaying(selectedMovie());
-      playSelectedMovie({ scrollToPlayer: true }).catch((error) => {
+      playSelectedMovie().catch((error) => {
         updateStatus(error.message);
       });
     });
@@ -3106,6 +3148,7 @@ if (typeof document !== "undefined") {
     upNextPanel: document.getElementById("up-next-panel"),
     upNextTitle: document.getElementById("up-next-title"),
     upNextPlay: document.getElementById("up-next-play"),
+    closePlayerPage: document.getElementById("close-player-page"),
     fetchImpl: fetch,
     locationOrigin: window.location.origin,
     createOption: () => document.createElement("option"),

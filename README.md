@@ -8,6 +8,8 @@ The project-owned repository control point is [`movie-workflow-blueprint/`](movi
 
 ## What changed
 
+- Version 1.1.0 adds separate Home, Library, User, and dedicated full-screen player surfaces. Selecting a ready title opens and loads its player immediately without moving the catalog scroll position.
+- Every title now renders a cover: Jellyfin artwork remains the first choice, then synced/provider artwork, then a generated TaylorMade cover built from the title when no external poster is available.
 - Password-protected catalog access with signed HttpOnly sessions
 - Recursive movie discovery for local files and OneDrive-backed libraries
 - Server-issued playback links so the browser can stream directly from the configured provider
