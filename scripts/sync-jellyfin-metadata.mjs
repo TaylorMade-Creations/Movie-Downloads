@@ -23,7 +23,8 @@ async function loadConfig() {
   const jellyfinUrl = String(config.JELLYFIN_URL || "http://127.0.0.1:8096").replace(/\/+$/, "");
   const apiKey = String(config.JELLYFIN_API_KEY || "").trim();
   if (!apiKey) throw new Error("JELLYFIN_API_KEY is not configured in the local environment.");
-  return { libraryRoot, jellyfinUrl, apiKey, libraryId: String(config.JELLYFIN_LIBRARY_ID || "").trim() };
+  const timeoutMs = Math.min(120_000, Math.max(5_000, Number(config.SYNC_JELLYFIN_TIMEOUT_MS) || 60_000));
+  return { libraryRoot, jellyfinUrl, apiKey, libraryId: String(config.JELLYFIN_LIBRARY_ID || "").trim(), timeoutMs };
 }
 
 function metadataFromItem(item) {
@@ -62,13 +63,24 @@ async function fetchItems(config) {
     Limit: "10000",
   });
   if (config.libraryId) params.set("ParentId", config.libraryId);
-  const response = await fetch(`${config.jellyfinUrl}/Items?${params.toString()}`, {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  let response;
+  try {
+    response = await fetch(`${config.jellyfinUrl}/Items?${params.toString()}`, {
     headers: {
       Accept: "application/json",
       "X-Emby-Token": config.apiKey,
       Authorization: `MediaBrowser Client="Movie Room", Device="Movie Room Server", DeviceId="movie-room-server", Version="1.0.0", Token="${config.apiKey}"`,
     },
-  });
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(`Jellyfin metadata request timed out after ${config.timeoutMs} ms.`);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) throw new Error(`Jellyfin returned HTTP ${response.status}.`);
   const payload = await response.json();
   return Array.isArray(payload.Items) ? payload.Items.filter((item) => item && item.Path) : [];
@@ -81,12 +93,6 @@ async function syncOnce() {
   let skipped = 0;
   for (const item of items) {
     const mediaPath = path.resolve(item.Path);
-    try {
-      await fs.access(mediaPath);
-    } catch {
-      skipped += 1;
-      continue;
-    }
     const relative = path.relative(config.libraryRoot, mediaPath);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
       skipped += 1;
@@ -96,22 +102,43 @@ async function syncOnce() {
     const stem = path.basename(mediaPath, path.extname(mediaPath));
     const sidecarPath = path.join(directory, `${stem}.jellyfin.json`);
     const contents = `${JSON.stringify(metadataFromItem(item), null, 2)}\n`;
+    if (!force) {
+      try {
+        const handle = await fs.open(sidecarPath, "wx");
+        try { await handle.writeFile(contents, "utf8"); }
+        finally { await handle.close(); }
+        written += 1;
+      } catch (error) {
+        if (error?.code === "EEXIST") skipped += 1;
+        else skipped += 1;
+      }
+      continue;
+    }
     let existing = "";
     try { existing = await fs.readFile(sidecarPath, "utf8"); } catch { /* new sidecar */ }
     if (existing !== contents) {
-      await fs.writeFile(sidecarPath, contents, "utf8");
-      written += 1;
+      try {
+        // Do not probe the video itself: OneDrive Files On-Demand can block
+        // reads/stat calls while hydrating a placeholder. Writing beside a
+        // path is safe when its folder is available and fails fast with
+        // ENOENT when Jellyfin still has a stale path.
+        await fs.writeFile(sidecarPath, contents, "utf8");
+        written += 1;
+      } catch {
+        skipped += 1;
+      }
     }
   }
   return { checked: items.length, written, unchanged: items.length - written - skipped, skipped };
 }
 
 const watch = process.argv.includes("--watch");
+const force = process.argv.includes("--force") || process.env.JELLYFIN_METADATA_FORCE === "1";
 const intervalMs = Math.max(30_000, Number(process.env.MOVIE_METADATA_SYNC_INTERVAL_MS) || 300_000);
 
 async function run() {
   const result = await syncOnce();
-  console.log(JSON.stringify({ ok: true, ...result, watch, intervalMs }));
+  console.log(JSON.stringify({ ok: true, ...result, watch, force, intervalMs }));
 }
 
 run().catch((error) => {

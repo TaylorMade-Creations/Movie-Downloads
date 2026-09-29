@@ -4,7 +4,7 @@ A lightweight browser app for browsing and streaming a shared movie library behi
 
 ## Project workflow source of truth
 
-The project-owned workflow control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative OneDrive Movie downloads root, provider boundary, watcher/sync commands, deployment, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes those values to project tooling. All Codex, GPT, plugin, and skill work for this app should reference that module and this checkout rather than creating a parallel project. Secrets are intentionally excluded.
+The project-owned repository control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative `main` branch, OneDrive Movie downloads root, provider boundary, watcher/sync commands, deployment, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes those values to project tooling. All Codex, GPT, plugin, and skill work for this app should reference the TaylorMade Movies repository rather than creating a parallel project. Secrets are intentionally excluded.
 
 ## What changed
 
@@ -84,6 +84,8 @@ Jellyfin can stay on the Windows computer as the library, metadata, artwork, and
    JELLYFIN_URL=http://127.0.0.1:8096
    JELLYFIN_API_KEY=your-local-jellyfin-api-key
    JELLYFIN_LIBRARY_ID=
+   # optional: pin the Jellyfin user used for compatibility playback
+   JELLYFIN_USER_ID=
    MOVIE_PASSWORD=yourpassword
    SESSION_SECRET=replace-with-a-long-random-secret
    APP_ORIGIN=http://192.168.1.169:3000
@@ -103,7 +105,11 @@ Vercel cannot reach `127.0.0.1` on the Windows computer. Keep the hosted deploym
 
 ### Jellyfin metadata with OneDrive cloud playback
 
-Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descriptions, ratings, and organization while resolving playback from the matching OneDrive file. Configure both the `JELLYFIN_*` and `ONEDRIVE_*` values shown above. Movie Room keeps Jellyfin item IDs for viewer history and UI state, matches them to OneDrive by the underlying filename, proxies artwork from Jellyfin, and returns a fresh OneDrive playback URL when a movie is selected.
+Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descriptions, ratings, and organization while resolving playback from the matching OneDrive file. Configure both the `JELLYFIN_*` and `ONEDRIVE_*` values shown above. Movie Room keeps Jellyfin item IDs for viewer history and UI state, matches them to OneDrive by the underlying filename, proxies artwork from Jellyfin, and returns a fresh OneDrive playback URL when a movie is selected. For AVI, MKV, MOV, WMV, and TS entries, the local hybrid app automatically routes playback through Jellyfin's H.264/AAC compatibility stream so browsers and Fire TV can decode the audio and video; direct MP4 playback remains cloud-backed. Set `JELLYFIN_REQUEST_TIMEOUT_MS` (1,000–120,000 ms, default 30,000) if a large Jellyfin library needs more time to answer its catalog request.
+
+The six-hour watcher also bounds its background work: `SYNC_JELLYFIN_TIMEOUT_MS` controls the Jellyfin metadata request (5,000–120,000 ms, default 60,000), and `MOVIE_ARTWORK_FETCH_TIMEOUT_MS` controls each remote artwork lookup (3,000–60,000 ms, default 15,000). A timeout preserves existing sidecars/artwork and lets the scheduled run finish instead of waiting indefinitely on an online-only OneDrive placeholder or an unavailable metadata service. The unattended path creates missing sidecars/artwork without opening existing cloud-only files; use `--force` on `scripts/sync-jellyfin-metadata.mjs` or `scripts/sync-jellyfin-artwork.mjs` for an intentional full refresh when the source files are available locally.
+
+The player also includes a shared accessible timeline (`#timeline`) tied to the media element's metadata, time updates, and seek events. It supplements device-specific native controls, so desktop Chrome, mobile browsers, Safari, and Fire TV have the same seek surface when the selected source exposes a duration.
 
 To keep matching metadata beside the locally synced OneDrive files, run `npm run metadata:sync` after a Jellyfin scan. It writes generated `*.jellyfin.json` sidecars next to matching video files, so OneDrive can sync the metadata without copying media into Jellyfin. Run `npm run artwork:sync` to place validated portrait posters and landscape backdrops beside each movie and in the deployable web bundle. The installed Windows library task runs every six hours. Metadata refresh requires a current local `JELLYFIN_API_KEY`; a 401 means the key needs to be refreshed in the private local environment file. Artwork sync can still reuse existing sidecars and retry locally accessible Jellyfin artwork without the stale key.
 

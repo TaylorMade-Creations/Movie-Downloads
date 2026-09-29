@@ -189,6 +189,9 @@ function createApp({
   passwordInput,
   submitButton,
   player,
+  timeline,
+  timelineCurrent,
+  timelineDuration,
   playerFrame,
   status,
   bufferStatus,
@@ -471,6 +474,35 @@ function createApp({
     if (bufferStatus.style) {
       bufferStatus.style.setProperty("--buffer-progress", `${Math.round(progress * 100)}%`);
     }
+  }
+
+  function formatTimelineTime(seconds) {
+    const safeSeconds = Number.isFinite(Number(seconds)) ? Math.max(0, Math.floor(Number(seconds))) : 0;
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const remaining = safeSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
+    }
+    return `${minutes}:${String(remaining).padStart(2, "0")}`;
+  }
+
+  function updateTimeline() {
+    const duration = Number.isFinite(player && player.duration) ? Math.max(0, Number(player.duration)) : 0;
+    const current = Number.isFinite(player && player.currentTime)
+      ? Math.max(0, Math.min(Number(player.currentTime), duration || Number(player.currentTime)))
+      : 0;
+    if (timeline) {
+      timeline.min = "0";
+      timeline.max = String(duration);
+      timeline.value = String(current);
+      timeline.disabled = duration <= 0;
+      if (typeof timeline.setAttribute === "function") {
+        timeline.setAttribute("aria-valuetext", `${formatTimelineTime(current)} of ${formatTimelineTime(duration)}`);
+      }
+    }
+    if (timelineCurrent) timelineCurrent.textContent = formatTimelineTime(current);
+    if (timelineDuration) timelineDuration.textContent = formatTimelineTime(duration);
   }
 
   function seekPlayerBy(offsetSeconds) {
@@ -2761,6 +2793,21 @@ function createApp({
       seekForwardButton.addEventListener("click", () => seekPlayerBy(30));
     }
 
+    if (timeline && hasMethod(timeline, "addEventListener")) {
+      timeline.addEventListener("input", (event) => {
+        const duration = Number.isFinite(player.duration) ? Math.max(0, Number(player.duration)) : 0;
+        const requested = Number(event && event.target && event.target.value);
+        if (duration <= 0 || !Number.isFinite(requested)) {
+          updateTimeline();
+          return;
+        }
+        clearStallRecovery();
+        isSeeking = true;
+        player.currentTime = Math.max(0, Math.min(requested, duration));
+        updateTimeline();
+      });
+    }
+
     player.addEventListener("webkitplaybacktargetavailabilitychanged", (event) => {
       safariAirPlayAvailable = event.availability === "available";
       updateCastButton();
@@ -2795,11 +2842,13 @@ function createApp({
     player.addEventListener("seeking", () => {
       isSeeking = true;
       clearStallRecovery();
+      updateTimeline();
       updateBufferStatus();
     });
 
     player.addEventListener("seeked", () => {
       isSeeking = false;
+      updateTimeline();
       updateStatus(statusWithBuffer("Seek complete."));
     });
 
@@ -2808,11 +2857,13 @@ function createApp({
         clearStallRecovery();
       }
       updateStatus(statusWithBuffer("Ready to play."));
+      updateTimeline();
     });
 
     player.addEventListener("canplaythrough", () => {
       clearStallRecovery();
       updateStatus(statusWithBuffer("Ready for smooth playback."));
+      updateTimeline();
     });
 
     player.addEventListener("playing", () => {
@@ -2854,6 +2905,7 @@ function createApp({
       }
 
       updateBufferStatus();
+      updateTimeline();
       scheduleProgressSave();
     });
 
@@ -2872,6 +2924,7 @@ function createApp({
     });
 
     player.addEventListener("loadedmetadata", () => {
+      updateTimeline();
       restorePlaybackProgress(movieSelect.value);
       if (!resumeAfterRefresh) {
         return;
@@ -2963,6 +3016,9 @@ if (typeof document !== "undefined") {
     passwordInput: document.getElementById("password"),
     submitButton: document.getElementById("login-submit"),
     player: document.getElementById("player"),
+    timeline: document.getElementById("timeline"),
+    timelineCurrent: document.getElementById("timeline-current"),
+    timelineDuration: document.getElementById("timeline-duration"),
     playerFrame: document.querySelector(".player-frame"),
     status: document.getElementById("status"),
     bufferStatus: document.getElementById("buffer-status"),

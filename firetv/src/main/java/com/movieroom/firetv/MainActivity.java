@@ -20,6 +20,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -62,6 +63,11 @@ public class MainActivity extends Activity {
     private boolean playerFullscreen = false;
     private int pairingGeneration = 0;
     private final PlaybackProgressStore progressStore = new PlaybackProgressStore();
+    private final Map<String, Bitmap> posterCache = new LinkedHashMap<String, Bitmap>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+            return size() > 80;
+        }
+    };
     private ViewerState viewerState;
     private MovieRoomModels.Movie activeMovie;
 
@@ -446,17 +452,7 @@ public class MainActivity extends Activity {
         ScrollView scrollView = new ScrollView(this);
         LinearLayout shelfColumn = new LinearLayout(this);
         shelfColumn.setOrientation(LinearLayout.VERTICAL);
-        GridLayout heroGrid = new GridLayout(this);
-        heroGrid.setColumnCount(isTelevision() ? 3 : 2);
-        heroGrid.setPadding(0, dp(4), 0, dp(12));
-        shelfColumn.addView(heroGrid);
         TextView allHeading = text("ALL MOVIES  •  BROWSE BY GENRE", 22);
-        allHeading.setTextColor(0xffffd166);
-        shelfColumn.addView(allHeading);
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(isTelevision() ? 3 : 2);
-        grid.setPadding(0, dp(4), 0, dp(24));
-        shelfColumn.addView(grid);
         scrollView.addView(shelfColumn);
         root.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -485,13 +481,17 @@ public class MainActivity extends Activity {
                     List<MovieRoomModels.Movie> newest = new ArrayList<>(library.movies);
                     newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.dateAdded == null ? "" : movie.dateAdded).reversed()
                             .thenComparing(movie -> movie.title == null ? "" : movie.title));
-                    heroGrid.removeAllViews();
-                    for (int index = 0; index < Math.min(5, newest.size()); index++) {
-                        heroGrid.addView(movieCard(newest.get(index), status));
+                    shelfColumn.removeAllViews();
+                    List<MovieRoomModels.Movie> continueWatching = new ArrayList<>();
+                    if (loadedState != null) {
+                        for (MovieRoomModels.Movie movie : library.movies) {
+                            ViewerState.MovieRecord record = loadedState.movies.get(movie.id);
+                            if (record != null && record.positionSeconds > 0 && !record.completed) continueWatching.add(movie);
+                        }
                     }
-                    newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.genres == null ? "" : movie.genres)
-                            .thenComparing(movie -> movie.title == null ? "" : movie.title));
-                    grid.removeAllViews();
+                    continueWatching.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.title == null ? "" : movie.title));
+                    addMovieShelf(shelfColumn, "CONTINUE WATCHING", continueWatching, status);
+                    addMovieShelf(shelfColumn, "FEATURED - NEWEST FROM JELLYFIN", newest.subList(0, Math.min(5, newest.size())), status);
                     Map<String, List<MovieRoomModels.Movie>> groups = new LinkedHashMap<>();
                     for (MovieRoomModels.Movie movie : newest) {
                         String groupKey = collectionGroupKey(movie);
@@ -500,10 +500,9 @@ public class MainActivity extends Activity {
                         }
                     }
                     Set<String> groupedIds = new HashSet<>();
-                    if (!groups.isEmpty()) grid.addView(gridSectionHeading("COLLECTIONS & SERIES", grid.getColumnCount()));
                     for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : groups.entrySet()) {
                         for (MovieRoomModels.Movie movie : entry.getValue()) groupedIds.add(movie.id);
-                        grid.addView(groupCard(entry.getKey(), entry.getValue(), status));
+                        addCollectionShelf(shelfColumn, collectionGroupTitle(entry.getKey()), entry.getValue(), status);
                     }
                     Map<String, List<MovieRoomModels.Movie>> genreGroups = new LinkedHashMap<>();
                     for (MovieRoomModels.Movie movie : newest) {
@@ -511,10 +510,8 @@ public class MainActivity extends Activity {
                             genreGroups.computeIfAbsent(nativeGenre(movie), key -> new ArrayList<>()).add(movie);
                         }
                     }
-                    if (!genreGroups.isEmpty()) grid.addView(gridSectionHeading("ALL MOVIES", grid.getColumnCount()));
                     for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : genreGroups.entrySet()) {
-                        grid.addView(gridSectionHeading(entry.getKey(), grid.getColumnCount()));
-                        for (MovieRoomModels.Movie movie : entry.getValue()) grid.addView(movieCard(movie, status));
+                        addMovieShelf(shelfColumn, entry.getKey(), entry.getValue(), status);
                     }
                 });
             } catch (MovieRoomApi.MovieRoomApiException error) {
@@ -541,19 +538,13 @@ public class MainActivity extends Activity {
         card.setPadding(dp(10), dp(10), dp(10), dp(10));
         card.setBackground(roundedBackground(0xff141414, 0xff3b3424, 1));
 
-        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = dp(isTelevision() ? 270 : 160);
-        params.height = GridLayout.LayoutParams.WRAP_CONTENT;
-        params.setMargins(dp(8), dp(8), dp(8), dp(12));
-        card.setLayoutParams(params);
-
         TextView fallback = text(initials(movie.title), 42);
         fallback.setGravity(Gravity.CENTER);
         fallback.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
         fallback.setTextColor(0xffffd166);
         card.addView(fallback, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(isTelevision() ? 152 : 112)));
+                dp(isTelevision() ? 250 : 160)));
 
         TextView title = text(movie.title, 18);
         title.setGravity(Gravity.LEFT);
@@ -587,6 +578,52 @@ public class MainActivity extends Activity {
 
         loadPosterIntoCard(movie, card, fallback);
         return card;
+    }
+
+    private void addMovieShelf(LinearLayout shelfColumn, String title, List<MovieRoomModels.Movie> movies, TextView status) {
+        if (movies == null || movies.isEmpty()) return;
+        TextView heading = text(title, 22);
+        heading.setTextColor(0xffffd166);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        heading.setPadding(dp(8), dp(18), dp(8), dp(4));
+        shelfColumn.addView(heading);
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(dp(4), dp(4), dp(12), dp(16));
+        for (MovieRoomModels.Movie movie : movies) {
+            View card = movieCard(movie, status);
+            row.addView(card, new LinearLayout.LayoutParams(
+                    dp(isTelevision() ? 220 : 160),
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        scroll.addView(row);
+        shelfColumn.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void addCollectionShelf(LinearLayout shelfColumn, String title, List<MovieRoomModels.Movie> members, TextView status) {
+        if (members == null || members.isEmpty()) return;
+        TextView heading = text(title, 22);
+        heading.setTextColor(0xffffd166);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        heading.setPadding(dp(8), dp(18), dp(8), dp(4));
+        shelfColumn.addView(heading);
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(dp(4), dp(4), dp(12), dp(16));
+        View card = groupCard(title, members, status);
+        row.addView(card, new LinearLayout.LayoutParams(
+                dp(isTelevision() ? 220 : 160), LinearLayout.LayoutParams.WRAP_CONTENT));
+        scroll.addView(row);
+        shelfColumn.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
     private String collectionGroupKey(MovieRoomModels.Movie movie) {
@@ -647,19 +684,13 @@ public class MainActivity extends Activity {
         card.setClickable(true);
         card.setPadding(dp(10), dp(10), dp(10), dp(10));
         card.setBackground(roundedBackground(0xff171717, 0xff6d5420, 1));
-        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = dp(isTelevision() ? 270 : 160);
-        params.height = GridLayout.LayoutParams.WRAP_CONTENT;
-        params.setMargins(dp(8), dp(8), dp(8), dp(12));
-        card.setLayoutParams(params);
-
         TextView cover = text(initials(collectionGroupTitle(key)), 42);
         cover.setGravity(Gravity.CENTER);
         cover.setTextColor(0xffffd166);
         cover.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
         card.addView(cover, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(isTelevision() ? 152 : 112)));
+                dp(isTelevision() ? 250 : 160)));
         TextView title = text(collectionGroupTitle(key), 18);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
@@ -667,6 +698,7 @@ public class MainActivity extends Activity {
         TextView meta = text(members.size() + (key.startsWith("SERIES|") ? " episodes" : " movies") + "  •  Open folder", 14);
         meta.setTextColor(0xffffd166);
         card.addView(meta);
+        loadPosterIntoCard(members.get(0), card, cover);
         card.setOnFocusChangeListener((view, hasFocus) -> {
             view.setScaleX(hasFocus ? 1.04f : 1.0f);
             view.setScaleY(hasFocus ? 1.04f : 1.0f);
@@ -708,9 +740,18 @@ public class MainActivity extends Activity {
             return;
         }
 
+        Bitmap cached;
+        synchronized (posterCache) {
+            cached = posterCache.get(movie.posterUrl);
+        }
+        if (cached != null) {
+            applyPoster(card, fallback, cached);
+            return;
+        }
+
         new Thread(() -> {
             try {
-                byte[] bytes = api.downloadPoster(movie.posterUrl);
+                byte[] bytes = api.downloadPoster(movie.posterUrl, tokenStore.getDeviceToken());
                 if (bytes.length == 0) {
                     return;
                 }
@@ -718,24 +759,27 @@ public class MainActivity extends Activity {
                 if (bitmap == null) {
                     return;
                 }
-                handler.post(() -> {
-                    int index = card.indexOfChild(fallback);
-                    if (index < 0) {
-                        return;
-                    }
-                    ImageView poster = new ImageView(this);
-                    poster.setImageBitmap(bitmap);
-                    poster.setBackgroundColor(0xff050505);
-                    poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    card.removeView(fallback);
-                    card.addView(poster, index, new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            dp(isTelevision() ? 152 : 112)));
-                });
+                synchronized (posterCache) {
+                    posterCache.put(movie.posterUrl, bitmap);
+                }
+                handler.post(() -> applyPoster(card, fallback, bitmap));
             } catch (Exception ignored) {
                 // Keep the clean initials fallback when no poster is available yet.
             }
         }).start();
+    }
+
+    private void applyPoster(LinearLayout card, TextView fallback, Bitmap bitmap) {
+        int index = card.indexOfChild(fallback);
+        if (index < 0) return;
+        ImageView poster = new ImageView(this);
+        poster.setImageBitmap(bitmap);
+        poster.setBackgroundColor(0xff050505);
+        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        card.removeView(fallback);
+        card.addView(poster, index, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(isTelevision() ? 250 : 160)));
     }
 
     private void startMovie(MovieRoomModels.Movie movie, TextView status) {

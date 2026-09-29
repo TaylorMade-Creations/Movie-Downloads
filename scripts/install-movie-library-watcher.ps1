@@ -19,5 +19,6 @@ $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $escapedScri
 $action = New-ScheduledTaskAction -Execute $shell.Source -Argument $arguments
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($IntervalMinutes) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Description 'Organizes completed Movie Room downloads and refreshes Jellyfin metadata without deleting source media.' -Force | Out-Null
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DontStopOnIdleEnd -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Organizes completed Movie Room downloads and refreshes Jellyfin metadata without deleting source media.' -Force | Out-Null
 Write-Output "Installed '$TaskName' to scan $LibraryRoot every $IntervalMinutes minutes."

@@ -63,6 +63,35 @@ test("hybrid provider keeps Jellyfin metadata and resolves playback through OneD
   assert.deepEqual(playbackRequests, ["onedrive-file-1"]);
 });
 
+test("hybrid provider uses Jellyfin compatibility playback for browser-hostile containers", async () => {
+  const compatibilityRequests = [];
+  const provider = createHybridProvider({
+    jellyfinProvider: {
+      async listLibrary() {
+        return { movies: [metadataMovie({ fileName: "Bomb Girls.mkv" })], folders: [] };
+      },
+      async proxyImage() { return new Response("poster"); },
+      async resolvePlayback(id, options) {
+        compatibilityRequests.push({ id, options });
+        return { url: `/api/jellyfin/stream?movieId=${id}&transcode=1`, contentType: "video/mp4" };
+      },
+    },
+    oneDriveProvider: {
+      async listLibrary() {
+        return { movies: [{ id: "cloud-bomb-girls", fileName: "Bomb Girls.mkv", folder: "Movies/Bomb Girls", size: 100 }], folders: [] };
+      },
+      async resolvePlayback() { throw new Error("browser-hostile media must use Jellyfin compatibility playback"); },
+    },
+  });
+
+  await provider.listLibrary();
+  assert.deepEqual(await provider.resolvePlayback("jellyfin-movie-1"), {
+    url: "/api/jellyfin/stream?movieId=jellyfin-movie-1&transcode=1",
+    contentType: "video/mp4",
+  });
+  assert.deepEqual(compatibilityRequests, [{ id: "jellyfin-movie-1", options: { transcode: true } }]);
+});
+
 test("hybrid provider fails safely instead of playing an unrelated cloud file", async () => {
   const provider = createHybridProvider({
     jellyfinProvider: {

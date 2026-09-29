@@ -84,6 +84,7 @@ test("Jellyfin provider resolves playback and forwards byte ranges to Jellyfin",
     env: { JELLYFIN_URL: "http://jellyfin.local:8096", JELLYFIN_API_KEY: "server-key" },
     fetchImpl: async (url, options = {}) => {
       requests.push({ url: String(url), options });
+      if (String(url).endsWith("/Users")) return jsonResponse([{ Id: "user-1" }]);
       if (String(url).includes("/Items/movie-1?")) {
         return jsonResponse({
           Id: "movie-1",
@@ -121,6 +122,57 @@ test("Jellyfin provider resolves playback and forwards byte ranges to Jellyfin",
   assert.equal(streamRequest.options.headers.Range, "bytes=0-10");
   assert.match(streamRequest.options.headers.Authorization, /Token="server-key"/);
   assert.equal(streamRequest.options.headers["X-Emby-Token"], "server-key");
+});
+
+test("Jellyfin provider exposes an H264/AAC compatibility stream for unsupported containers", async () => {
+  const requests = [];
+  const provider = createJellyfinProvider({
+    env: { JELLYFIN_URL: "http://jellyfin.local:8096", JELLYFIN_API_KEY: "server-key" },
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url: String(url), options });
+      if (String(url).endsWith("/Users")) return jsonResponse([{ Id: "user-1" }]);
+      if (String(url).includes("/Items/movie-avi?")) {
+        return jsonResponse({ Id: "movie-avi", Name: "Bomb Girls", Path: "C:\\Movies\\Bomb Girls.avi" });
+      }
+      return new Response("transcoded", { status: 200, headers: { "content-type": "video/mp4" } });
+    },
+  });
+
+  const playback = await provider.resolvePlayback("movie-avi", { transcode: true });
+  assert.deepEqual(playback, {
+    url: "/api/jellyfin/stream?movieId=movie-avi&transcode=1",
+    expiresAt: null,
+    contentType: "video/mp4",
+    title: "Bomb Girls",
+  });
+
+  const upstream = await provider.proxyStream("movie-avi", { method: "GET", headers: {} }, { transcode: true });
+  assert.equal(upstream.status, 200);
+  const streamRequest = requests.find((entry) => entry.url.includes("/Videos/movie-avi/stream"));
+  assert.match(streamRequest.url, /Static=false/);
+  assert.match(streamRequest.url, /VideoCodec=h264/);
+  assert.match(streamRequest.url, /AudioCodec=aac/);
+  assert.match(streamRequest.url, /Container=mp4/);
+  assert.match(streamRequest.url, /EnableAutoStreamCopy=false/);
+});
+
+test("Jellyfin playback resolves item details through a valid Jellyfin user context", async () => {
+  const requests = [];
+  const provider = createJellyfinProvider({
+    env: { JELLYFIN_URL: "http://jellyfin.local:8096", JELLYFIN_API_KEY: "server-key" },
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url: String(url), options });
+      if (String(url).endsWith("/Users")) return jsonResponse([{ Id: "user-1" }]);
+      if (String(url).includes("/Users/user-1/Items/movie-1")) {
+        return jsonResponse({ Id: "movie-1", Name: "Movie One", Path: "C:\\Movies\\Movie One.mkv" });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const playback = await provider.resolvePlayback("movie-1", { transcode: true });
+  assert.equal(playback.title, "Movie One");
+  assert.match(requests[1].url, /\/Users\/user-1\/Items\/movie-1/);
 });
 
 test("Jellyfin provider fails closed when the server key is missing", async () => {

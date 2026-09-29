@@ -1036,6 +1036,46 @@ test("redirects a valid Cast ticket to a fresh OneDrive playback URL", async (t)
   assert.equal(streamResponse.headers.get("access-control-allow-origin"), "*");
 });
 
+test("proxies hybrid Cast playback instead of rejecting Jellyfin compatibility routes", async (t) => {
+  const { root, publicDir } = createTempLibrary();
+  const provider = {
+    kind: "hybrid",
+    async listMovies() {
+      return [{ id: "hybrid-movie-id", title: "Hybrid Movie", fileName: "Hybrid Movie.mkv", size: 1024 }];
+    },
+    async resolvePlayback() {
+      return { url: "/api/jellyfin/stream?movieId=hybrid-movie-id&transcode=1", contentType: "video/mp4" };
+    },
+    async proxyStream(movieId, request) {
+      assert.equal(movieId, "hybrid-movie-id");
+      assert.equal(request.headers.range, "bytes=0-");
+      return new Response("transcoded-video", { status: 200, headers: { "content-type": "video/mp4" } });
+    },
+  };
+  const server = await startServer(createAuthOptions({ publicDir, provider }));
+  t.after(() => {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const { port } = server.address();
+  const origin = `http://127.0.0.1:${port}`;
+  const authResponse = await login(port);
+  const ticketResponse = await fetch(`${origin}/api/cast/playback`, {
+    method: "POST",
+    headers: {
+      Cookie: authResponse.headers.get("set-cookie"),
+      "Content-Type": "application/json",
+      Origin: origin,
+    },
+    body: JSON.stringify({ movieId: "hybrid-movie-id" }),
+  });
+  const ticket = await ticketResponse.json();
+  const streamResponse = await fetch(ticket.url, { headers: { Range: "bytes=0-" } });
+  assert.equal(streamResponse.status, 200);
+  assert.equal(await streamResponse.text(), "transcoded-video");
+});
+
 test("returns folder previews including empty hidden local folders", async (t) => {
   const { root, moviesDir, publicDir } = createTempLibrary();
   fs.mkdirSync(path.join(moviesDir, ".Hidden Uploads"), { recursive: true });
@@ -1249,6 +1289,86 @@ test("supports partial content requests for background buffering and seeking", a
   assert.equal(response.headers.get("accept-ranges"), "bytes");
   assert.equal(response.headers.get("content-range"), "bytes 2-5/10");
   assert.equal(await response.text(), "2345");
+});
+
+test("keeps the shared timeline usable when native video controls differ by device", async () => {
+  const listeners = {};
+  const timeline = {
+    value: "0",
+    min: "0",
+    max: "0",
+    disabled: true,
+    addEventListener(name, listener) {
+      listeners[`timeline:${name}`] = listener;
+    },
+    setAttribute() {},
+  };
+  const timelineCurrent = { textContent: "0:00" };
+  const timelineDuration = { textContent: "0:00" };
+  const movieSelect = {
+    value: "",
+    innerHTML: "",
+    disabled: true,
+    addEventListener() {},
+    appendChild(option) {
+      if (!this.value) this.value = option.value;
+    },
+  };
+  const player = {
+    currentTime: 0,
+    duration: 120,
+    paused: true,
+    ended: false,
+    buffered: { length: 0 },
+    addEventListener(name, listener) {
+      listeners[`player:${name}`] = listener;
+    },
+    load() {},
+    removeAttribute() {},
+  };
+
+  const app = createApp({
+    movieSelect,
+    reloadButton: { addEventListener() {} },
+    logoutButton: { addEventListener() {} },
+    passwordForm: { addEventListener() {} },
+    passwordInput: {},
+    player,
+    status: { textContent: "" },
+    loginStatus: {},
+    authPanel: {},
+    libraryPanel: {},
+    timeline,
+    timelineCurrent,
+    timelineDuration,
+    fetchImpl: async (url) => {
+      if (url === "/api/session") {
+        return { ok: true, status: 200, json: async () => ({ authenticated: true, authConfigured: true }) };
+      }
+      if (url === "/api/library") {
+        return { ok: true, status: 200, json: async () => [{ id: "movie-1", title: "Movie One", size: 100 }] };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+    createOption: () => ({}),
+  });
+
+  app.initialize();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  listeners["player:loadedmetadata"]();
+  assert.equal(timeline.min, "0");
+  assert.equal(timeline.max, "120");
+  assert.equal(timeline.disabled, false);
+  assert.equal(timelineDuration.textContent, "2:00");
+
+  player.currentTime = 37;
+  listeners["player:timeupdate"]();
+  assert.equal(timeline.value, "37");
+  assert.equal(timelineCurrent.textContent, "0:37");
+
+  listeners["timeline:input"]({ target: { value: "52" } });
+  assert.equal(player.currentTime, 52);
 });
 
 test("supports suffix byte ranges and HEAD range probes", async (t) => {

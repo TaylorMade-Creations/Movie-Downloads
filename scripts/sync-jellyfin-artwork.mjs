@@ -19,6 +19,7 @@ const tvRoot = path.join(configuredRoot, "TV Shows");
 const jellyfinUrl = String(process.env.JELLYFIN_URL || "http://127.0.0.1:8096").replace(/\/+$/, "");
 const apiKey = String(process.env.JELLYFIN_API_KEY || "").trim();
 const force = process.argv.includes("--force");
+const artworkFetchTimeoutMs = Math.min(60_000, Math.max(3_000, Number(process.env.MOVIE_ARTWORK_FETCH_TIMEOUT_MS) || 15_000));
 
 function comparableTitle(value) {
   return String(value || "")
@@ -92,6 +93,31 @@ async function writeIfChanged(filePath, bytes) {
   return true;
 }
 
+async function writeIfMissing(filePath, bytes) {
+  try {
+    const handle = await fs.open(filePath, "wx");
+    try { await handle.writeFile(Buffer.from(bytes)); }
+    finally { await handle.close(); }
+    return true;
+  } catch (error) {
+    if (["EEXIST", "ENOENT"].includes(error?.code)) return false;
+    throw error;
+  }
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), artworkFetchTimeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(`Artwork request timed out after ${artworkFetchTimeoutMs} ms.`);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchImage(url, { allowAnonymousRetry = false } = {}) {
   const headers = apiKey
     ? {
@@ -99,9 +125,9 @@ async function fetchImage(url, { allowAnonymousRetry = false } = {}) {
       Authorization: `MediaBrowser Client="Movie Room Artwork", Device="Windows", DeviceId="movie-room-artwork", Version="1.0.0", Token="${apiKey}"`,
     }
     : {};
-  let response = await fetch(url, { headers });
+  let response = await fetchWithTimeout(url, { headers });
   if (allowAnonymousRetry && (response.status === 401 || response.status === 403) && apiKey) {
-    response = await fetch(url);
+    response = await fetchWithTimeout(url);
   }
   if (!response.ok || !/^image\//i.test(response.headers.get("content-type") || "")) return null;
   return Buffer.from(await response.arrayBuffer());
@@ -117,7 +143,7 @@ async function findOfficialPoster(title, year) {
   appleUrl.searchParams.set("media", "movie");
   appleUrl.searchParams.set("entity", "movie");
   appleUrl.searchParams.set("limit", "15");
-  const appleResponse = await fetch(appleUrl, { headers: { Accept: "application/json" } });
+  const appleResponse = await fetchWithTimeout(appleUrl, { headers: { Accept: "application/json" } });
   if (appleResponse.ok) {
     const payload = await appleResponse.json();
     const exact = (Array.isArray(payload.results) ? payload.results : []).filter((result) => (
@@ -147,7 +173,7 @@ async function findOfficialPoster(title, year) {
     origin: "*",
   };
   for (const [key, value] of Object.entries(params)) wikipediaUrl.searchParams.set(key, value);
-  const wikipediaResponse = await fetch(wikipediaUrl, {
+  const wikipediaResponse = await fetchWithTimeout(wikipediaUrl, {
     headers: { Accept: "application/json", "User-Agent": "TaylorMadeMovies/1.0 private media library" },
   });
   if (!wikipediaResponse.ok) return null;
@@ -166,6 +192,7 @@ async function findOfficialPoster(title, year) {
 
 async function collectEntries(rootDir) {
   const sidecars = new Map();
+  const filesByDirectory = new Map();
   const videos = [];
   async function walk(currentDir) {
     let entries;
@@ -179,15 +206,20 @@ async function collectEntries(rootDir) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         await walk(fullPath);
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".jellyfin.json")) {
+      } else {
+        const files = filesByDirectory.get(currentDir) || new Set();
+        files.add(entry.name);
+        filesByDirectory.set(currentDir, files);
+        if (entry.isFile() && entry.name.toLowerCase().endsWith(".jellyfin.json")) {
         try {
           const metadata = JSON.parse(await fs.readFile(fullPath, "utf8"));
-          sidecars.set(path.dirname(fullPath), { directory: path.dirname(fullPath), metadata });
+            sidecars.set(path.dirname(fullPath), { directory: path.dirname(fullPath), metadata });
         } catch (error) {
           console.warn(`skip invalid sidecar ${fullPath}: ${error.message}`);
         }
-      } else if (entry.isFile() && isStreamableExtension(entry.name)) {
-        videos.push({ directory: path.dirname(fullPath), fileName: entry.name });
+        } else if (entry.isFile() && isStreamableExtension(entry.name)) {
+          videos.push({ directory: path.dirname(fullPath), fileName: entry.name });
+        }
       }
     }
   }
@@ -196,6 +228,7 @@ async function collectEntries(rootDir) {
     if (sidecars.has(video.directory)) continue;
     sidecars.set(video.directory, {
       directory: video.directory,
+      files: filesByDirectory.get(video.directory) || new Set([video.fileName]),
       metadata: {
         title: movieTitleFromName(video.fileName),
         year: yearFrom(video.fileName),
@@ -205,11 +238,15 @@ async function collectEntries(rootDir) {
       },
     });
   }
-  return [...sidecars.values()];
+  return [...sidecars.values()].map((entry) => ({
+    ...entry,
+    files: filesByDirectory.get(entry.directory) || new Set(),
+  }));
 }
 
 async function collectEpisodeSidecars(rootDir) {
   const results = [];
+  const filesByDirectory = new Map();
   async function walk(currentDir) {
     let entries;
     try { entries = await fs.readdir(currentDir, { withFileTypes: true }); }
@@ -217,19 +254,24 @@ async function collectEpisodeSidecars(rootDir) {
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) await walk(fullPath);
-      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".jellyfin.json")) {
-        try {
-          const metadata = JSON.parse(await fs.readFile(fullPath, "utf8"));
-          if (metadata.seriesName) results.push({ directory: currentDir, stem: entry.name.replace(/\.jellyfin\.json$/i, ""), metadata });
-        } catch { /* metadata sync will repair malformed sidecars */ }
+      else {
+        const files = filesByDirectory.get(currentDir) || new Set();
+        files.add(entry.name);
+        filesByDirectory.set(currentDir, files);
+        if (entry.isFile() && entry.name.toLowerCase().endsWith(".jellyfin.json")) {
+          try {
+            const metadata = JSON.parse(await fs.readFile(fullPath, "utf8"));
+            if (metadata.seriesName) results.push({ directory: currentDir, stem: entry.name.replace(/\.jellyfin\.json$/i, ""), metadata });
+          } catch { /* metadata sync will repair malformed sidecars */ }
+        }
       }
     }
   }
   await walk(rootDir);
-  return results;
+  return results.map((entry) => ({ ...entry, files: filesByDirectory.get(entry.directory) || new Set() }));
 }
 
-async function syncEntry({ directory, metadata }) {
+async function syncEntry({ directory, metadata, files = new Set() }) {
   const title = String(metadata.title || "").trim();
   if (!title) return;
   const slug = posterSlugFromTitle(title);
@@ -240,9 +282,13 @@ async function syncEntry({ directory, metadata }) {
   const localBackdrop = path.join(directory, "backdrop.jpg");
   const deployedBackdrop = path.join(repoRoot, "public", "backdrops", `${slug}.jpg`);
 
-  const existingPosterBytes = await readIfPresent(localPoster);
-  let posterBytes = !force ? existingPosterBytes : null;
-  let posterSource = posterBytes && isPoster(posterBytes) ? "existing movie folder" : "";
+  const existingPosterBytes = force ? await readIfPresent(localPoster) : null;
+  let posterBytes = force ? null : undefined;
+  let posterSource = !force && files.has("poster.jpg") ? "existing movie folder" : "";
+  if (force && existingPosterBytes && isPoster(existingPosterBytes)) {
+    posterBytes = existingPosterBytes;
+    posterSource = "existing movie folder";
+  }
   let jellyfinPrimaryBytes = null;
   if (!posterSource && metadata.providerId && metadata.poster) {
     const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Primary?maxWidth=900&quality=92`;
@@ -264,14 +310,9 @@ async function syncEntry({ directory, metadata }) {
     posterBytes = jellyfinPrimaryBytes;
     posterSource = "Jellyfin thumbnail";
   }
-  if (!posterSource && existingPosterBytes) {
-    posterBytes = existingPosterBytes;
-    posterSource = "existing Jellyfin folder artwork";
-  }
-  // Some older downloads have a valid backdrop but no portrait poster. Keep
-  // those titles visible and stable by using the existing artwork as a
-  // last-resort poster; future Jellyfin metadata can replace it deliberately.
-  if (!posterSource) {
+  // A force run may use older folder artwork as a last-resort poster. The
+  // unattended path never opens an existing cloud-only image.
+  if (!posterSource && force) {
     const fallbackArtwork = await readIfPresent(path.join(directory, "folder.jpg"))
       || await readIfPresent(path.join(directory, "thumb.jpg"))
       || await readIfPresent(localBackdrop);
@@ -280,20 +321,21 @@ async function syncEntry({ directory, metadata }) {
       posterSource = "existing artwork fallback";
     }
   }
-  if (posterSource) {
-    await Promise.all([
-      writeIfChanged(localPoster, posterBytes),
-      writeIfChanged(localFolderPoster, posterBytes),
-      writeIfChanged(localThumb, posterBytes),
-      writeIfChanged(deployedPoster, posterBytes),
-    ]);
+  if (posterSource && posterBytes) {
+    const writes = force
+      ? [writeIfChanged(localPoster, posterBytes), writeIfChanged(localFolderPoster, posterBytes), writeIfChanged(localThumb, posterBytes), writeIfChanged(deployedPoster, posterBytes)]
+      : [writeIfMissing(localPoster, posterBytes), writeIfMissing(localFolderPoster, posterBytes), writeIfMissing(localThumb, posterBytes), writeIfChanged(deployedPoster, posterBytes)];
+    await Promise.all(writes);
+    console.log(`poster ${title} (${metadata.year || "year unknown"}) <- ${posterSource}`);
+  } else if (posterSource) {
     console.log(`poster ${title} (${metadata.year || "year unknown"}) <- ${posterSource}`);
   } else {
     console.warn(`poster missing ${title} (${metadata.year || "year unknown"})`);
   }
 
-  let backdropBytes = !force ? await readIfPresent(localBackdrop) : null;
-  let backdropSource = backdropBytes && isBackdrop(backdropBytes) ? "existing movie folder" : "";
+  let backdropBytes = force ? await readIfPresent(localBackdrop) : null;
+  let backdropSource = !force && files.has("backdrop.jpg") ? "existing movie folder" : "";
+  if (force && backdropBytes && isBackdrop(backdropBytes)) backdropSource = "existing movie folder";
   if (!backdropSource && metadata.providerId && metadata.backdrop) {
     const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Backdrop?maxWidth=1600&quality=88`;
     const candidate = await fetchImage(url, { allowAnonymousRetry: true });
@@ -302,22 +344,26 @@ async function syncEntry({ directory, metadata }) {
       backdropSource = "Jellyfin";
     }
   }
-  if (backdropSource) {
-    await Promise.all([
-      writeIfChanged(localBackdrop, backdropBytes),
-      writeIfChanged(deployedBackdrop, backdropBytes),
-    ]);
+  if (backdropSource && backdropBytes) {
+    const writes = force
+      ? [writeIfChanged(localBackdrop, backdropBytes), writeIfChanged(deployedBackdrop, backdropBytes)]
+      : [writeIfMissing(localBackdrop, backdropBytes), writeIfChanged(deployedBackdrop, backdropBytes)];
+    await Promise.all(writes);
+    console.log(`backdrop ${title} <- ${backdropSource}`);
+  } else if (backdropSource) {
     console.log(`backdrop ${title} <- ${backdropSource}`);
   }
 }
 
-async function syncEpisodeThumbnail({ directory, stem, metadata }) {
+async function syncEpisodeThumbnail({ directory, stem, metadata, files = new Set() }) {
+  const safeStem = stem.replace(/[^a-z0-9._ -]+/gi, " ").replace(/\s+/g, " ").trim();
+  if (!force && (files.has(`${safeStem}-thumb.jpg`) || files.has(`${safeStem}-poster.jpg`))) return false;
   let bytes = null;
   if (metadata.providerId && metadata.poster) {
     const url = `${jellyfinUrl}/Items/${encodeURIComponent(metadata.providerId)}/Images/Primary?maxWidth=900&quality=92`;
     bytes = await fetchImage(url, { allowAnonymousRetry: true });
   }
-  if (!bytes) {
+  if (!bytes && force) {
     bytes = await readIfPresent(path.join(directory, "poster.jpg"))
       || await readIfPresent(path.join(directory, "thumb.jpg"))
       || await readIfPresent(path.join(path.dirname(directory), "poster.jpg"))
@@ -326,11 +372,10 @@ async function syncEpisodeThumbnail({ directory, stem, metadata }) {
   // Episode artwork may be a landscape still rather than a portrait poster;
   // it is still the authoritative Jellyfin thumbnail for that episode.
   if (!bytes) return false;
-  const safeStem = stem.replace(/[^a-z0-9._ -]+/gi, " ").replace(/\s+/g, " ").trim();
-  await Promise.all([
-    writeIfChanged(path.join(directory, `${safeStem}-thumb.jpg`), bytes),
-    writeIfChanged(path.join(directory, `${safeStem}-poster.jpg`), bytes),
-  ]);
+  const writes = force
+    ? [writeIfChanged(path.join(directory, `${safeStem}-thumb.jpg`), bytes), writeIfChanged(path.join(directory, `${safeStem}-poster.jpg`), bytes)]
+    : [writeIfMissing(path.join(directory, `${safeStem}-thumb.jpg`), bytes), writeIfMissing(path.join(directory, `${safeStem}-poster.jpg`), bytes)];
+  await Promise.all(writes);
   return true;
 }
 

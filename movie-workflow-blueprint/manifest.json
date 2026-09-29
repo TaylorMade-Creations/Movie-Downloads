@@ -2,9 +2,10 @@
   "name": "Taylor-Made Movies / Movie Room",
   "version": 1,
   "sourceOfTruth": {
+    "label": "TaylorMade Movies repository",
     "repository": "https://github.com/taylormade02471/Movie-Downloads",
-    "branch": "copilot/you-have-the-handiff-now",
-    "rule": "All Codex, GPT, plugin, and skill work for this project references this checkout and branch as the source of truth. System-managed plugins and skills remain in their managed directories and are not copied into this project."
+    "branch": "main",
+    "rule": "All Codex, GPT, plugin, and skill work for this project references this repository and its main branch as the source of truth. System-managed plugins and skills remain in their managed directories and are not copied into this project."
   },
   "deployment": {
     "provider": "Vercel",

@@ -1344,8 +1344,8 @@ function createRequestHandler(options = {}) {
 
         const castPlayback = await context.castPlaybackManager.get(url.searchParams.get("ticket"));
 
-        if (context.provider.kind === "jellyfin") {
-          const upstream = await context.provider.proxyStream(castPlayback.movieId, request);
+        if (context.provider.kind === "jellyfin" || context.provider.kind === "hybrid") {
+          const upstream = await context.provider.proxyStream(castPlayback.movieId, request, { transcode: true });
           await proxyFetchResponse(request, response, upstream, castMediaHeaders());
           return;
         }
@@ -1430,11 +1430,15 @@ function createRequestHandler(options = {}) {
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/jellyfin/stream") {
         await context.sessionManager.get(request, true);
         if (context.provider.kind !== "jellyfin") {
-          throw new HttpError(404, "Jellyfin streaming is not enabled.");
+          if (context.provider.kind !== "hybrid") {
+            throw new HttpError(404, "Jellyfin streaming is not enabled.");
+          }
         }
         const itemId = url.searchParams.get("movieId") || "";
         if (!itemId) throw new HttpError(400, "A Jellyfin item id is required.");
-        const upstream = await context.provider.proxyStream(itemId, request);
+        const upstream = await context.provider.proxyStream(itemId, request, {
+          transcode: url.searchParams.get("transcode") === "1",
+        });
         await proxyFetchResponse(request, response, upstream);
         return;
       }

@@ -396,6 +396,41 @@
         background: #000;
       }
 
+      .timeline-control {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px 2px;
+        background: #0a0a0a;
+      }
+
+      .timeline-control input[type="range"] {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+        accent-color: var(--gold);
+        cursor: pointer;
+      }
+
+      .timeline-control input[type="range"]:disabled {
+        cursor: not-allowed;
+        opacity: .45;
+      }
+
+      .timeline-time {
+        color: #d7d7d7;
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+      }
+
+      .timeline-times {
+        display: inline-flex;
+        justify-content: flex-end;
+        gap: 4px;
+        white-space: nowrap;
+      }
+
       .watch-meta {
         display: grid;
         gap: 10px;
@@ -1151,7 +1186,7 @@
             </div>
           </div>
           <div class="player-frame" hidden>
-            <video
+              <video
               id="player"
               controls
               preload="auto"
@@ -1160,7 +1195,15 @@
               x-webkit-airplay="allow"
               controlsList="nodownload"
               aria-describedby="status"
-            ></video>
+              ></video>
+            <div class="timeline-control" aria-label="Movie timeline">
+              <input id="timeline" type="range" min="0" max="0" value="0" step="0.1" disabled aria-label="Seek movie" />
+              <span class="timeline-times">
+                <span id="timeline-current" class="timeline-time">0:00</span>
+                <span class="timeline-time" aria-hidden="true">/</span>
+                <span id="timeline-duration" class="timeline-time">0:00</span>
+              </span>
+            </div>
             <button id="fullscreen-player" class="fullscreen-overlay" type="button" aria-label="Play video full screen">
               Full screen
             </button>
