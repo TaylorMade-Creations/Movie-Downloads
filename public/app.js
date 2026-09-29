@@ -1700,20 +1700,24 @@ function createApp({
         const seriesPath = movie.seriesPath || String(movie.folder || "").replace(/\/+(?:Season\s*\d+|S\d+)$/i, "");
         const seriesName = movie.seriesName || seriesPath.split("/").filter(Boolean).pop() || "TV series";
         if (!seriesPath) continue;
+        const moviePosterUrl = String(movie.posterUrl || "");
+        const titlePosterUrl = remoteArtworkUrl({ title: seriesName });
+        const seriesPosterUrl = moviePosterUrl && !moviePosterUrl.startsWith("/api/artwork")
+          ? moviePosterUrl
+          : titlePosterUrl;
         const key = seriesPath.toLowerCase();
         if (!groups.has(key)) {
           groups.set(key, {
             title: seriesName,
             seriesPath,
-            posterUrl: movie.posterUrl || "",
-            posterFallbackUrl: movie.posterFallbackUrl || "",
+            posterUrl: seriesPosterUrl,
+            posterFallbackUrl: titlePosterUrl,
             episodes: [],
             seasons: new Set(),
           });
         }
         const group = groups.get(key);
-        if (!group.posterUrl && movie.posterUrl) group.posterUrl = movie.posterUrl;
-        if (!group.posterFallbackUrl && movie.posterFallbackUrl) group.posterFallbackUrl = movie.posterFallbackUrl;
+        if (!group.posterUrl && seriesPosterUrl) group.posterUrl = seriesPosterUrl;
         group.episodes.push(movie);
         group.seasons.add(Number(movie.seasonNumber) || movie.seasonName || "Season");
       }
@@ -1789,11 +1793,16 @@ function createApp({
           movie.folder === folder.path || movie.folder.startsWith(`${folder.path}/`)
         ));
         if (!members.length) return null;
+        const title = folder.name || folder.path.split("/").pop() || "Collection";
+        const memberWithRealPoster = members.find((movie) => (
+          movie.posterUrl && !String(movie.posterUrl).startsWith("/api/artwork")
+        ));
+        const titlePosterUrl = remoteArtworkUrl({ title });
         return {
-          title: folder.name || folder.path.split("/").pop() || "Collection",
+          title,
           collectionPath: folder.path,
-          posterUrl: (members.find((movie) => movie.posterUrl) || {}).posterUrl || "",
-          posterFallbackUrl: (members.find((movie) => movie.posterFallbackUrl) || {}).posterFallbackUrl || "",
+          posterUrl: (memberWithRealPoster ? memberWithRealPoster.posterUrl : "") || titlePosterUrl,
+          posterFallbackUrl: titlePosterUrl,
           movies: members,
         };
       }).filter(Boolean);
