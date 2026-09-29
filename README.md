@@ -63,6 +63,7 @@ Copy `.env.example` to a local `.env` file or configure the same values in Verce
 - `ONEDRIVE_REFRESH_TOKEN`
 - `ONEDRIVE_DRIVE_ID`
 - `ONEDRIVE_ROOT_ITEM_ID`
+- `ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS` (optional; defaults to 15 seconds and bounds a Graph catalog refresh)
 - `KV_REST_API_URL`
 - `KV_REST_API_TOKEN`
 
@@ -109,6 +110,8 @@ To keep matching metadata beside the locally synced OneDrive files, run `npm run
 For a one-time cloud export of the already-synchronized library, run `npm run metadata:export:onedrive`. This uploads each Jellyfin sidecar and the matching poster, folder, thumb, and backdrop files from the configured `Movie downloads` root into the corresponding OneDrive folders. The export is idempotent and only replaces files with the same name; it does not upload or delete video media. The Microsoft app registration must have delegated `Files.ReadWrite` consent. The six-hour Windows library task also marks only `Movies` and `TV Shows` online-only after each sync, so new sidecars and artwork remain cloud-backed without pinning the application or recovery folders.
 
 When those sidecars are synchronized into OneDrive, the hosted OneDrive provider reads them as Jellyfin metadata. This lets the live Movie Room show Jellyfin titles, dates, descriptions, ratings, genres, and series fields without requiring Vercel to reach the Windows Jellyfin server.
+
+The hosted provider is cache-first: when a complete persisted catalog exists, `/api/library` returns it immediately and coalesces a bounded background refresh. New uploads appear after that refresh updates the durable cache; a failed or timed-out refresh keeps the last complete catalog available instead of holding the page in `Loading library`.
 
 ## Canonical home library
 
