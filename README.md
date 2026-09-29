@@ -2,6 +2,10 @@
 
 A lightweight browser app for browsing and streaming a shared movie library behind one shared password.
 
+## Project workflow source of truth
+
+The project-owned workflow control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative OneDrive Movie downloads root, provider boundary, watcher/sync commands, deployment, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes those values to project tooling. All Codex, GPT, plugin, and skill work for this app should reference that module and this checkout rather than creating a parallel project. Secrets are intentionally excluded.
+
 ## What changed
 
 - Password-protected catalog access with signed HttpOnly sessions

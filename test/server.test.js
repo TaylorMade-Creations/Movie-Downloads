@@ -22,6 +22,23 @@ function createTempLibrary() {
   return { root, moviesDir, publicDir };
 }
 
+async function waitForCondition(predicate, timeoutMs = 1000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for condition.");
+}
+
+function seedOneDriveLibraryCache(store, library) {
+  return store.set(
+    "onedrive:library:drive-id:root-item",
+    JSON.stringify({ cachedAt: new Date().toISOString(), library }),
+    7 * 24 * 60 * 60 * 1000,
+  );
+}
+
 function createAuthOptions(overrides = {}) {
   const authOverrides = overrides.auth || {};
   const { auth: _ignored, ...rest } = overrides;
@@ -2581,6 +2598,116 @@ test("matches Jellyfin sidecars when a title contains a decimal point", async ()
   assert.equal(library.movies[0].year, 2007);
 });
 
+test("serves the persisted OneDrive catalog immediately while refresh is hung", async () => {
+  const store = new MemoryStore();
+  const cachedLibrary = { movies: [{ id: "cached-movie", title: "Cached Movie" }], folders: [], series: [] };
+  await seedOneDriveLibraryCache(store, cachedLibrary);
+  let refreshStarted = false;
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+      ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS: "25",
+    },
+    store,
+    fetchImpl: async (url) => {
+      if (String(url).includes("/oauth2/v2.0/token")) {
+        return { ok: true, json: async () => ({ access_token: "access-token", expires_in: 3600 }) };
+      }
+      refreshStarted = true;
+      return new Promise(() => {});
+    },
+  });
+
+  const result = await Promise.race([
+    provider.listLibrary(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("cache-first read timed out")), 100)),
+  ]);
+
+  assert.equal(result.cacheStatus, "stale");
+  assert.equal(result.movies[0].title, "Cached Movie");
+  await waitForCondition(() => refreshStarted);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+});
+
+test("refreshes the OneDrive catalog in the background and updates durable cache", async () => {
+  const store = new MemoryStore();
+  await seedOneDriveLibraryCache(store, { movies: [{ id: "old-movie", title: "Old Movie" }], folders: [], series: [] });
+  let rootCalls = 0;
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+      ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS: "100",
+    },
+    store,
+    fetchImpl: async (url) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("/oauth2/v2.0/token")) {
+        return { ok: true, json: async () => ({ access_token: "access-token", expires_in: 3600 }) };
+      }
+      if (requestUrl.includes("/root-item/children")) {
+        rootCalls += 1;
+        return { ok: true, json: async () => ({ value: [{ id: "new-movie", name: "New-Movie.mp4", file: {}, size: 123 }] }) };
+      }
+      return { ok: true, json: async () => ({ value: [] }) };
+    },
+  });
+
+  const immediate = await provider.listLibrary();
+  assert.equal(immediate.cacheStatus, "stale");
+  assert.equal(immediate.movies[0].title, "Old Movie");
+  await waitForCondition(async () => {
+    const raw = await store.get("onedrive:library:drive-id:root-item");
+    return raw ? JSON.parse(raw).library.movies[0].title === "New Movie" : false;
+  });
+  assert.equal(rootCalls, 1);
+  const refreshed = JSON.parse(await store.get("onedrive:library:drive-id:root-item"));
+  assert.equal(refreshed.library.movies[0].title, "New Movie");
+});
+
+test("retains the last complete OneDrive catalog when background refresh rejects", async () => {
+  const store = new MemoryStore();
+  const cachedLibrary = { movies: [{ id: "safe-movie", title: "Safe Movie" }], folders: [], series: [] };
+  await seedOneDriveLibraryCache(store, cachedLibrary);
+  let refreshAttempts = 0;
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+      ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS: "100",
+    },
+    store,
+    fetchImpl: async (url) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("/oauth2/v2.0/token")) {
+        return { ok: true, json: async () => ({ access_token: "access-token", expires_in: 3600 }) };
+      }
+      refreshAttempts += 1;
+      return { ok: false, status: 503, headers: new Headers() };
+    },
+  });
+
+  const result = await provider.listLibrary();
+  assert.equal(result.cacheStatus, "stale");
+  assert.equal(result.movies[0].title, "Safe Movie");
+  await waitForCondition(() => refreshAttempts > 0);
+  const persisted = JSON.parse(await store.get("onedrive:library:drive-id:root-item"));
+  assert.deepEqual(persisted.library, cachedLibrary);
+});
+
 test("keeps the last complete OneDrive library when a refresh is temporarily rejected", async () => {
   const store = new MemoryStore();
   let childrenCalls = 0;
@@ -2735,6 +2862,7 @@ test("refreshes and retries once when Microsoft Graph rejects a cached access to
 
   assert.equal((await provider.listMovies()).length, 1);
   assert.equal((await provider.listMovies()).length, 1);
+  await waitForCondition(() => tokenRequests === 2 && childrenRequests === 3);
   assert.equal(tokenRequests, 2);
   assert.equal(childrenRequests, 3);
 });

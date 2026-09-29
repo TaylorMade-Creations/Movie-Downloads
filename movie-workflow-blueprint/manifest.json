@@ -1,0 +1,45 @@
+{
+  "name": "Taylor-Made Movies / Movie Room",
+  "version": 1,
+  "sourceOfTruth": {
+    "repository": "https://github.com/taylormade02471/Movie-Downloads",
+    "branch": "copilot/you-have-the-handiff-now",
+    "rule": "All Codex, GPT, plugin, and skill work for this project references this checkout and branch as the source of truth. System-managed plugins and skills remain in their managed directories and are not copied into this project."
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "productionUrl": "https://movie-downloads-six.vercel.app/",
+    "project": "movie-downloads",
+    "target": "production"
+  },
+  "paths": {
+    "authoritativeLocalMovieDownloadsRoot": "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads",
+    "activeVideoRoots": [
+      "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads\\Movies",
+      "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads\\TV Shows"
+    ],
+    "applicationArtifactsRoot": "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads\\Applications",
+    "repositoryRelativeBuildRoot": "firetv/build/outputs/apk"
+  },
+  "providerBoundary": {
+    "jellyfin": "Local metadata, title matching, seasons, episode organization, posters, backdrops, and descriptions. Jellyfin is not the viewer-facing app.",
+    "onedrive": "Cloud-resident video playback plus synchronized .jellyfin.json sidecars and artwork stored beside each video.",
+    "movieRoom": "The viewer-facing web and Fire TV front end. It reads the OneDrive catalog and sidecars; it does not copy media into Jellyfin."
+  },
+  "commands": {
+    "normalize": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/normalize-movie-library.ps1 -LibraryRoot 'C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads' -Apply -FolderizeMovies -OrganizeSeries",
+    "metadataSync": "npm run metadata:sync",
+    "artworkSync": "npm run artwork:sync",
+    "metadataExportToOneDrive": "npm run metadata:export:onedrive",
+    "watcherInstall": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/install-movie-library-watcher.ps1 -LibraryRoot 'C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads'",
+    "watcherRun": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/run-movie-library-sync.ps1 -LibraryRoot 'C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads'",
+    "tests": "npm test",
+    "deploy": "vercel.cmd deploy --prod --force --yes"
+  },
+  "verificationGates": [
+    "The full test suite reports zero failures; the Windows POSIX-permission test may remain skipped.",
+    "The production alias responds successfully and repeated authenticated /api/library reloads return the catalog from cache without waiting for a full Graph refresh.",
+    "The live catalog count and metadata/artwork counts are checked together before claiming deployment complete.",
+    "No password, session secret, refresh token, API key, cookie, or personal secret is stored in this blueprint."
+  ]
+}
