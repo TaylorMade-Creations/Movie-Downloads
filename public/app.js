@@ -1174,6 +1174,25 @@ function createApp({
     return `${movie.title || movie.fileName || "Movie"} cover`;
   }
 
+  function remoteArtworkUrl(movie) {
+    const params = new URLSearchParams();
+    params.set("title", movie.title || movie.fileName || "Movie");
+    if (movie.year) params.set("year", String(movie.year));
+    return `/api/artwork?${params.toString()}`;
+  }
+
+  function ensureArtwork(movie) {
+    const source = movie || {};
+    const fallback = remoteArtworkUrl(source);
+    return {
+      ...source,
+      // Existing Jellyfin/OneDrive/bundled art remains primary. Every item
+      // still gets an authenticated title-based artwork lookup URL.
+      posterUrl: source.posterUrl || fallback,
+      posterFallbackUrl: source.posterFallbackUrl || fallback,
+    };
+  }
+
   function attachArtworkImage(image, url, onFailure, fallbackUrl = "") {
     let attempts = 0;
     const load = () => {
@@ -1254,11 +1273,11 @@ function createApp({
 
   function normalizeLibraryPayload(payload) {
     if (Array.isArray(payload)) {
-      return { movies: payload, folders: [] };
+      return { movies: payload.map(ensureArtwork), folders: [] };
     }
 
     return {
-      movies: payload && Array.isArray(payload.movies) ? payload.movies : [],
+      movies: payload && Array.isArray(payload.movies) ? payload.movies.map(ensureArtwork) : [],
       folders: payload && Array.isArray(payload.folders) ? payload.folders : [],
     };
   }
@@ -1643,12 +1662,14 @@ function createApp({
             title: seriesName,
             seriesPath,
             posterUrl: movie.posterUrl || "",
+            posterFallbackUrl: movie.posterFallbackUrl || "",
             episodes: [],
             seasons: new Set(),
           });
         }
         const group = groups.get(key);
         if (!group.posterUrl && movie.posterUrl) group.posterUrl = movie.posterUrl;
+        if (!group.posterFallbackUrl && movie.posterFallbackUrl) group.posterFallbackUrl = movie.posterFallbackUrl;
         group.episodes.push(movie);
         group.seasons.add(Number(movie.seasonNumber) || movie.seasonName || "Season");
       }
@@ -1691,7 +1712,7 @@ function createApp({
         image.alt = `${series.title} series cover`;
         image.loading = "lazy";
         image.decoding = "async";
-        attachArtworkImage(image, series.posterUrl, () => image.remove());
+        attachArtworkImage(image, series.posterUrl, () => image.remove(), series.posterFallbackUrl);
         poster.prepend(image);
       }
       addCollectionPreview(poster, series.episodes);
@@ -1735,6 +1756,7 @@ function createApp({
           title: folder.name || folder.path.split("/").pop() || "Collection",
           collectionPath: folder.path,
           posterUrl: (members.find((movie) => movie.posterUrl) || {}).posterUrl || "",
+          posterFallbackUrl: (members.find((movie) => movie.posterFallbackUrl) || {}).posterFallbackUrl || "",
           movies: members,
         };
       }).filter(Boolean);
@@ -1760,7 +1782,7 @@ function createApp({
         image.alt = `${collection.title} collection cover`;
         image.loading = "lazy";
         image.decoding = "async";
-        attachArtworkImage(image, collection.posterUrl, () => image.remove());
+        attachArtworkImage(image, collection.posterUrl, () => image.remove(), collection.posterFallbackUrl);
         poster.prepend(image);
       }
       addCollectionPreview(poster, collection.movies);

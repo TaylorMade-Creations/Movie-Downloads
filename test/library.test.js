@@ -5,7 +5,32 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { createLocalProvider } = require("../lib/providers/local");
-const { isSampleVideo } = require("../lib/library");
+const { isSampleVideo, inferSeriesInfo } = require("../lib/library");
+
+test("infers the series name from an episode filename in a generic Movies folder", () => {
+  const info = inferSeriesInfo(
+    "Movies/Rick.and.Morty.S09E01.Theres.Something.About.Morty.1080p.WEBRip.mkv",
+    "Rick.and.Morty.S09E01.Theres.Something.About.Morty.1080p.WEBRip.mkv",
+  );
+  assert.deepEqual(
+    {
+      contentType: info.contentType,
+      seriesName: info.seriesName,
+      seriesPath: info.seriesPath,
+      seasonName: info.seasonName,
+      seasonNumber: info.seasonNumber,
+      episodeNumber: info.episodeNumber,
+    },
+    {
+      contentType: "episode",
+      seriesName: "Rick and Morty",
+      seriesPath: "Movies",
+      seasonName: "Season 9",
+      seasonNumber: 9,
+      episodeNumber: 1,
+    },
+  );
+});
 
 test("local provider recursively scans the canonical root and groups seasons", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "movie-room-library-"));

@@ -18,6 +18,7 @@ const { createJellyfinProvider } = require("./lib/providers/jellyfin");
 const { createHybridProvider } = require("./lib/providers/hybrid");
 const { createKeyValueStore } = require("./lib/store");
 const { createViewerStateManager, normalizeProfileId } = require("./lib/viewer-state");
+const { createArtworkResolver, noArtworkSvg } = require("./lib/artwork");
 
 const DEFAULT_BODY_LIMIT = 8 * 1024;
 const DEFAULT_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -72,6 +73,28 @@ function castMediaHeaders(extraHeaders = {}) {
     "Access-Control-Expose-Headers": "Accept-Ranges, Content-Length, Content-Range, Content-Type",
     "Cross-Origin-Resource-Policy": "cross-origin",
     ...extraHeaders,
+  };
+}
+
+function artworkLookupUrl(movie) {
+  const title = String(movie?.title || movie?.fileName || "Movie").trim() || "Movie";
+  const params = new URLSearchParams({ title });
+  if (movie?.year) params.set("year", String(movie.year));
+  return `/api/artwork?${params.toString()}`;
+}
+
+function addArtworkFallbacks(library) {
+  if (!library || !Array.isArray(library.movies)) return library;
+  return {
+    ...library,
+    movies: library.movies.map((movie) => {
+      const fallback = artworkLookupUrl(movie);
+      return {
+        ...movie,
+        posterUrl: movie.posterUrl || fallback,
+        posterFallbackUrl: movie.posterFallbackUrl || fallback,
+      };
+    }),
   };
 }
 
@@ -1030,6 +1053,7 @@ function createAppContext(options = {}) {
     now,
     durable: storageReady,
   });
+  const artworkResolver = createArtworkResolver({ fetchImpl: options.fetchImpl || fetch });
   const tvPairingRateLimiter = createRequestRateLimiter(store, {
     prefix: "tv-pairing-attempts:",
     windowMs: options.tvPairingRateLimitWindowMs
@@ -1049,6 +1073,8 @@ function createAppContext(options = {}) {
     sessionManager: createSessionManager(store, authConfig, now, trustProxy, storageReady),
     rateLimiter: createRateLimiter(store, authConfig, now, trustProxy),
     viewerStateManager,
+    artworkResolver,
+    artworkFetchImpl: options.fetchImpl || fetch,
     tvPairingRateLimiter,
     trustProxy,
     tvDeviceManager,
@@ -1181,7 +1207,55 @@ function createRequestHandler(options = {}) {
         const library = typeof context.provider.listLibrary === "function"
           ? await context.provider.listLibrary()
           : { movies: await context.provider.listMovies(), folders: [] };
-        await sendJson(response, 200, library, noStoreHeaders());
+        await sendJson(response, 200, addArtworkFallbacks(library), noStoreHeaders());
+        return;
+      }
+
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/artwork") {
+        if (readBearerToken(request)) {
+          await authenticateTvRequest(context, request);
+        } else {
+          await context.sessionManager.get(request, true);
+        }
+        const title = String(url.searchParams.get("title") || "").trim();
+        if (!title) throw new HttpError(400, "An artwork title is required.");
+        const year = String(url.searchParams.get("year") || "").trim();
+        let resolved = null;
+        try {
+          resolved = await context.artworkResolver.search(title, year);
+        } catch {
+          resolved = null;
+        }
+        if (resolved?.url) {
+          try {
+            const upstream = await context.artworkFetchImpl(resolved.url, {
+              headers: { Accept: "image/avif,image/webp,image/jpeg,image/png,*/*" },
+              signal: AbortSignal.timeout(8_000),
+            });
+            const contentType = upstream.headers.get("content-type") || "";
+            if (upstream.ok && /^image\//i.test(contentType)) {
+              const bytes = Buffer.from(await upstream.arrayBuffer());
+              response.writeHead(200, {
+                "Content-Type": contentType,
+                "Content-Length": bytes.length,
+                "Cache-Control": "private, max-age=86400, stale-while-revalidate=604800",
+                ...mediaFeatureHeaders(),
+              });
+              response.end(request.method === "HEAD" ? undefined : bytes);
+              return;
+            }
+          } catch {
+            // Serve the explicit fallback below rather than leaving a broken tile.
+          }
+        }
+        const svg = Buffer.from(noArtworkSvg(title));
+        response.writeHead(200, {
+          "Content-Type": "image/svg+xml; charset=utf-8",
+          "Content-Length": svg.length,
+          "Cache-Control": "private, max-age=3600",
+          ...mediaFeatureHeaders(),
+        });
+        response.end(request.method === "HEAD" ? undefined : svg);
         return;
       }
 
@@ -1267,7 +1341,7 @@ function createRequestHandler(options = {}) {
         const library = typeof context.provider.listLibrary === "function"
           ? await context.provider.listLibrary()
           : { movies: await context.provider.listMovies(), folders: [] };
-        await sendJson(response, 200, library, noStoreHeaders());
+        await sendJson(response, 200, addArtworkFallbacks(library), noStoreHeaders());
         return;
       }
 

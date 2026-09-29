@@ -10,6 +10,7 @@ const { MemoryStore } = require("../lib/store");
 const { createOneDriveProvider } = require("../lib/providers/onedrive");
 const { movieTitleFromName, posterUrlFromTitle } = require("../lib/media");
 const { createViewerStateClient } = require("../public/viewer-state");
+const { createArtworkResolver, noArtworkSvg } = require("../lib/artwork");
 
 function createTempLibrary() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "movie-room-"));
@@ -117,6 +118,65 @@ test("cleans movie file names and derives poster URLs", () => {
     "Coyote vs Acme",
   );
   assert.equal(posterUrlFromTitle("ACME Night"), "/posters/acme-night.jpg");
+});
+
+test("artwork resolver uses a real title-matched source and caches it", async () => {
+  const calls = [];
+  const resolver = createArtworkResolver({
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("itunes.apple.com")) {
+        return new Response(JSON.stringify({
+          results: [{ trackName: "Home Alone", artworkUrl100: "https://img.example/home-alone/100x100bb.jpg" }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error("unexpected secondary lookup");
+    },
+  });
+  const first = await resolver.search("Home Alone", "1990");
+  const second = await resolver.search("Home Alone", "1990");
+  assert.equal(first.source, "iTunes");
+  assert.equal(first.url, "https://img.example/home-alone/600x900bb.jpg");
+  assert.deepEqual(second, first);
+  assert.equal(calls.length, 1);
+});
+
+test("no-artwork fallback is an explicit image, never a video frame", () => {
+  const svg = noArtworkSvg("Unknown Movie");
+  assert.match(svg, /<svg/);
+  assert.match(svg, /ARTWORK UNAVAILABLE/);
+  assert.match(svg, /Unknown Movie/);
+});
+
+test("authenticated artwork route returns the resolved poster bytes", async () => {
+  const calls = [];
+  const server = await startServer(createAuthOptions({
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("itunes.apple.com")) {
+        return new Response(JSON.stringify({
+          results: [{ trackName: "Home Alone", artworkUrl100: "https://img.example/home-alone/100x100bb.jpg" }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (String(url).startsWith("https://img.example/")) {
+        return new Response(Buffer.from("poster-bytes"), { status: 200, headers: { "content-type": "image/jpeg" } });
+      }
+      throw new Error(`unexpected artwork request: ${url}`);
+    },
+  }));
+  const port = server.address().port;
+  try {
+    const loginResponse = await login(port);
+    const artworkResponse = await fetch(`http://127.0.0.1:${port}/api/artwork?title=Home%20Alone&year=1990`, {
+      headers: { Cookie: loginResponse.headers.get("set-cookie") },
+    });
+    assert.equal(artworkResponse.status, 200);
+    assert.match(artworkResponse.headers.get("content-type") || "", /^image\/jpeg/);
+    assert.equal(Buffer.from(await artworkResponse.arrayBuffer()).toString(), "poster-bytes");
+    assert.equal(calls.length, 2);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("organizes the library into family categories and hides technical folders", () => {
@@ -1034,6 +1094,28 @@ test("redirects a valid Cast ticket to a fresh OneDrive playback URL", async (t)
   assert.equal(streamResponse.status, 307);
   assert.equal(streamResponse.headers.get("location"), "https://onedrive.example/fresh-download");
   assert.equal(streamResponse.headers.get("access-control-allow-origin"), "*");
+});
+
+test("artwork resolver falls back to television artwork for series titles", async () => {
+  const calls = [];
+  const resolver = createArtworkResolver({
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("media=movie")) {
+        return new Response(JSON.stringify({ results: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (String(url).includes("media=tvShow")) {
+        return new Response(JSON.stringify({
+          results: [{ collectionName: "Rick and Morty", artworkUrl100: "https://img.example/rick-and-morty/100x100bb.jpg" }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error("unexpected secondary lookup");
+    },
+  });
+  const result = await resolver.search("Rick and Morty");
+  assert.equal(result.source, "iTunes");
+  assert.equal(result.url, "https://img.example/rick-and-morty/600x900bb.jpg");
+  assert.equal(calls.length, 2);
 });
 
 test("proxies hybrid Cast playback instead of rejecting Jellyfin compatibility routes", async (t) => {
@@ -2752,6 +2834,45 @@ test("serves the persisted OneDrive catalog immediately while refresh is hung", 
   assert.equal(result.movies[0].title, "Cached Movie");
   await waitForCondition(() => refreshStarted);
   await new Promise((resolve) => setTimeout(resolve, 50));
+});
+
+test("normalizes stale cached episode names before rebuilding series groups", async () => {
+  const store = new MemoryStore();
+  await seedOneDriveLibraryCache(store, {
+    movies: [{
+      id: "rick-episode-1",
+      title: "Rick and Morty S09E01",
+      fileName: "Rick.and.Morty.S09E01.1080p.WEB-DL.mkv",
+      folder: "Movies",
+      contentType: "episode",
+      seriesName: "Movies",
+      seriesPath: "Movies",
+      seasonName: "Season 9",
+      seasonNumber: 9,
+      episodeNumber: 1,
+    }],
+    folders: [],
+    series: [],
+  });
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+      ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS: "25",
+    },
+    store,
+    fetchImpl: async () => new Promise(() => {}),
+  });
+
+  const library = await provider.listLibrary();
+  assert.equal(library.movies[0].seriesName, "Rick and Morty");
+  assert.equal(library.series.length, 1);
+  assert.equal(library.series[0].title, "Rick and Morty");
+  assert.equal(library.series[0].episodeCount, 1);
 });
 
 test("refreshes the OneDrive catalog in the background and updates durable cache", async () => {
