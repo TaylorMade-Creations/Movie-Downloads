@@ -1,8 +1,13 @@
 package com.movieroom.web;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.KeyEvent;
@@ -14,7 +19,10 @@ import android.webkit.WebViewClient;
 
 /** Android wrapper for the current Movie Room website, preserving its web UI and playback flow. */
 public final class MainActivity extends Activity {
+    private static final int STORAGE_PERMISSION_REQUEST = 4101;
     private WebView webView;
+    private String pendingDownloadUrl;
+    private String pendingDownloadFileName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +71,133 @@ public final class MainActivity extends Activity {
         public void openBluetoothSettings() {
             launchSettings(Settings.ACTION_BLUETOOTH_SETTINGS);
         }
+
+        @JavascriptInterface
+        public boolean hasStorageAccess() {
+            return MainActivity.this.hasStorageAccess();
+        }
+
+        @JavascriptInterface
+        public void requestStorageAccess() {
+            runOnUiThread(MainActivity.this::requestStorageAccessInternal);
+        }
+
+        @JavascriptInterface
+        public boolean downloadForOffline(String url, String fileName) {
+            if (!isSafeDownloadUrl(url)) {
+                return false;
+            }
+            pendingDownloadUrl = url;
+            pendingDownloadFileName = fileName;
+            if (!hasStorageAccess()) {
+                runOnUiThread(MainActivity.this::requestStorageAccessInternal);
+                return false;
+            }
+            runOnUiThread(() -> {
+                boolean started = enqueueOfflineDownload(pendingDownloadUrl, pendingDownloadFileName);
+                pendingDownloadUrl = null;
+                pendingDownloadFileName = null;
+                notifyStoragePermission(started);
+            });
+            return true;
+        }
+    }
+
+    private boolean hasStorageAccess() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED;
+        }
+        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private String[] storagePermissions() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return new String[] {
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_AUDIO,
+            };
+        }
+        return new String[] {
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        };
+    }
+
+    private void requestStorageAccessInternal() {
+        if (hasStorageAccess()) {
+            notifyStoragePermission(true);
+            return;
+        }
+        requestPermissions(storagePermissions(), STORAGE_PERMISSION_REQUEST);
+    }
+
+    private boolean isSafeDownloadUrl(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        Uri uri = Uri.parse(value);
+        String scheme = uri.getScheme();
+        return ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)) && uri.getHost() != null;
+    }
+
+    private String safeDownloadFileName(String value) {
+        String source = value == null ? "movie.mp4" : value.trim();
+        if (source.isEmpty()) {
+            source = "movie.mp4";
+        }
+        String safe = source.replaceAll("[<>:\"/\\\\|?*]+", "_");
+        return safe.length() > 120 ? safe.substring(0, 120) : safe;
+    }
+
+    private boolean enqueueOfflineDownload(String url, String fileName) {
+        if (!isSafeDownloadUrl(url)) {
+            return false;
+        }
+        DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        if (manager == null) {
+            return false;
+        }
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            String safeName = safeDownloadFileName(fileName);
+            request.setTitle(safeName);
+            request.setDescription("Movie Room offline video");
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(false);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, "Movie Room/" + safeName);
+            manager.enqueue(request);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private void notifyStoragePermission(boolean granted) {
+        if (webView == null) {
+            return;
+        }
+        String script = "window.dispatchEvent(new CustomEvent('movieroom-storage-permission',{detail:{granted:"
+            + (granted ? "true" : "false")
+            + "}}));";
+        webView.post(() -> webView.evaluateJavascript(script, null));
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != STORAGE_PERMISSION_REQUEST) {
+            return;
+        }
+        boolean granted = hasStorageAccess();
+        String url = pendingDownloadUrl;
+        String fileName = pendingDownloadFileName;
+        pendingDownloadUrl = null;
+        pendingDownloadFileName = null;
+        boolean started = granted && (url == null || enqueueOfflineDownload(url, fileName));
+        notifyStoragePermission(started);
     }
 
     private void launchSettings(String action) {
@@ -89,7 +224,13 @@ public final class MainActivity extends Activity {
             case KeyEvent.KEYCODE_BACK:
                 return "back";
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
                 return "playpause";
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                return "rewind";
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                return "fastforward";
             case KeyEvent.KEYCODE_MENU:
                 return "settings";
             default:
@@ -101,7 +242,9 @@ public final class MainActivity extends Activity {
         return "up".equals(action)
             || "down".equals(action)
             || "left".equals(action)
-            || "right".equals(action);
+            || "right".equals(action)
+            || "rewind".equals(action)
+            || "fastforward".equals(action);
     }
 
     private boolean handleRemoteKeyEvent(KeyEvent event, int keyCode) {
@@ -141,6 +284,10 @@ public final class MainActivity extends Activity {
                 return "Backspace";
             case "playpause":
                 return " ";
+            case "rewind":
+                return "MediaRewind";
+            case "fastforward":
+                return "MediaFastForward";
             case "settings":
                 return "ContextMenu";
             default:

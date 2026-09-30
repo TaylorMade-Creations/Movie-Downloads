@@ -19,10 +19,18 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(build, /applicationId\s+"com\.movieroom\.web"/);
   assert.match(manifest, /android\.permission\.INTERNET/);
   assert.match(manifest, /android\.permission\.ACCESS_NETWORK_STATE/);
+  assert.match(manifest, /android\.permission\.READ_EXTERNAL_STORAGE/);
+  assert.match(manifest, /android\.permission\.WRITE_EXTERNAL_STORAGE/);
+  assert.match(manifest, /android\.permission\.READ_MEDIA_VIDEO/);
+  assert.match(manifest, /android\.permission\.WAKE_LOCK/);
+  assert.match(manifest, /android\.permission\.ACCESS_WIFI_STATE/);
+  assert.match(manifest, /android\.permission\.VIBRATE/);
+  assert.match(manifest, /android\.permission\.RECEIVE_BOOT_COMPLETED/);
   assert.match(manifest, /android\.intent\.category\.LEANBACK_LAUNCHER/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
   assert.match(manifest, /android:label="TaylorMade Movies"/);
+  assert.match(manifest, /android:screenOrientation="unspecified"/);
   assert.match(activity, /setBackgroundColor\(0xff061523\)/);
   assert.match(activity, /WebView/);
   assert.match(activity, /BuildConfig\.MOVIE_ROOM_BASE_URL/);
@@ -31,6 +39,11 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /setMediaPlaybackRequiresUserGesture\(false\)/);
   assert.match(activity, /addJavascriptInterface/);
   assert.match(activity, /openNetworkSettings/);
+  assert.match(activity, /requestPermissions/);
+  assert.match(activity, /onRequestPermissionsResult/);
+  assert.match(activity, /DownloadManager/);
+  assert.match(activity, /downloadForOffline/);
+  assert.match(activity, /Environment\.DIRECTORY_MOVIES/);
   assert.match(activity, /KEYCODE_DPAD_UP/);
   assert.match(activity, /evaluateJavascript/);
   assert.match(activity, /document\.dispatchEvent/);
@@ -42,6 +55,10 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /Enter/);
   assert.match(activity, /Backspace/);
   assert.match(activity, /ContextMenu/);
+  const bootReceiver = read("movieroom-web/src/main/java/com/movieroom/web/BootReceiver.java");
+  assert.match(manifest, /\.BootReceiver/);
+  assert.match(bootReceiver, /ACTION_BOOT_COMPLETED/);
+  assert.match(bootReceiver, /MainActivity\.class/);
 });
 
 test("Movie Room public mode starts without a login screen", () => {
@@ -54,4 +71,12 @@ test("Movie Room public mode starts without a login screen", () => {
   assert.match(app, /logoutButton\.hidden = publicAccess/);
   assert.match(server, /MOVIE_ROOM_PUBLIC/);
   assert.match(server, /publicAccess: true/);
+});
+
+test("the Android wrapper exposes storage permission and an offline movie download action", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  assert.match(html, /id="details-offline"/);
+  assert.match(app, /downloadForOffline/);
+  assert.match(app, /movieroom-storage-permission/);
 });

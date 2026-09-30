@@ -950,6 +950,7 @@
       .hero-movie::after { z-index: 1; }
       .hero-movie > img { z-index: 0; }
       .hero-preview-video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; opacity: .5; filter: saturate(.92) contrast(1.08); pointer-events: none; }
+      .hero-movie.hero-video-active > img { opacity: 0; }
       .library-panel { position: relative; isolation: isolate; }
       .library-background-preview { position: fixed; inset: 0; z-index: -1; width: 100vw; height: 100vh; object-fit: cover; opacity: 0; filter: saturate(.82) contrast(1.08) blur(1px); pointer-events: none; transition: opacity 320ms ease; }
       .library-panel.hero-focus-mode .library-background-preview { opacity: .26; }
@@ -971,9 +972,10 @@
       :where(button, input, select, [tabindex]):focus-visible,
       :where(button, input, select, [tabindex]).remote-target-active { outline: 3px solid #ffd166; outline-offset: 3px; box-shadow: 0 0 0 5px #07121b; }
       .movie-card:focus-visible, .movie-card.remote-target-active { border-color: #fff; outline: 3px solid #ffd166; outline-offset: 4px; box-shadow: 0 0 0 7px #07121b, 0 18px 34px rgba(0, 0, 0, .72); transform: translateY(-4px) scale(1.035); }
-      .settings-dialog { width: min(620px, calc(100% - 32px)); border: 2px solid #40d8c0; border-radius: 16px; padding: 24px; background: #0e2435; color: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.78); }
+      .settings-dialog { width: min(620px, calc(100% - 32px)); max-height: calc(100vh - 40px); overflow: auto; border: 2px solid #40d8c0; border-radius: 16px; padding: 24px; background: #0e2435; color: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.78); }
       .settings-dialog::backdrop { background: rgba(0,0,0,.74); backdrop-filter: blur(8px); }
       .settings-dialog h2 { margin: 0 0 8px; color: #a6f1e7; }
+      .settings-section-title { margin: 22px 0 0; color: #a6f1e7; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
       .settings-dialog p { color: #c5e1ed; }
       .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
       .settings-grid button { min-height: 52px; text-align: left; }
@@ -1278,7 +1280,19 @@
 
     <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
       <h2 id="settings-title">Movie Room settings</h2>
-      <p>Use these controls with the Fire TV remote. On the website, the network and display buttons show guidance; in the Movie Room APK they open the matching Fire TV system settings.</p>
+      <p>Use the Fire TV remote to open another Movie Room page or device setting. The network and display buttons open the matching Fire TV system settings in the APK.</p>
+      <h3 class="settings-section-title">Browse Movie Room</h3>
+      <div class="settings-grid settings-navigation-grid">
+        <button id="menu-home" type="button">Home / Trending</button>
+        <button id="menu-library" type="button">Full library</button>
+        <button id="menu-collections" type="button">Collections &amp; series</button>
+        <button id="menu-genres" type="button">Genres</button>
+        <button id="menu-profile-home" type="button">Home profile</button>
+        <button id="menu-profile-mom" type="button">Mom profile</button>
+        <button id="menu-profile-kids" type="button">Kids profile</button>
+        <button id="menu-profile-morganne" type="button">Morganne profile</button>
+      </div>
+      <h3 class="settings-section-title">Device and library</h3>
       <div class="settings-grid">
         <button id="settings-network" type="button">Wi-Fi / Network</button>
         <button id="settings-display" type="button">Display</button>
@@ -1481,6 +1495,7 @@
         <p id="details-description" class="detail"></p>
         <div class="hero-actions">
           <button id="details-play" type="button">▶ Play</button>
+          <button id="details-offline" class="secondary" type="button">⇩ Download offline</button>
           <button id="details-favorite" class="secondary" type="button">☆ Add Favorite</button>
           <button id="details-watch-later" class="secondary" type="button">＋ Watch Later</button>
           <button id="details-queue" class="secondary" type="button">Add to queue</button>
@@ -1504,6 +1519,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260930-keyboard-hero-v2" defer></script>
+    <script src="/app.js?v=20260930-keyboard-hero-v4" defer></script>
   </body>
 </html>

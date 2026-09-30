@@ -299,6 +299,7 @@ function createApp({
   detailsMeta,
   detailsDescription,
   detailsPlay,
+  detailsOffline,
   detailsWatchLater,
   detailsQueue,
   detailsFavorite,
@@ -327,6 +328,14 @@ function createApp({
   settingsSystemButton,
   settingsReloadButton,
   settingsCloseButton,
+  menuHomeButton,
+  menuLibraryButton,
+  menuCollectionsButton,
+  menuGenresButton,
+  menuProfileHomeButton,
+  menuProfileMomButton,
+  menuProfileKidsButton,
+  menuProfileMorganneButton,
   playerSettingsButton,
   playerNetworkSettingsButton,
   fetchImpl,
@@ -356,6 +365,8 @@ function createApp({
   let allFolders = [];
   let viewerState = { movies: {}, queue: [], settings: {} };
   let detailsMovie = null;
+  let detailsPreviousFocus = null;
+  let pendingOfflineMovie = null;
   let playerMode = "normal";
   let progressTimer = null;
   let restoredMovieId = "";
@@ -1336,6 +1347,7 @@ function createApp({
     if (!documentRef || typeof documentRef.querySelectorAll !== "function") return [];
     return Array.from(documentRef.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"))
       .filter((element) => !(remoteControlBar && remoteControlBar.contains(element)))
+      .filter((element) => !(searchInput && element === searchInput && (!searchOverlay || searchOverlay.hidden)))
       .filter((element) => {
         if (settingsDialog && hasMethod(settingsDialog, "contains") && settingsDialog.contains(element) && !settingsDialog.open) return false;
         if (element.hidden || (element.closest && element.closest("[hidden]"))) return false;
@@ -1372,8 +1384,74 @@ function createApp({
       targets[0].focus();
       return true;
     }
+    const currentRail = current.closest(".movie-rail, .movie-grid, .genre-group-grid");
+    const railSelector = ".movie-rail, .movie-grid, .genre-group-grid";
+    const focusRemoteTarget = (next) => {
+      if (!next) return false;
+      rememberRemoteTarget(next);
+      if (hasMethod(next, "focus")) next.focus();
+      if (hasMethod(next, "scrollIntoView")) next.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
+      return true;
+    };
+    const targetsInRail = (rail) => targets.filter((target) => (
+      hasMethod(target, "closest") && target.closest(railSelector) === rail
+    ));
+
+    if (currentRail && (direction === "left" || direction === "right")) {
+      const railTargets = targetsInRail(currentRail);
+      const currentIndex = railTargets.indexOf(current);
+      if (currentIndex >= 0 && railTargets.length > 1) {
+        const origin = current.getBoundingClientRect();
+        const originY = origin.top + origin.height / 2;
+        const rowTargets = railTargets
+          .filter((target) => {
+            if (target === current || !hasMethod(target, "getBoundingClientRect")) return false;
+            const rect = target.getBoundingClientRect();
+            return Math.abs((rect.top + rect.height / 2) - originY) <= Math.max(16, origin.height * 0.72);
+          })
+          .sort((left, right) => left.getBoundingClientRect().left - right.getBoundingClientRect().left);
+        const orderedTargets = rowTargets.length ? [current, ...rowTargets] : railTargets;
+        const orderedIndex = orderedTargets.indexOf(current);
+        const step = direction === "left" ? -1 : 1;
+        const nextIndex = (orderedIndex + step + orderedTargets.length) % orderedTargets.length;
+        return focusRemoteTarget(orderedTargets[nextIndex]);
+      }
+    }
+
+    if (currentRail && (direction === "up" || direction === "down") && currentRail.classList && currentRail.classList.contains("movie-rail")) {
+      const currentRailRect = currentRail.getBoundingClientRect();
+      const currentRailCenter = currentRailRect.top + currentRailRect.height / 2;
+      const rails = documentRef && hasMethod(documentRef, "querySelectorAll")
+        ? Array.from(documentRef.querySelectorAll(railSelector))
+        : [];
+      const nextRail = rails
+        .filter((rail) => rail !== currentRail && !rail.hidden && hasMethod(rail, "getBoundingClientRect"))
+        .map((rail) => {
+          const rect = rail.getBoundingClientRect();
+          return { rail, rect, center: rect.top + rect.height / 2 };
+        })
+        .filter(({ rect, center }) => rect.width > 0 && rect.height > 0 && (direction === "down" ? center > currentRailCenter + 4 : center < currentRailCenter - 4))
+        .sort((left, right) => direction === "down" ? left.center - right.center : right.center - left.center)[0];
+      if (nextRail) {
+        const origin = current.getBoundingClientRect();
+        const originX = origin.left + origin.width / 2;
+        const nextTarget = targetsInRail(nextRail.rail)
+          .filter((target) => hasMethod(target, "getBoundingClientRect"))
+          .sort((left, right) => {
+            const leftRect = left.getBoundingClientRect();
+            const rightRect = right.getBoundingClientRect();
+            return Math.abs((leftRect.left + leftRect.width / 2) - originX)
+              - Math.abs((rightRect.left + rightRect.width / 2) - originX);
+          })[0];
+        if (nextTarget) return focusRemoteTarget(nextTarget);
+      }
+    }
+
+    const navigationTargets = currentRail && (direction === "up" || direction === "down")
+      ? targets.filter((target) => hasMethod(target, "closest") && target.closest(railSelector) === currentRail)
+      : targets;
     const origin = current.getBoundingClientRect();
-    const candidates = targets
+    const candidates = navigationTargets
       .filter((target) => target !== current && hasMethod(target, "getBoundingClientRect"))
       .map((target) => {
         const rect = target.getBoundingClientRect();
@@ -1388,7 +1466,7 @@ function createApp({
       .sort((left, right) => left.score - right.score);
     let next = candidates[0] && candidates[0].primary >= -8 ? candidates[0].target : null;
     if (!next) {
-      const edgeCandidates = targets
+      const edgeCandidates = navigationTargets
         .filter((target) => target !== current && hasMethod(target, "getBoundingClientRect"))
         .map((target) => ({ target, rect: target.getBoundingClientRect() }))
         .sort((left, right) => {
@@ -1413,10 +1491,7 @@ function createApp({
       next = edgeCandidates[0] ? edgeCandidates[0].target : null;
     }
     if (!next) return false;
-    rememberRemoteTarget(next);
-    next.focus();
-    if (hasMethod(next, "scrollIntoView")) next.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
-    return true;
+    return focusRemoteTarget(next);
   }
 
   function activateRemoteTarget() {
@@ -1435,8 +1510,9 @@ function createApp({
     } catch {
       settingsDialog.hidden = false;
     }
-    if (settingsNetworkButton && hasMethod(settingsNetworkButton, "focus")) settingsNetworkButton.focus();
-    if (settingsNetworkButton) rememberRemoteTarget(settingsNetworkButton);
+    const firstMenuTarget = menuHomeButton || settingsNetworkButton;
+    if (firstMenuTarget && hasMethod(firstMenuTarget, "focus")) firstMenuTarget.focus();
+    if (firstMenuTarget) rememberRemoteTarget(firstMenuTarget);
     return true;
   }
 
@@ -1449,6 +1525,41 @@ function createApp({
     return true;
   }
 
+  function selectBrowseDestination(destination) {
+    const target = String(destination || "").toLowerCase();
+    if (target.startsWith("profile-")) {
+      setViewerProfile(target.replace("profile-", ""));
+      setActivePage("home");
+      if (allMovies.length) renderLibrary();
+      loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "").catch(() => {});
+      closeSettings();
+      focusInitialHero();
+      return true;
+    }
+    if (target === "home") {
+      setActivePage("home");
+      closeSettings();
+      focusInitialHero();
+      return true;
+    }
+    if (["library", "collections", "genres"].includes(target)) {
+      if (target === "collections") activeLibraryView = "collections";
+      else if (target === "genres") activeLibraryView = "genres";
+      else activeLibraryView = "movies";
+      activeFolder = "all";
+      activeCategory = "all";
+      setActivePage("library");
+      renderLibrary();
+      closeSettings();
+      if (movieGrid && hasMethod(movieGrid, "scrollIntoView")) movieGrid.scrollIntoView({ behavior: "auto", block: "start" });
+      const firstLibraryTarget = visibleRemoteTargets().find((element) => element !== searchInput);
+      if (firstLibraryTarget && hasMethod(firstLibraryTarget, "focus")) firstLibraryTarget.focus();
+      if (firstLibraryTarget) rememberRemoteTarget(firstLibraryTarget);
+      return true;
+    }
+    return false;
+  }
+
   function invokeAndroidSetting(methodName, browserMessage) {
     const bridge = windowRef && windowRef.MovieRoomAndroid;
     if (bridge && typeof bridge[methodName] === "function") {
@@ -1459,13 +1570,29 @@ function createApp({
     return false;
   }
 
+  function closeMovieDetails() {
+    if (!movieDetailsDialog) return false;
+    if (hasMethod(movieDetailsDialog, "close")) movieDetailsDialog.close();
+    else movieDetailsDialog.removeAttribute("open");
+    const previousFocus = detailsPreviousFocus;
+    detailsPreviousFocus = null;
+    if (previousFocus && previousFocus.isConnected !== false && hasMethod(previousFocus, "focus")) {
+      previousFocus.focus();
+      rememberRemoteTarget(previousFocus);
+    } else {
+      const firstRemoteTarget = visibleRemoteTargets()[0];
+      if (firstRemoteTarget) rememberRemoteTarget(firstRemoteTarget);
+    }
+    return true;
+  }
+
   function remoteBack() {
     if (searchOverlay && !searchOverlay.hidden) {
       setSearchOverlayVisible(false);
       return;
     }
-    if (movieDetailsDialog && movieDetailsDialog.open) {
-      if (hasMethod(movieDetailsDialog, "close")) movieDetailsDialog.close();
+    if (movieDetailsDialog && (movieDetailsDialog.open || (hasMethod(movieDetailsDialog, "hasAttribute") && movieDetailsDialog.hasAttribute("open")))) {
+      closeMovieDetails();
       return;
     }
     if (settingsDialog && settingsDialog.open) {
@@ -2099,7 +2226,7 @@ function createApp({
           return;
         }
 
-        moveToMovie(movie);
+        openMovieDetails(movie);
       });
 
       return button;
@@ -2357,10 +2484,15 @@ function createApp({
   }
 
   function openMovieDetails(movie) {
-    if (!movie) {
-      return;
+    if (!movie) return false;
+    if (documentRef && documentRef.activeElement && documentRef.activeElement !== movieDetailsDialog) {
+      detailsPreviousFocus = documentRef.activeElement;
     }
     detailsMovie = movie;
+    if (movieSelect) movieSelect.value = movie.id;
+    rememberMovieForProfile(movie.id);
+    updateNowPlaying(movie);
+    setFeaturedMovie(movie);
     if (detailsPoster) {
       detailsPoster.src = movie.posterUrl || "/movie-room-hero.png";
       detailsPoster.alt = posterAltText(movie);
@@ -2386,6 +2518,11 @@ function createApp({
     } else if (movieDetailsDialog) {
       movieDetailsDialog.setAttribute("open", "");
     }
+    const detailsTarget = detailsPlay || detailsClose;
+    if (detailsPlay && hasMethod(detailsPlay, "focus")) detailsPlay.focus();
+    else if (detailsClose && hasMethod(detailsClose, "focus")) detailsClose.focus();
+    if (detailsTarget) rememberRemoteTarget(detailsTarget);
+    return true;
   }
 
   function createShelfCard(movie, shelf, shelfType = "recent") {
@@ -2431,8 +2568,7 @@ function createApp({
     }
     card.append(poster, info);
     card.addEventListener("click", () => {
-      movieSelect.value = movie.id;
-      moveToMovie(movie);
+      openMovieDetails(movie);
     });
     return card;
   }
@@ -2501,7 +2637,14 @@ function createApp({
   }
 
   async function startHeroPreview(movie) {
-    const previewVideo = libraryBackgroundPreview || heroPreviewVideo;
+    const heroRect = heroMovie && hasMethod(heroMovie, "getBoundingClientRect") ? heroMovie.getBoundingClientRect() : null;
+    const viewportHeight = Number(windowRef && windowRef.innerHeight)
+      || Number(documentRef && documentRef.documentElement && documentRef.documentElement.clientHeight)
+      || 0;
+    const heroVisible = heroRect && viewportHeight
+      ? heroRect.bottom > 0 && heroRect.top < viewportHeight
+      : Boolean(heroMovie && !heroMovie.hidden);
+    const previewVideo = heroVisible ? heroPreviewVideo : (libraryBackgroundPreview || heroPreviewVideo);
     if (!previewVideo || !movie || !isMoviePlayable(movie)) return;
     if ((windowRef && hasMethod(windowRef, "matchMedia") && windowRef.matchMedia("(prefers-reduced-motion: reduce)").matches)
       || (navigatorRef && navigatorRef.connection && navigatorRef.connection.saveData)) return;
@@ -2569,23 +2712,20 @@ function createApp({
     }
   }
 
-  function focusInitialTitle() {
-    const titleRails = [continueWatchingShelf, recentlyAddedShelf, picksShelf, movieGrid];
-    let firstTitle = null;
-    for (const rail of titleRails) {
-      if (!rail || rail.hidden || !hasMethod(rail, "querySelector")) continue;
-      firstTitle = rail.querySelector("button.movie-card:not([disabled])");
-      if (firstTitle) break;
-    }
-    if (!firstTitle) return false;
+  function focusInitialHero() {
+    if (!heroMovie || heroMovie.hidden) return false;
     if (windowRef && hasMethod(windowRef, "scrollTo")) windowRef.scrollTo(0, 0);
-    rememberRemoteTarget(firstTitle);
-    if (hasMethod(firstTitle, "focus")) firstTitle.focus();
-    rememberRemoteTarget(firstTitle);
-    if (hasMethod(firstTitle, "scrollIntoView")) {
-      firstTitle.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
-    }
+    if (hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
+    const firstHeroTarget = heroPlay || heroDetails || heroPrev || heroNext || heroMovie;
+    if (!firstHeroTarget) return false;
+    rememberRemoteTarget(firstHeroTarget);
+    if (hasMethod(firstHeroTarget, "focus")) firstHeroTarget.focus();
+    rememberRemoteTarget(firstHeroTarget);
     return true;
+  }
+
+  function focusInitialTitle() {
+    return focusInitialHero();
   }
 
   function renderLibrary() {
@@ -2696,6 +2836,50 @@ function createApp({
     return response.json();
   }
 
+  function offlineFileName(movie) {
+    const source = String((movie && (movie.fileName || movie.title)) || "movie").trim();
+    const extensionMatch = source.match(/\.[a-z0-9]{2,5}$/i);
+    const extension = extensionMatch ? extensionMatch[0] : ".mp4";
+    const base = source.replace(/\.[a-z0-9]{2,5}$/i, "").replace(/[<>:"\/\\|?*]+/g, "_").trim().slice(0, 120) || "movie";
+    return `${base}${extension}`;
+  }
+
+  async function downloadMovieOffline(movie) {
+    if (!movie || !isMoviePlayable(movie)) return false;
+    pendingOfflineMovie = movie;
+    if (detailsStatus) detailsStatus.textContent = "Preparing offline download…";
+    try {
+      const playback = await requestPlaybackLink(movie.id, "Unable to prepare the offline download.");
+      if (!playback || !playback.url) throw new Error("No downloadable movie link was returned.");
+      const bridge = windowRef && windowRef.MovieRoomAndroid;
+      if (bridge && typeof bridge.downloadForOffline === "function") {
+        const started = bridge.downloadForOffline(String(playback.url), offlineFileName(movie));
+        if (started) {
+          pendingOfflineMovie = null;
+          if (detailsStatus) detailsStatus.textContent = "Offline download started. Find it in Movie Room downloads.";
+          return true;
+        }
+        if (detailsStatus) detailsStatus.textContent = "Storage permission requested. The download will start when it is allowed.";
+        return false;
+      }
+      if (!documentRef || !hasMethod(documentRef, "createElement")) return false;
+      const anchor = documentRef.createElement("a");
+      anchor.href = String(playback.url);
+      anchor.download = offlineFileName(movie);
+      anchor.rel = "noopener";
+      if (documentRef.body && hasMethod(documentRef.body, "append")) documentRef.body.append(anchor);
+      if (hasMethod(anchor, "click")) anchor.click();
+      if (hasMethod(anchor, "remove")) anchor.remove();
+      pendingOfflineMovie = null;
+      if (detailsStatus) detailsStatus.textContent = "Offline download started in this browser.";
+      return true;
+    } catch (error) {
+      pendingOfflineMovie = null;
+      if (detailsStatus) detailsStatus.textContent = error.message;
+      return false;
+    }
+  }
+
   async function loadLibrary(selectedMovieId = movieSelect.value, options = {}) {
     const forceRefresh = options.forceRefresh === true;
     const quiet = options.quiet === true;
@@ -2799,7 +2983,7 @@ function createApp({
       }
     }
     renderLibrary();
-    if (!playerVisible && !quiet && activePage === "home") focusInitialTitle();
+    if (!playerVisible && !quiet && activePage === "home") focusInitialHero();
     return playableMovies;
   }
 
@@ -3157,8 +3341,32 @@ function createApp({
     if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
       const protocol = windowRef && windowRef.location ? windowRef.location.protocol : "";
       if (protocol === "https:" || protocol === "http:") {
-        navigatorRef.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+        const registrationPromise = navigatorRef.serviceWorker.register("/sw.js", { scope: "/" });
+        registrationPromise.then((registration) => {
+          if (hasMethod(registration, "update")) registration.update().catch(() => {});
+          if (windowRef && hasMethod(windowRef, "addEventListener")) {
+            windowRef.addEventListener("online", () => {
+              if (hasMethod(registration, "update")) registration.update().catch(() => {});
+            });
+          }
+        }).catch(() => {});
+        if (hasMethod(navigatorRef.serviceWorker, "addEventListener")) {
+          navigatorRef.serviceWorker.addEventListener("controllerchange", () => {
+            if (!windowRef || windowRef.__movieRoomServiceWorkerReloaded || playerVisible) return;
+            windowRef.__movieRoomServiceWorkerReloaded = true;
+            if (windowRef.location && hasMethod(windowRef.location, "reload")) windowRef.location.reload();
+          });
+        }
       }
+    }
+    if (windowRef && hasMethod(windowRef, "addEventListener")) {
+      windowRef.addEventListener("movieroom-storage-permission", (event) => {
+        const granted = Boolean(event && event.detail && event.detail.granted);
+        if (detailsStatus) detailsStatus.textContent = granted
+          ? "Storage permission allowed. Your offline download is starting."
+          : "Storage permission was not allowed, so the offline download was canceled.";
+        if (!granted) pendingOfflineMovie = null;
+      });
     }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
       for (const button of documentRef.querySelectorAll("[data-page]")) {
@@ -3178,15 +3386,19 @@ function createApp({
     }
     if (detailsClose && movieDetailsDialog) {
       detailsClose.addEventListener("click", () => {
-        if (typeof movieDetailsDialog.close === "function") movieDetailsDialog.close();
-        else movieDetailsDialog.removeAttribute("open");
+        closeMovieDetails();
       });
     }
     if (detailsPlay) {
       detailsPlay.addEventListener("click", () => {
         if (!detailsMovie) return;
-        if (movieDetailsDialog && typeof movieDetailsDialog.close === "function") movieDetailsDialog.close();
+        closeMovieDetails();
         moveToMovie(detailsMovie);
+      });
+    }
+    if (detailsOffline) {
+      detailsOffline.addEventListener("click", () => {
+        downloadMovieOffline(detailsMovie).catch(() => {});
       });
     }
     if (detailsWatchLater) {
@@ -3211,9 +3423,12 @@ function createApp({
     if (movieDetailsDialog) {
       movieDetailsDialog.addEventListener("click", (event) => {
         if (event.target === movieDetailsDialog) {
-          if (typeof movieDetailsDialog.close === "function") movieDetailsDialog.close();
-          else movieDetailsDialog.removeAttribute("open");
+          closeMovieDetails();
         }
+      });
+      movieDetailsDialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeMovieDetails();
       });
     }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
@@ -3253,6 +3468,18 @@ function createApp({
     }
     if (settingsCloseButton) {
       settingsCloseButton.addEventListener("click", closeSettings);
+    }
+    for (const [button, destination] of [
+      [menuHomeButton, "home"],
+      [menuLibraryButton, "library"],
+      [menuCollectionsButton, "collections"],
+      [menuGenresButton, "genres"],
+      [menuProfileHomeButton, "profile-home"],
+      [menuProfileMomButton, "profile-mom"],
+      [menuProfileKidsButton, "profile-kids"],
+      [menuProfileMorganneButton, "profile-morganne"],
+    ]) {
+      if (button) button.addEventListener("click", () => selectBrowseDestination(destination));
     }
     if (settingsDialog) {
       settingsDialog.addEventListener("cancel", (event) => {
@@ -3395,9 +3622,9 @@ function createApp({
         } else if (key === "contextmenu") {
           event.preventDefault();
           openSettings();
-        } else if (key === " " || key === "k") { event.preventDefault(); remotePlayPause(); }
-        else if (key === "j") seekPlayerBy(-10);
-        else if (key === "l") seekPlayerBy(30);
+        } else if (key === " " || key === "k" || ["mediaplaypause", "mediaplay", "mediapause"].includes(key)) { event.preventDefault(); remotePlayPause(); }
+        else if (key === "j" || key === "mediarewind") seekPlayerBy(-10);
+        else if (key === "l" || key === "mediafastforward") seekPlayerBy(30);
         else if (key === "f") openFullscreenPlayer();
         else if (key === "t") setPlayerMode(playerMode === "theater" ? "normal" : "theater");
         else if (key === "i") setPlayerMode(playerMode === "miniplayer" ? "normal" : "miniplayer");
@@ -3802,6 +4029,7 @@ if (typeof document !== "undefined") {
     detailsMeta: document.getElementById("details-meta"),
     detailsDescription: document.getElementById("details-description"),
     detailsPlay: document.getElementById("details-play"),
+    detailsOffline: document.getElementById("details-offline"),
     detailsWatchLater: document.getElementById("details-watch-later"),
     detailsQueue: document.getElementById("details-queue"),
     detailsFavorite: document.getElementById("details-favorite"),
@@ -3830,6 +4058,14 @@ if (typeof document !== "undefined") {
     settingsSystemButton: document.getElementById("settings-system"),
     settingsReloadButton: document.getElementById("settings-reload"),
     settingsCloseButton: document.getElementById("settings-close"),
+    menuHomeButton: document.getElementById("menu-home"),
+    menuLibraryButton: document.getElementById("menu-library"),
+    menuCollectionsButton: document.getElementById("menu-collections"),
+    menuGenresButton: document.getElementById("menu-genres"),
+    menuProfileHomeButton: document.getElementById("menu-profile-home"),
+    menuProfileMomButton: document.getElementById("menu-profile-mom"),
+    menuProfileKidsButton: document.getElementById("menu-profile-kids"),
+    menuProfileMorganneButton: document.getElementById("menu-profile-morganne"),
     playerSettingsButton: document.getElementById("player-settings"),
     playerNetworkSettingsButton: document.getElementById("player-network-settings"),
     fetchImpl: fetch,

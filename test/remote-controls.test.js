@@ -33,6 +33,12 @@ test("remote focus wraps to another visible target when a direction reaches an e
   assert.match(app, /rememberRemoteTarget\(next\)/);
 });
 
+test("directional focus keeps left and right movement inside the current title rail", () => {
+  assert.match(app, /const currentRail = current\.closest\("\.movie-rail, \.movie-grid, \.genre-group-grid"\)/);
+  assert.match(app, /if \(currentRail && \(direction === "left" \|\| direction === "right"\)\)/);
+  assert.match(app, /const railTargets =/);
+});
+
 test("selecting a movie starts the player immediately and previews the focused title", () => {
   assert.match(app, /player\.autoplay\s*=\s*true/);
   assert.match(app, /player\.play\(\)/);
@@ -48,8 +54,36 @@ test("thumbnail previews start after the opening credits and remain while focuse
   assert.match(app, /setTimeoutImpl\(.*previewDurationMs/s);
 });
 
-test("the initial TV focus lands on the title rail at the top of the page", () => {
-  assert.match(app, /function focusInitialTitle/);
-  assert.match(app, /focusInitialTitle\(\)/);
+test("the initial TV focus keeps the trending hero at the top until the user moves down", () => {
+  assert.match(app, /function focusInitialHero/);
+  assert.match(app, /focusInitialHero\(\)/);
   assert.match(app, /behavior:\s*"auto", block:\s*"start"/);
+  assert.match(app, /const previewVideo = heroVisible \? heroPreviewVideo/);
+  assert.match(html, /Trending now/);
+});
+
+test("the home hero uses the selected movie video instead of leaving the poster visible", () => {
+  assert.match(app, /hero-video-active/);
+  assert.match(html, /\.hero-movie\.hero-video-active > img \{ opacity: 0; \}/);
+});
+
+test("selecting a title opens More info and promotes that movie to the video hero", () => {
+  assert.match(app, /let detailsPreviousFocus = null/);
+  assert.match(app, /function closeMovieDetails/);
+  assert.match(app, /detailsPreviousFocus = documentRef\.activeElement/);
+  assert.match(app, /setFeaturedMovie\(movie\)/);
+  assert.match(app, /if \(detailsPlay && hasMethod\(detailsPlay, "focus"\)\) detailsPlay\.focus\(\)/);
+  assert.match(app, /card\.addEventListener\("click", \(\) => \{[\s\S]*?openMovieDetails\(movie\)/);
+  assert.match(html, /id="details-title"/);
+  assert.match(html, /id="details-play"/);
+});
+
+test("the physical Menu keeps browse destinations available without restoring a cluttered top bar", () => {
+  for (const destination of ["menu-home", "menu-library", "menu-collections", "menu-genres", "menu-profile-home", "menu-profile-mom", "menu-profile-kids"]) {
+    assert.match(html, new RegExp(`id="${destination}"`));
+  }
+  assert.match(app, /function selectBrowseDestination/);
+  assert.match(app, /activeLibraryView = "collections"/);
+  assert.match(app, /activeLibraryView = "genres"/);
+  assert.match(app, /menuHomeButton/);
 });
