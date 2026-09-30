@@ -63,3 +63,16 @@ test("Movie Room shell renders a native home screen with profiles and controls",
   assert.doesNotMatch(activity, /ACTION_VIEW|MOVIE_ROOM_BASE_URL/);
   assert.doesNotMatch(activity, /ONEDRIVE|JELLYFIN_API_KEY|VERCEL_|MOVIE_ROOM_PASSWORD/i);
 });
+
+test("Movie Room shell explains the active network and exposes Wi-Fi and mobile settings", () => {
+  const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
+
+  assert.match(activity, /ConnectivityManager/);
+  assert.match(activity, /NetworkCapabilities/);
+  assert.match(activity, /TRANSPORT_WIFI/);
+  assert.match(activity, /TRANSPORT_CELLULAR/);
+  assert.match(activity, /ACTION_WIFI_SETTINGS/);
+  assert.match(activity, /ACTION_WIRELESS_SETTINGS/);
+  assert.match(activity, /Current connection/);
+  assert.match(activity, /Mobile data/);
+});

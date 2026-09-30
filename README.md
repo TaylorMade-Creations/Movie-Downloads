@@ -174,6 +174,8 @@ To install or update the APK over the same Wi-Fi network, enable ADB debugging o
 
 This sideloads the private app; it does not replace or "flash" Fire OS firmware. The same APK can be installed on another Fire Stick by running the command with that device's IP address and pairing that installation once.
 
+The Fire TV build keeps the existing Fire OS experience available. Its Movie Room home bar includes an `ALEXA` action that hands off to the Fire OS assistant and a `WEB SEARCH` action that opens the installed Fire TV browser for movie searches. These actions link to the system features; they do not bundle, remove, or replace Alexa, Silk, or Fire OS.
+
 ## Getting started
 
 Use Node.js 22.9 or newer. `npm start` loads `.env` and then the ignored `.env.local` override when either exists, and otherwise uses the current process environment.

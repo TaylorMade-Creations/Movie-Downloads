@@ -1,0 +1,28 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = path.resolve(__dirname, "..");
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+test("Movie Room Web APK wraps the current website for Android and TV", () => {
+  const settings = read("settings.gradle");
+  const build = read("movieroom-web/build.gradle");
+  const manifest = read("movieroom-web/src/main/AndroidManifest.xml");
+  const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
+
+  assert.match(settings, /include ":movieroom-web"/);
+  assert.match(build, /applicationId\s+"com\.movieroom\.web"/);
+  assert.match(manifest, /android\.permission\.INTERNET/);
+  assert.match(manifest, /android\.permission\.ACCESS_NETWORK_STATE/);
+  assert.match(manifest, /android\.intent\.category\.LEANBACK_LAUNCHER/);
+  assert.match(activity, /WebView/);
+  assert.match(activity, /BuildConfig\.MOVIE_ROOM_BASE_URL/);
+  assert.match(activity, /setJavaScriptEnabled\(true\)/);
+  assert.match(activity, /setDomStorageEnabled\(true\)/);
+  assert.match(activity, /setMediaPlaybackRequiresUserGesture\(false\)/);
+});

@@ -3,9 +3,13 @@ package com.movieroom.shell;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
@@ -24,12 +28,19 @@ public final class ShellActivity extends Activity {
     private static final int TEAL = Color.rgb(64, 216, 192);
     private static final int TEXT = Color.rgb(239, 250, 255);
     private String activeProfile = "Home";
+    private TextView connectionStatus;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(NAVY);
         showHome();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateConnectionStatus();
     }
 
     private void showHome() {
@@ -73,13 +84,15 @@ public final class ShellActivity extends Activity {
         settings.setOnClickListener(view -> openSettings());
         heroActions.addView(settings, wrap());
         hero.addView(heroActions);
+        connectionStatus = text("Current connection: " + currentConnectionLabel(), 16, Color.rgb(185, 215, 228));
+        hero.addView(connectionStatus);
         content.addView(hero, new LinearLayout.LayoutParams(-1, -2));
 
         addShelf(content, "Continue Watching", new String[]{"Resume your last movie", "Up next", "Keep watching"});
         addShelf(content, "Recently Added", new String[]{"Latest uploads", "New in Movie Room", "Fresh artwork"});
         addShelf(content, "Taylor-Made Picks", new String[]{"Family night", "Action favorites", "Comedy picks", "Kids corner"});
         addShelf(content, "Profiles", new String[]{"Home", "Mom", "Morganne", "Kids"});
-        addShelf(content, "Device controls", new String[]{"Android Settings", "Wi-Fi & network", "Bluetooth", "Display"});
+        addShelf(content, "Device controls", new String[]{"Android Settings", "Wi-Fi settings", "Mobile data", "General network", "Bluetooth", "Display"});
 
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -113,7 +126,11 @@ public final class ShellActivity extends Activity {
         if (title.equals("Home") || title.equals("Mom") || title.equals("Morganne") || title.equals("Kids")) {
             activeProfile = title;
             showHome();
-        } else if (title.contains("Settings") || title.contains("network") || title.equals("Bluetooth") || title.equals("Display")) {
+        } else if (title.contains("Settings") || title.toLowerCase().contains("network") || title.equals("Bluetooth") || title.equals("Display")) {
+            openDeviceSettings(title);
+        } else if (title.equals("Mobile data")) {
+            openMobileNetworkSettings();
+        } else if (title.equals("Wi-Fi settings")) {
             openDeviceSettings(title);
         } else {
             openNativePlayer();
@@ -148,13 +165,41 @@ public final class ShellActivity extends Activity {
 
     private void openDeviceSettings(String title) {
         String action = Settings.ACTION_SETTINGS;
-        if (title.contains("network")) action = Settings.ACTION_WIFI_SETTINGS;
+        if (title.equals("Wi-Fi settings")) action = Settings.ACTION_WIFI_SETTINGS;
+        else if (title.toLowerCase().contains("network")) action = Settings.ACTION_WIRELESS_SETTINGS;
         else if (title.equals("Bluetooth")) action = Settings.ACTION_BLUETOOTH_SETTINGS;
         else if (title.equals("Display")) action = Settings.ACTION_DISPLAY_SETTINGS;
         try {
             startActivity(new Intent(action));
         } catch (RuntimeException error) {
             Toast.makeText(this, "Android settings are unavailable on this target.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openMobileNetworkSettings() {
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Toast.makeText(this, "This device has no cellular modem. Use Wi-Fi or Ethernet.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        openDeviceSettings("Mobile network");
+    }
+
+    private String currentConnectionLabel() {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null) return "Unavailable";
+        Network network = manager.getActiveNetwork();
+        NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
+        if (capabilities == null) return "Offline";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return "Wi-Fi connected";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) return "Ethernet connected";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) return "Mobile data connected";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return "VPN connected";
+        return "Network connected";
+    }
+
+    private void updateConnectionStatus() {
+        if (connectionStatus != null) {
+            connectionStatus.setText("Current connection: " + currentConnectionLabel());
         }
     }
 

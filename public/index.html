@@ -944,6 +944,32 @@
       .genre-group h3 { margin: 0; color: var(--gold-soft); font-size: 18px; letter-spacing: .02em; }
       .genre-group-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px 14px; }
 
+      .remote-control-bar {
+        position: sticky;
+        bottom: 12px;
+        z-index: 14;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        width: min(980px, calc(100% - 32px));
+        margin: 12px auto 0;
+        border: 2px solid #40d8c0;
+        border-radius: 999px;
+        padding: 8px 10px;
+        background: rgba(6, 21, 35, .96);
+        box-shadow: 0 12px 34px rgba(0, 0, 0, .76);
+        backdrop-filter: blur(16px);
+      }
+      .remote-focus-label { min-width: 160px; color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .02em; text-align: left; }
+      .remote-control-buttons { display: flex; align-items: center; gap: 6px; }
+      .remote-control-button { min-width: 42px; min-height: 38px; border: 2px solid #6ff5e5; border-radius: 9px; padding: 7px 10px; background: #123b50; color: #fff; font-size: 13px; font-weight: 900; }
+      .remote-control-button:hover, .remote-control-button:focus-visible { border-color: #fff; background: #ffd166; color: #07121b; outline: 3px solid #07121b; outline-offset: 2px; box-shadow: 0 0 0 5px #ffd166; transform: scale(1.06); }
+      :where(button, input, select, [tabindex]):focus-visible { outline: 3px solid #ffd166; outline-offset: 3px; box-shadow: 0 0 0 5px #07121b; }
+      .movie-card:focus-visible, .movie-card.remote-target-active { border-color: #fff; outline: 3px solid #ffd166; outline-offset: 4px; box-shadow: 0 0 0 7px #07121b, 0 18px 34px rgba(0, 0, 0, .72); transform: translateY(-4px) scale(1.035); }
+      .remote-control-bar .remote-control-button.remote-target-active { background: #ffd166; color: #07121b; }
+      @media (max-width: 760px) { .remote-control-bar { width: calc(100% - 20px); overflow-x: auto; justify-content: flex-start; } .remote-focus-label { min-width: 118px; } }
+
       .guidance-area {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1144,6 +1170,13 @@
       .watch-stage.player-page { background: rgba(3,15,25,.98); }
       .close-player-page { border-color: #35647c; background: #15364c; }
       .movie-card.preview-loading .poster::after { content: "Preview"; font-size: 11px; }
+      /* Compact TV poster grid: keep the Netflix-like rails, but show more titles at once. */
+      .movie-grid, .genre-group-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 138px)); justify-content: start; gap: 18px 10px; }
+      .movie-rail { grid-auto-columns: minmax(112px, 132px); gap: 10px; }
+      .movie-info { min-height: 58px; padding: 7px 8px 8px; }
+      .movie-title { font-size: 13px; line-height: 1.2; }
+      .movie-meta { font-size: 10px; line-height: 1.25; }
+      .ready-badge, .upload-badge { font-size: 9px; padding: 3px 5px; }
       @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     </style>
   </head>
@@ -1213,6 +1246,20 @@
         <button id="logout" class="secondary" type="button">Log out</button>
       </div>
     </header>
+
+    <nav id="remote-control-bar" class="remote-control-bar" aria-label="Movie Room remote controls" hidden>
+      <span id="remote-focus-label" class="remote-focus-label">Selected: Home</span>
+      <div class="remote-control-buttons">
+        <button id="remote-home" class="remote-control-button" type="button" data-remote-action="home" aria-label="Go home">⌂ Home</button>
+        <button id="remote-back" class="remote-control-button" type="button" data-remote-action="back" aria-label="Go back">← Back</button>
+        <button id="remote-up" class="remote-control-button" type="button" data-remote-action="up" aria-label="Move focus up">▲</button>
+        <button id="remote-left" class="remote-control-button" type="button" data-remote-action="left" aria-label="Move focus left">◀</button>
+        <button id="remote-select" class="remote-control-button" type="button" data-remote-action="select" aria-label="Select current item">OK</button>
+        <button id="remote-right" class="remote-control-button" type="button" data-remote-action="right" aria-label="Move focus right">▶</button>
+        <button id="remote-down" class="remote-control-button" type="button" data-remote-action="down" aria-label="Move focus down">▼</button>
+        <button id="remote-play" class="remote-control-button" type="button" data-remote-action="play" aria-label="Play or pause movie">▶/Ⅱ</button>
+      </div>
+    </nav>
 
     <section id="search-overlay" class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-overlay-title" aria-hidden="true" hidden>
       <div class="search-overlay-panel">
