@@ -131,6 +131,33 @@
         text-transform: uppercase;
       }
 
+      .topbar-context {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: max-content;
+        color: #c5e1ed;
+        font-size: 13px;
+      }
+
+      .topbar-context-label {
+        color: #8fb5c7;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .topbar-context strong {
+        color: #fff;
+        font-size: 14px;
+      }
+
+      .topbar-context-separator {
+        color: #40d8c0;
+        font-weight: 900;
+      }
+
       .topbar-actions,
       .search-wrap {
         display: flex;
@@ -192,6 +219,21 @@
       .profile-menu button.active {
         background: #2d2d2d;
         outline: none;
+      }
+
+      .profile-menu-heading {
+        margin: 2px 8px 0;
+        color: #8fb5c7;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .profile-menu-divider {
+        height: 1px;
+        margin: 3px 0;
+        background: #28536b;
       }
 
       .search-wrap {
@@ -1081,6 +1123,13 @@
           align-self: flex-start;
         }
 
+        .topbar-context {
+          width: 100%;
+          min-width: 0;
+          justify-content: flex-start;
+          order: 2;
+        }
+
         .profile-switcher {
           flex: 1 1 100%;
         }
@@ -1201,6 +1250,55 @@
       .movie-title { font-size: 13px; line-height: 1.2; }
       .movie-meta { font-size: 10px; line-height: 1.25; }
       .ready-badge, .upload-badge { font-size: 9px; padding: 3px 5px; }
+      @media (max-width: 720px) {
+        .topbar-actions { display: flex; order: 3; width: 100%; justify-content: flex-start; }
+        .topbar-actions > #reload, .topbar-actions > #logout { display: none; }
+        .profile-switcher { width: 100%; }
+        .profile-toggle { width: 100%; justify-content: flex-start; }
+        .search-wrap { order: 4; }
+      }
+      .search-page, .navigation-page, .movie-details-page { min-height: calc(100vh - 84px); }
+      .search-page-panel { display: grid; gap: 18px; width: 100%; padding: 16px 0 54px; }
+      .search-page-header, .navigation-page-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; border-bottom: 1px solid rgba(64,216,192,.25); padding: 10px 0 20px; }
+      .search-page-header h1, .navigation-page-header h1 { margin: 0; color: #fff; font-size: clamp(32px, 5vw, 60px); letter-spacing: -.05em; }
+      .search-page-summary { margin: 8px 0 0; color: #c5e1ed; }
+      .search-page-toolbar { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 12px; }
+      .search-page-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding-bottom: 24px; }
+      .search-page-results .search-result { min-height: 128px; }
+      .navigation-page { display: grid; align-content: start; gap: 22px; }
+      .navigation-page-header { display: grid; align-items: start; justify-content: start; }
+      .navigation-page-header p:last-child { max-width: 760px; margin: 0; color: #c5e1ed; }
+      .navigation-grid, .profile-navigation-grid, .page-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+      .navigation-grid button, .profile-navigation-grid button, .page-shortcuts button { min-height: 66px; text-align: left; border: 1px solid #35647c; background: #15364c; color: #fff; }
+      .navigation-grid button:hover, .navigation-grid button:focus-visible, .profile-navigation-grid button:hover, .profile-navigation-grid button:focus-visible, .page-shortcuts button:hover, .page-shortcuts button:focus-visible { border-color: #40d8c0; background: #24556e; }
+      .navigation-section-title { margin: 8px 0 -10px; color: #a6f1e7; }
+      .navigation-back { justify-self: start; }
+      .home-navigation { display: grid; gap: 12px; margin: 8px 0 26px; border: 1px solid rgba(64,216,192,.24); border-radius: 14px; padding: 16px; background: rgba(14,36,53,.72); }
+      .home-navigation-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+      .home-navigation-heading h2 { margin: 0; color: #fff; }
+      .home-navigation-heading > span { color: #a6f1e7; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+      .profile-shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
+      .profile-shortcuts-label { margin-right: 5px; color: #8fb5c7; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+      .profile-shortcuts button { min-height: 42px; padding: 9px 14px; border: 1px solid #35647c; background: transparent; color: #fff; }
+      .movie-details-page { position: relative; }
+      .details-page-back { position: relative; z-index: 4; margin: 10px 0 14px; }
+      .details-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 250px); align-items: end; gap: 26px; min-height: min(640px, calc(100vh - 150px)); overflow: hidden; border: 1px solid rgba(64,216,192,.24); border-radius: 18px; padding: clamp(24px, 4vw, 52px); isolation: isolate; background: #061523; }
+      .details-hero > img, .details-preview-video, .details-hero-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .details-hero > img, .details-preview-video { z-index: -2; object-fit: cover; opacity: .82; }
+      .details-preview-video { opacity: .62; }
+      .details-hero-shade { z-index: -1; background: linear-gradient(90deg, rgba(6,21,35,.98) 0%, rgba(6,21,35,.84) 36%, rgba(6,21,35,.3) 70%, rgba(6,21,35,.82) 100%), linear-gradient(0deg, rgba(6,21,35,.96), transparent 54%); }
+      .details-hero .details-copy { position: relative; z-index: 2; align-self: end; max-width: 800px; }
+      .details-hero .details-copy h1 { margin: 0; color: #fff; font-size: clamp(36px, 6vw, 76px); letter-spacing: -.06em; line-height: .98; }
+      .details-hero .details-copy .detail { max-width: 680px; color: #d7edf5; line-height: 1.55; }
+      .details-hero .details-art { position: relative; z-index: 2; align-self: end; justify-self: end; width: min(100%, 240px); }
+      .details-hero .details-art img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; box-shadow: 0 20px 55px rgba(0,0,0,.58); }
+      .settings-download { display: inline-flex; margin-top: 18px; border: 1px solid #40d8c0; border-radius: 8px; padding: 11px 14px; color: #061523; background: #a6f1e7; font-weight: 800; text-decoration: none; }
+      .settings-download-help { margin-bottom: 0; font-size: 13px; }
+      @media (max-width: 720px) {
+        .search-page-header, .home-navigation-heading { align-items: start; flex-direction: column; }
+        .details-hero { grid-template-columns: 1fr; min-height: 620px; }
+        .details-hero .details-art { display: none; }
+      }
       @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     </style>
   </head>
@@ -1220,6 +1318,7 @@
         <div class="permission-actions">
           <button id="enable-permissions" type="button">Allow permissions</button>
           <button id="skip-permissions" class="secondary" type="button">Not now</button>
+          <button id="open-storage-settings" class="secondary" type="button" hidden>Open app storage settings</button>
         </div>
         <p id="permission-status" class="status" role="status" aria-live="polite"></p>
       </div>
@@ -1232,6 +1331,12 @@
           <span class="brand-primary">TaylorMade Movies</span>
           <span class="brand-secondary">Movie Room</span>
         </span>
+      </div>
+      <div class="topbar-context" aria-live="polite" aria-label="Current viewer and Movie Room page">
+        <span class="topbar-context-label">Watching as</span>
+        <strong id="viewer-header-label">Home</strong>
+        <span class="topbar-context-separator" aria-hidden="true">•</span>
+        <strong id="page-header-label">Home / Trending</strong>
       </div>
       <nav class="primary-nav" aria-label="Movie Room navigation">
         <button type="button" data-page="home" class="active">Home</button>
@@ -1257,13 +1362,21 @@
             aria-expanded="false"
           >
             <span id="profile-avatar" class="profile-avatar" aria-hidden="true">H</span>
-            <span id="profile-label">Home</span>
+            <span id="profile-label">Profile</span>
           </button>
           <div id="profile-menu" class="profile-menu" role="menu" hidden>
+            <p class="profile-menu-heading">Profiles</p>
             <button type="button" role="menuitem" data-viewer-profile="home">Home</button>
             <button type="button" role="menuitem" data-viewer-profile="mom">Mom</button>
             <button type="button" role="menuitem" data-viewer-profile="morganne">Morganne</button>
             <button type="button" role="menuitem" data-viewer-profile="kids">Kids</button>
+            <span class="profile-menu-divider" aria-hidden="true"></span>
+            <button type="button" role="menuitem" data-profile-destination="profile">Profile page</button>
+            <button type="button" role="menuitem" data-profile-destination="saved">Saved / downloaded</button>
+            <button type="button" role="menuitem" data-profile-destination="genres">Genres</button>
+            <button type="button" role="menuitem" data-profile-destination="home">Home</button>
+            <button type="button" role="menuitem" data-profile-destination="library">Library</button>
+            <button type="button" role="menuitem" data-profile-destination="settings">Settings</button>
           </div>
         </div>
         <button id="reload" class="secondary" type="button">Reload</button>
@@ -1271,20 +1384,44 @@
       </div>
     </header>
 
-    <section id="search-overlay" class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-overlay-title" aria-hidden="true" hidden>
-      <div class="search-overlay-panel">
-        <div class="search-overlay-header">
+    <main id="search-page" class="page search-page" aria-labelledby="search-page-title" aria-hidden="true" hidden>
+      <div class="search-page-panel">
+        <div class="search-page-header">
           <div>
             <p class="eyebrow">Browse your private library</p>
-            <h2 id="search-overlay-title">Search and browse</h2>
-            <p id="search-overlay-summary" class="search-overlay-summary"></p>
+            <h1 id="search-page-title">Search and browse</h1>
+            <p id="search-page-summary" class="search-page-summary"></p>
           </div>
-          <button id="search-overlay-close" class="secondary" type="button" aria-label="Close search and browse">Close</button>
+          <button id="search-page-close" class="secondary" type="button" aria-label="Return to home">← Home</button>
         </div>
-        <div id="search-overlay-genres" class="search-overlay-toolbar" aria-label="Search genres and saved categories"></div>
-        <div id="search-overlay-results" class="search-overlay-results" tabindex="0" aria-live="polite"></div>
+        <div id="search-page-genres" class="search-page-toolbar" aria-label="Search genres and saved categories"></div>
+        <div id="search-page-results" class="search-page-results" tabindex="0" aria-live="polite"></div>
       </div>
-    </section>
+    </main>
+
+    <main id="navigation-page" class="page navigation-page" aria-labelledby="navigation-page-title" hidden>
+      <section class="navigation-page-header">
+        <p class="eyebrow">Movie Room menu</p>
+        <h1 id="navigation-page-title">Where do you want to go?</h1>
+        <p>Use the directional buttons to move, then press Select once. Every destination opens as its own page.</p>
+      </section>
+      <div class="navigation-grid" aria-label="Movie Room pages">
+        <button type="button" data-browse-destination="home">Home / Trending</button>
+        <button type="button" data-browse-destination="search">Search</button>
+        <button type="button" data-browse-destination="library">General library</button>
+        <button type="button" data-browse-destination="collections">Collections &amp; series</button>
+        <button type="button" data-browse-destination="genres">Genres</button>
+        <button type="button" data-browse-destination="saved">Saved / downloaded</button>
+      </div>
+      <h2 class="navigation-section-title">Profiles</h2>
+      <div class="profile-navigation-grid" aria-label="Profiles">
+        <button type="button" data-profile-navigation="home">Home profile</button>
+        <button type="button" data-profile-navigation="mom">Mom profile</button>
+        <button type="button" data-profile-navigation="kids">Kids profile</button>
+        <button type="button" data-profile-navigation="morganne">Morganne profile</button>
+      </div>
+      <button type="button" class="secondary navigation-back" data-browse-destination="home">← Back to Home</button>
+    </main>
 
     <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
       <h2 id="settings-title">Movie Room settings</h2>
@@ -1306,8 +1443,11 @@
         <button id="settings-display" type="button">Display</button>
         <button id="settings-bluetooth" type="button">Bluetooth / Remote</button>
         <button id="settings-system" type="button">Android settings</button>
+        <button id="settings-updates" type="button">Check for app updates</button>
         <button id="settings-reload" type="button">Refresh movie library</button>
       </div>
+      <p class="settings-download-help">Chrome’s “Install app” installs the portrait PWA. Use this link for the Android APK; it is separate from the private Fire TV shell.</p>
+      <a class="settings-download" href="/downloads/TaylorMade-Movies-Android-v1.0.13.apk" download>Download Android app</a>
       <button id="settings-close" class="settings-close" type="button">Close settings</button>
     </dialog>
 
@@ -1354,6 +1494,39 @@
           <span id="hero-indicator" class="hero-carousel-indicator">1 / 5</span>
           <button id="hero-next" type="button" aria-label="Next featured movie">›</button>
         </div>
+      </section>
+      <section id="home-navigation" class="home-navigation" aria-label="Movie Room pages">
+        <div class="home-navigation-heading">
+          <div>
+            <p class="eyebrow">Choose a page</p>
+            <h2>Browse Movie Room</h2>
+          </div>
+          <span>Remote ready</span>
+        </div>
+        <div class="page-shortcuts">
+          <button type="button" data-browse-destination="library">General library</button>
+          <button type="button" data-browse-destination="search">Search</button>
+          <button type="button" data-browse-destination="genres">Genres</button>
+          <button type="button" data-browse-destination="saved">Saved</button>
+          <button type="button" data-browse-destination="menu">Menu</button>
+        </div>
+        <div class="profile-shortcuts" aria-label="Choose a profile">
+          <span class="profile-shortcuts-label">Profiles</span>
+          <button type="button" data-profile-navigation="home">Home</button>
+          <button type="button" data-profile-navigation="mom">Mom</button>
+          <button type="button" data-profile-navigation="kids">Kids</button>
+          <button type="button" data-profile-navigation="morganne">Morganne</button>
+        </div>
+      </section>
+      <section id="home-library-section" class="shelf-section home-library-section" aria-labelledby="home-library-title">
+        <div class="shelf-heading">
+          <div>
+            <h2 id="home-library-title">Home library</h2>
+            <span id="home-library-summary" class="shelf-summary">Your profile titles</span>
+          </div>
+          <button type="button" class="secondary" data-browse-destination="library">Open full library</button>
+        </div>
+        <div id="home-library-shelf" class="movie-rail" aria-live="polite"></div>
       </section>
       <section class="library-tabs-panel" aria-label="Movie tabs">
         <div id="category-shelf" class="category-shelf" aria-label="Movie categories"></div>
@@ -1509,24 +1682,29 @@
       </div>
     </main>
 
-    <dialog id="movie-details-dialog" class="movie-details-dialog" aria-labelledby="details-title">
-      <button id="details-close" class="dialog-close secondary" type="button" aria-label="Close movie details">×</button>
-      <div class="details-art"><img id="details-poster" src="/movie-room-hero.png" alt="" /></div>
-      <div class="details-copy">
-        <p class="eyebrow">Movie Room</p>
-        <h2 id="details-title">Movie details</h2>
-        <p id="details-meta" class="hero-meta"></p>
-        <p id="details-description" class="detail"></p>
-        <div class="hero-actions">
-          <button id="details-play" type="button">▶ Play</button>
-          <button id="details-offline" class="secondary" type="button">⇩ Download offline</button>
-          <button id="details-favorite" class="secondary" type="button">☆ Add Favorite</button>
-          <button id="details-watch-later" class="secondary" type="button">＋ Watch Later</button>
-          <button id="details-queue" class="secondary" type="button">Add to queue</button>
+    <main id="movie-details-page" class="page movie-details-page" aria-labelledby="details-title" hidden>
+      <button id="details-close" class="details-page-back secondary" type="button" aria-label="Return to the previous page">← Back</button>
+      <section class="details-hero">
+        <img id="details-backdrop" src="/movie-room-hero.png" alt="" />
+        <video id="details-preview-video" class="details-preview-video" muted loop playsinline preload="metadata" aria-hidden="true" hidden></video>
+        <div class="details-hero-shade" aria-hidden="true"></div>
+        <div class="details-copy">
+          <p class="eyebrow">Movie Room • Selected title</p>
+          <h1 id="details-title">Movie details</h1>
+          <p id="details-meta" class="hero-meta"></p>
+          <p id="details-description" class="detail"></p>
+          <div class="hero-actions">
+            <button id="details-play" type="button">▶ Play</button>
+            <button id="details-offline" class="secondary" type="button">⇩ Download offline</button>
+            <button id="details-favorite" class="secondary" type="button">☆ Add Favorite</button>
+            <button id="details-watch-later" class="secondary" type="button">＋ Watch Later</button>
+            <button id="details-queue" class="secondary" type="button">Add to queue</button>
+          </div>
+          <p id="details-status" class="status" role="status" aria-live="polite"></p>
         </div>
-        <p id="details-status" class="status" role="status" aria-live="polite"></p>
-      </div>
-    </dialog>
+        <aside class="details-art" aria-label="Selected movie poster"><img id="details-poster" src="/movie-room-hero.png" alt="" /></aside>
+      </section>
+    </main>
 
     <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation">
       <button type="button" data-mobile-action="home">⌂<span>Home</span></button>
@@ -1543,6 +1721,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260930-keyboard-hero-v4" defer></script>
+    <script src="/app.js?v=20260930-pages-v2" defer></script>
   </body>
 </html>

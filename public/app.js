@@ -233,6 +233,8 @@ function createApp({
   searchOverlayResults,
   searchOverlayGenres,
   searchOverlaySummary,
+  navigationPage,
+  homeNavigation,
   passwordForm,
   passwordInput,
   submitButton,
@@ -256,6 +258,7 @@ function createApp({
   permissionPanel,
   enablePermissionsButton,
   skipPermissionsButton,
+  openStorageSettingsButton,
   permissionStatus,
   seekBackwardButton,
   seekForwardButton,
@@ -275,6 +278,8 @@ function createApp({
   profileMenu,
   profileLabel,
   profileAvatar,
+  viewerHeaderLabel,
+  pageHeaderLabel,
   profileButtons = [],
   heroMovie,
   heroBackdrop,
@@ -292,6 +297,9 @@ function createApp({
   continueSummary,
   recentlyAddedShelf,
   picksShelf,
+  homeLibrarySection,
+  homeLibraryShelf,
+  homeLibrarySummary,
   profilePage,
   profilePageEyebrow,
   profilePageTitle,
@@ -300,6 +308,8 @@ function createApp({
   profileRecentlyWatchedShelf,
   movieDetailsDialog,
   detailsClose,
+  detailsBackdrop,
+  detailsPreviewVideo,
   detailsPoster,
   detailsTitle,
   detailsMeta,
@@ -321,6 +331,7 @@ function createApp({
   settingsDisplayButton,
   settingsBluetoothButton,
   settingsSystemButton,
+  settingsUpdatesButton,
   settingsReloadButton,
   settingsCloseButton,
   menuHomeButton,
@@ -361,6 +372,8 @@ function createApp({
   let viewerState = { movies: {}, queue: [], settings: {} };
   let detailsMovie = null;
   let detailsPreviousFocus = null;
+  let detailsPreviousPage = "library";
+  let detailsPreviewVersion = 0;
   let pendingOfflineMovie = null;
   let playerMode = "normal";
   let progressTimer = null;
@@ -393,6 +406,7 @@ function createApp({
   const profileStorageKey = "movie_room_viewer_profile_v1";
   const profileLastMoviePrefix = "movie_room_last_movie_v1_";
   const profileSearchPrefix = "movie_room_search_history_v1_";
+  const profileNavigationPrefix = "movie_room_navigation_v1_";
   const viewerProfiles = {
     home: { label: "Home", initial: "H", palette: "home", pick: () => true },
     mom: { label: "Mom", initial: "M", palette: "mom", pick: (movie) => classifyMovie(movie) === "mom" || genresForMovie(movie).some((genre) => /drama|romance|family/i.test(genre)) },
@@ -441,13 +455,30 @@ function createApp({
     }
   }
 
+  function updateHeaderContext() {
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    if (viewerHeaderLabel) viewerHeaderLabel.textContent = profile.label;
+    if (pageHeaderLabel) {
+      const pageLabel = activePage === "library"
+        ? (activeLibraryView === "collections" ? "Collections & series"
+          : activeLibraryView === "genres" ? "Genres" : "General library")
+        : activePage === "profile" ? `${profile.label} profile`
+          : activePage === "user" ? "Profile"
+            : activePage === "search" ? "Search"
+              : activePage === "menu" ? "Movie Room menu"
+            : "Home / Trending";
+      pageHeaderLabel.textContent = pageLabel;
+    }
+  }
+
   function updateProfileUi() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
     if (documentRef && documentRef.body && documentRef.body.dataset) {
       documentRef.body.dataset.viewerProfile = profile.palette;
     }
-    if (profileLabel) {
-      profileLabel.textContent = profile.label;
+    if (profileLabel) profileLabel.textContent = "Profile";
+    if (profileToggle && typeof profileToggle.setAttribute === "function") {
+      profileToggle.setAttribute("aria-label", `Profile selector. Current profile: ${profile.label}`);
     }
     if (profileAvatar) {
       profileAvatar.textContent = profile.initial;
@@ -461,6 +492,7 @@ function createApp({
         button.setAttribute("aria-checked", selected ? "true" : "false");
       }
     }
+    updateHeaderContext();
   }
 
   function storedMovieForProfile() {
@@ -478,6 +510,24 @@ function createApp({
       ? profileId
       : "home";
     writeLocalValue(profileStorageKey, activeProfile);
+    const savedNavigation = readLocalValue(`${profileNavigationPrefix}${activeProfile}`);
+    if (savedNavigation) {
+      try {
+        const navigation = JSON.parse(savedNavigation);
+        if (navigation && typeof navigation === "object") {
+          activeLibraryView = ["movies", "collections", "genres"].includes(navigation.libraryView)
+            ? navigation.libraryView
+            : "movies";
+          activeFolder = typeof navigation.folder === "string" ? navigation.folder : "all";
+          activeCategory = typeof navigation.category === "string" ? navigation.category : "all";
+          searchTerm = typeof navigation.searchTerm === "string" ? navigation.searchTerm : "";
+          searchOverlayGenre = typeof navigation.searchGenre === "string" ? navigation.searchGenre : "all";
+          if (searchInput) searchInput.value = searchTerm;
+        }
+      } catch {
+        // Ignore a damaged navigation snapshot and keep the profile defaults.
+      }
+    }
     if (profileMenu) {
       profileMenu.hidden = true;
     }
@@ -485,6 +535,17 @@ function createApp({
       profileToggle.setAttribute("aria-expanded", "false");
     }
     updateProfileUi();
+  }
+
+  function saveProfileNavigationState() {
+    writeLocalValue(`${profileNavigationPrefix}${activeProfile}`, JSON.stringify({
+      page: activePage,
+      libraryView: activeLibraryView,
+      folder: activeFolder,
+      category: activeCategory,
+      searchTerm,
+      searchGenre: searchOverlayGenre,
+    }));
   }
 
   function initializeViewerProfile() {
@@ -652,12 +713,17 @@ function createApp({
   }
 
   function setActivePage(page) {
-    activePage = ["home", "library", "profile", "user"].includes(page) ? page : "home";
+    activePage = ["home", "library", "profile", "user", "search", "menu", "details"].includes(page) ? page : "home";
     const homeVisible = activePage === "home";
     const libraryVisible = activePage === "library";
     const profileVisible = activePage === "profile";
     const userVisible = activePage === "user";
+    const searchVisible = activePage === "search";
+    const menuVisible = activePage === "menu";
+    const detailsVisible = activePage === "details";
     if (heroMovie) heroMovie.hidden = !homeVisible;
+    if (homeNavigation) homeNavigation.hidden = !homeVisible;
+    if (homeLibrarySection) homeLibrarySection.hidden = !homeVisible;
     if (continueWatchingShelf && continueWatchingShelf.closest) {
       const shelves = continueWatchingShelf.closest(".discovery-shelves");
       if (shelves) shelves.hidden = !homeVisible;
@@ -667,6 +733,12 @@ function createApp({
       if (browse) browse.hidden = !libraryVisible;
     }
     if (profilePage) profilePage.hidden = !profileVisible;
+    if (searchOverlay) {
+      searchOverlay.hidden = !searchVisible;
+      searchOverlay.setAttribute("aria-hidden", searchVisible ? "false" : "true");
+    }
+    if (navigationPage) navigationPage.hidden = !menuVisible;
+    if (movieDetailsDialog) movieDetailsDialog.hidden = !detailsVisible;
     if (categoryShelf && categoryShelf.parentElement) categoryShelf.parentElement.hidden = !libraryVisible;
     if (folderShelf && folderShelf.parentElement) folderShelf.parentElement.hidden = !libraryVisible;
     if (profileMenu) {
@@ -678,6 +750,11 @@ function createApp({
         button.classList.toggle("active", button.dataset.page === activePage);
       }
     }
+    if (searchInput && typeof searchInput.setAttribute === "function") {
+      searchInput.setAttribute("tabindex", searchVisible ? "0" : "-1");
+    }
+    saveProfileNavigationState();
+    updateHeaderContext();
   }
 
   function updateMediaSession(movie) {
@@ -1184,6 +1261,9 @@ function createApp({
     }
 
     permissionPanel.hidden = alreadyHandled && !nativeStorageNeedsPermission;
+    if (openStorageSettingsButton) {
+      openStorageSettingsButton.hidden = !(bridge && typeof bridge.openAppStorageSettings === "function");
+    }
     if (!alreadyHandled || nativeStorageNeedsPermission) {
       updatePermissionStatus(nativeStorageNeedsPermission
         ? "Choose Allow when Android asks for files and media so offline movies can be saved."
@@ -1226,6 +1306,7 @@ function createApp({
         try {
           if (!bridge.hasStorageAccess()) {
             updatePermissionStatus("Choose Allow for files and media. Movie Room will continue after Android confirms it.");
+            if (openStorageSettingsButton) openStorageSettingsButton.hidden = false;
             if (enablePermissionsButton) enablePermissionsButton.disabled = false;
             return;
           }
@@ -1268,6 +1349,12 @@ function createApp({
     authenticated = Boolean(isAuthenticated);
     authPanel.hidden = authenticated;
     libraryPanel.hidden = !authenticated;
+    if (!authenticated) {
+      activePage = "home";
+      if (searchOverlay) searchOverlay.hidden = true;
+      if (navigationPage) navigationPage.hidden = true;
+      if (movieDetailsDialog) movieDetailsDialog.hidden = true;
+    }
     if (searchInput) {
       searchInput.disabled = !authenticated;
     }
@@ -1414,17 +1501,73 @@ function createApp({
     return true;
   }
 
+  function stopDetailsPreview() {
+    detailsPreviewVersion += 1;
+    if (!detailsPreviewVideo) return;
+    detailsPreviewVideo.pause();
+    detailsPreviewVideo.removeAttribute("src");
+    detailsPreviewVideo.load();
+    detailsPreviewVideo.hidden = true;
+  }
+
+  async function setDetailsHero(movie) {
+    if (!movie) return false;
+    const fallback = "/movie-room-hero.png";
+    const backdropSource = movie.backdropUrl || movie.posterUrl || remoteArtworkUrl(movie) || fallback;
+    if (detailsBackdrop) {
+      detailsBackdrop.onerror = () => {
+        detailsBackdrop.onerror = null;
+        detailsBackdrop.src = fallback;
+      };
+      detailsBackdrop.src = backdropSource;
+      detailsBackdrop.alt = `${movie.title || movie.fileName || "Selected movie"} backdrop`;
+    }
+    if (!detailsPreviewVideo || !isMoviePlayable(movie)) return true;
+    const version = ++detailsPreviewVersion;
+    try {
+      const playback = await requestPlaybackLink(movie.id, "Unable to load the title preview.");
+      if (version !== detailsPreviewVersion || !playback || !playback.url) return false;
+      detailsPreviewVideo.src = /^https?:\/\//i.test(playback.url)
+        ? playback.url
+        : new URL(playback.url, locationOrigin).toString();
+      detailsPreviewVideo.hidden = false;
+      detailsPreviewVideo.load();
+      detailsPreviewVideo.addEventListener("loadedmetadata", () => {
+        if (version !== detailsPreviewVersion) return;
+        const duration = Number(detailsPreviewVideo.duration) || 0;
+        try {
+          detailsPreviewVideo.currentTime = duration > 220 ? 180 : Math.max(0, duration - 40);
+        } catch {
+          // Keep the first available frame when the source cannot seek yet.
+        }
+      }, { once: true });
+      const playPromise = detailsPreviewVideo.play();
+      if (playPromise && hasMethod(playPromise, "catch")) await playPromise.catch(() => {});
+      return true;
+    } catch {
+      if (version === detailsPreviewVersion) detailsPreviewVideo.hidden = true;
+      return false;
+    }
+  }
+
   function openProfilePage(profileId) {
     setViewerProfile(profileId);
     setActivePage("profile");
     closeSettings();
-    if (allMovies.length) {
+    const refreshProfilePage = async () => {
+      if (viewerStateClient && authenticated) {
+        try {
+          viewerState = await viewerStateClient.load(activeProfile);
+        } catch {
+          viewerState = { movies: {}, queue: [], settings: {} };
+        }
+      }
+      if (!allMovies.length) {
+        await loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "", { quiet: true }).catch(() => []);
+      }
       renderProfilePage();
-    } else {
-      loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "", { quiet: true })
-        .then(() => renderProfilePage())
-        .catch(() => renderProfilePage());
-    }
+    };
+    void refreshProfilePage();
     if (profilePage && hasMethod(profilePage, "scrollIntoView")) {
       profilePage.scrollIntoView({ behavior: "auto", block: "start" });
     }
@@ -1437,8 +1580,62 @@ function createApp({
     return true;
   }
 
+  function openSavedView() {
+    activeLibraryView = "movies";
+    activeFolder = "all";
+    activeCategory = "all";
+    searchTerm = "";
+    searchOverlayGenre = "favorites";
+    if (searchInput) searchInput.value = "";
+    setSearchOverlayVisible(true);
+    renderSearchOverlay();
+    return true;
+  }
+
+  function openNavigationPage() {
+    closeSettings();
+    setActivePage("menu");
+    const firstTarget = navigationPage && navigationPage.querySelector
+      ? navigationPage.querySelector("button:not([disabled])")
+      : null;
+    if (firstTarget && hasMethod(firstTarget, "focus")) firstTarget.focus();
+    return true;
+  }
+
+  function togglePlaybackFromRemote() {
+    if (!playerVisible) {
+      if (!selectedMovie()) return false;
+      playSelectedMovie({ scrollToPlayer: true }).catch((error) => updateStatus(error.message));
+      return true;
+    }
+    if (player && player.paused) {
+      const playPromise = player.play();
+      if (playPromise && hasMethod(playPromise, "catch")) playPromise.catch(() => {});
+    } else if (player && hasMethod(player, "pause")) {
+      player.pause();
+    }
+    return true;
+  }
+
   function selectBrowseDestination(destination) {
     const target = String(destination || "").toLowerCase();
+    if (target === "profile") {
+      return openProfilePage(activeProfile);
+    }
+    if (target === "saved") {
+      return openSavedView();
+    }
+    if (target === "search") {
+      searchOverlayGenre = "all";
+      setSearchOverlayVisible(true);
+      return true;
+    }
+    if (target === "settings") {
+      return openSettings();
+    }
+    if (target === "menu") {
+      return openNavigationPage();
+    }
     if (target.startsWith("profile-")) {
       return openProfilePage(target.replace("profile-", ""));
     }
@@ -1477,8 +1674,11 @@ function createApp({
 
   function closeMovieDetails() {
     if (!movieDetailsDialog) return false;
-    if (hasMethod(movieDetailsDialog, "close")) movieDetailsDialog.close();
-    else movieDetailsDialog.removeAttribute("open");
+    stopDetailsPreview();
+    movieDetailsDialog.hidden = true;
+    const returnPage = detailsPreviousPage || "library";
+    detailsPreviousPage = "library";
+    setActivePage(returnPage);
     const previousFocus = detailsPreviousFocus;
     detailsPreviousFocus = null;
     if (previousFocus && previousFocus.isConnected !== false && hasMethod(previousFocus, "focus")) {
@@ -1487,6 +1687,41 @@ function createApp({
       const firstFocusable = visibleFocusableElements()[0];
       if (firstFocusable && hasMethod(firstFocusable, "focus")) firstFocusable.focus();
     }
+    return true;
+  }
+
+  function handleNativeBack() {
+    if (activePage === "search" || (searchOverlay && !searchOverlay.hidden)) {
+      setSearchOverlayVisible(false);
+      focusInitialHero();
+      return true;
+    }
+    if (activePage === "menu" || (navigationPage && !navigationPage.hidden)) {
+      setActivePage("home");
+      focusInitialHero();
+      return true;
+    }
+    if (settingsDialog && (settingsDialog.open || settingsDialog.hasAttribute && settingsDialog.hasAttribute("open"))) {
+      closeSettings();
+      return true;
+    }
+    if (activePage === "details" || (movieDetailsDialog && !movieDetailsDialog.hidden)) {
+      closeMovieDetails();
+      return true;
+    }
+    if (playerVisible) {
+      if (hasMethod(player, "pause")) player.pause();
+      setPlayerVisibility(false);
+      setActivePage(activePage === "user" ? "home" : activePage);
+      focusInitialHero();
+      return true;
+    }
+    if (activePage !== "home") {
+      setActivePage("home");
+      focusInitialHero();
+      return true;
+    }
+    focusInitialHero();
     return true;
   }
 
@@ -1660,6 +1895,8 @@ function createApp({
 
   function movieMatchesFilter(movie) {
     const movieFolder = movie.folder || "";
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const profileMatches = typeof profile.pick === "function" ? profile.pick(movie) : true;
     const folderMatches = activeFolder === "all"
       || (activeFolder === "" && !movieFolder)
       || movieFolder === activeFolder
@@ -1668,31 +1905,33 @@ function createApp({
       ? movieAlphaCategory(movie) === activeCategory
       : movieInAudience(movie, activeCategory);
     const searchable = `${movie.title || ""} ${movie.fileName || ""} ${movie.folder || ""}`.toLowerCase();
-    return folderMatches && categoryMatches && searchable.includes(searchTerm);
+    return profileMatches && folderMatches && categoryMatches && searchable.includes(searchTerm);
   }
 
   function setSearchOverlayVisible(visible) {
     if (!searchOverlay) return;
-    searchOverlay.hidden = !visible;
-    searchOverlay.setAttribute("aria-hidden", visible ? "false" : "true");
     if (visible) {
       searchOverlayPreviousFocus = documentRef && documentRef.activeElement;
+      setActivePage("search");
       renderSearchOverlay();
-      if (searchOverlayClose && hasMethod(searchOverlayClose, "focus")) searchOverlayClose.focus();
+      if (searchInput && hasMethod(searchInput, "focus")) searchInput.focus();
     } else if (searchOverlayPreviousFocus && hasMethod(searchOverlayPreviousFocus, "focus")) {
+      if (activePage === "search") setActivePage("home");
       searchOverlayPreviousFocus.focus();
       searchOverlayPreviousFocus = null;
+    } else if (activePage === "search") {
+      setActivePage("home");
     }
   }
 
   function moveToMovie(movie, { openDetails = false } = {}) {
     if (!movie || !isMoviePlayable(movie)) return false;
+    if (searchOverlay && !searchOverlay.hidden) setSearchOverlayVisible(false);
     activePage = "library";
     setActivePage("library");
     movieSelect.value = movie.id;
     rememberMovieForProfile(movie.id);
     updateNowPlaying(movie);
-    setSearchOverlayVisible(false);
     if (openDetails) {
       openMovieDetails(movie);
       return true;
@@ -1705,10 +1944,12 @@ function createApp({
     if (!searchOverlay || !searchOverlayResults || !searchOverlayGenres) return;
     const ownerDocument = searchOverlay.ownerDocument || documentRef;
     if (!ownerDocument) return;
-    let results = searchMovies(allMovies, { term: searchTerm, genre: searchOverlayGenre });
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    let results = searchMovies(allMovies, { term: searchTerm, genre: searchOverlayGenre })
+      .filter(profile.pick);
     const savedOptions = [
-      { id: "favorites", label: "Favorites", count: allMovies.filter((movie) => { const record = viewerRecord(movie.id); return Boolean(record && record.favorite); }).length },
-      { id: "watch-later", label: "Watch Later", count: allMovies.filter((movie) => { const record = viewerRecord(movie.id); return Boolean(record && record.watchLater); }).length },
+      { id: "favorites", label: "Favorites", count: allMovies.filter((movie) => profile.pick(movie) && (() => { const record = viewerRecord(movie.id); return Boolean(record && record.favorite); })()).length },
+      { id: "watch-later", label: "Watch Later", count: allMovies.filter((movie) => profile.pick(movie) && (() => { const record = viewerRecord(movie.id); return Boolean(record && record.watchLater); })()).length },
     ];
     if (searchOverlayGenre === "favorites") results = results.filter((movie) => { const record = viewerRecord(movie.id); return Boolean(record && record.favorite); });
     if (searchOverlayGenre === "watch-later") results = results.filter((movie) => { const record = viewerRecord(movie.id); return Boolean(record && record.watchLater); });
@@ -1837,6 +2078,8 @@ function createApp({
     }
 
     const documentRef = categoryShelf.ownerDocument;
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const profileMovies = allMovies.filter(profile.pick);
     const collectionFolders = filterMovieFolders(buildFoldersFromMovies(allMovies, allFolders))
       .filter((folder) => isCollectionFolder(folder.path));
     const seriesCount = new Set(allMovies
@@ -1844,9 +2087,12 @@ function createApp({
       .map((movie) => movie.seriesPath || movie.seriesName)
       .filter(Boolean)).size;
     const viewGroups = [
-      ["movies", "Movies", allMovies.filter((movie) => !isSampleMovie(movie) && movie.contentType !== "episode" && !movie.seriesName).length],
-      ["collections", "Collections", collectionFolders.length + seriesCount],
-      ["genres", "Genres", new Set(allMovies.flatMap((movie) => genresForMovie(movie))).size],
+      ["movies", "Movies", profileMovies.filter((movie) => !isSampleMovie(movie) && movie.contentType !== "episode" && !movie.seriesName).length],
+      ["collections", "Collections", collectionFolders.length + new Set(profileMovies
+        .filter((movie) => movie.contentType === "episode" || movie.seriesName)
+        .map((movie) => movie.seriesPath || movie.seriesName)
+        .filter(Boolean)).size],
+      ["genres", "Genres", new Set(profileMovies.flatMap((movie) => genresForMovie(movie))).size],
     ];
     const categoryGroups = [
       ["all", "Entire Library"],
@@ -1878,7 +2124,7 @@ function createApp({
       const button = documentRef.createElement("button");
       button.type = "button";
       button.className = "category-chip";
-      const count = allMovies.filter((movie) => (
+      const count = profileMovies.filter((movie) => (
         category.startsWith("alpha-")
           ? movieAlphaCategory(movie) === category
           : movieInAudience(movie, category)
@@ -2334,13 +2580,20 @@ function createApp({
     if (documentRef && documentRef.activeElement && documentRef.activeElement !== movieDetailsDialog) {
       detailsPreviousFocus = documentRef.activeElement;
     }
+    detailsPreviousPage = activePage === "details" ? detailsPreviousPage : activePage;
     detailsMovie = movie;
     if (movieSelect) movieSelect.value = movie.id;
     rememberMovieForProfile(movie.id);
     updateNowPlaying(movie);
-    setFeaturedMovie(movie);
+    setActivePage("details");
+    void setDetailsHero(movie);
     if (detailsPoster) {
-      detailsPoster.src = movie.posterUrl || "/movie-room-hero.png";
+      const detailsFallback = generatedPosterUrl(movie);
+      detailsPoster.onerror = () => {
+        detailsPoster.onerror = null;
+        detailsPoster.src = detailsFallback;
+      };
+      detailsPoster.src = movie.posterUrl || detailsFallback;
       detailsPoster.alt = posterAltText(movie);
     }
     if (detailsTitle) {
@@ -2359,11 +2612,7 @@ function createApp({
       const record = viewerRecord(movie.id);
       detailsFavorite.textContent = record && record.favorite ? "★ Remove Favorite" : "☆ Add Favorite";
     }
-    if (movieDetailsDialog && typeof movieDetailsDialog.showModal === "function") {
-      movieDetailsDialog.showModal();
-    } else if (movieDetailsDialog) {
-      movieDetailsDialog.setAttribute("open", "");
-    }
+    if (movieDetailsDialog) movieDetailsDialog.hidden = false;
     if (detailsPlay && hasMethod(detailsPlay, "focus")) detailsPlay.focus();
     else if (detailsClose && hasMethod(detailsClose, "focus")) detailsClose.focus();
     return true;
@@ -2495,6 +2744,10 @@ function createApp({
     if (libraryPanel && libraryPanel.classList) libraryPanel.classList.add("hero-focus-mode");
     const backdropSource = movie.backdropUrl || movie.posterUrl || previewMovie && (previewMovie.backdropUrl || previewMovie.posterUrl) || "/movie-room-hero.png";
     if (heroBackdrop) {
+      heroBackdrop.onerror = () => {
+        heroBackdrop.onerror = null;
+        heroBackdrop.src = "/movie-room-hero.png";
+      };
       heroBackdrop.src = backdropSource;
       heroBackdrop.alt = `${movie.title || movie.fileName || "Featured movie"} backdrop`;
     }
@@ -2555,7 +2808,8 @@ function createApp({
 
   function renderDiscovery() {
     stopHeroPreview();
-    const playable = allMovies.filter(isMoviePlayable);
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const playable = allMovies.filter(isMoviePlayable).filter(profile.pick);
     const continueMovies = playable
       .filter((movie) => {
         const record = viewerRecord(movie.id);
@@ -2564,12 +2818,17 @@ function createApp({
       .sort((left, right) => (viewerRecord(right.id).lastWatchedAt || 0) - (viewerRecord(left.id).lastWatchedAt || 0));
     const browseable = playable.filter((movie) => movie.contentType !== "episode" && !movie.seriesName);
     const recentMovies = [...browseable].sort((left, right) => movieAddedTimestamp(right) - movieAddedTimestamp(left));
-    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
-    const profilePicks = browseable.filter(profile.pick);
-    const picks = [...profilePicks, ...browseable.filter((movie) => !profilePicks.includes(movie))].slice(0, 12);
+    const picks = browseable.slice(0, 12);
     renderShelf(continueWatchingShelf, continueMovies, "Start a movie and your progress will appear here.");
     renderShelf(recentlyAddedShelf, recentMovies, "Newly uploaded movies will appear here.");
     renderShelf(picksShelf, picks, "Your library is ready for its first pick.");
+    const homeLibraryMovies = [...browseable]
+      .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")))
+      .slice(0, 18);
+    renderShelf(homeLibraryShelf, homeLibraryMovies, "Your profile library is empty.");
+    if (homeLibrarySummary) {
+      homeLibrarySummary.textContent = `${browseable.length} title${browseable.length === 1 ? "" : "s"} for ${profile.label}`;
+    }
     if (continueSummary) {
       continueSummary.textContent = continueMovies.length ? `${continueMovies.length} in progress` : "Nothing started yet";
     }
@@ -2598,6 +2857,7 @@ function createApp({
 
   function focusInitialHero() {
     if (!heroMovie || heroMovie.hidden) return false;
+    if (searchOverlay && !searchOverlay.hidden) setSearchOverlayVisible(false);
     if (windowRef && hasMethod(windowRef, "scrollTo")) windowRef.scrollTo(0, 0);
     if (hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
     const firstHeroTarget = heroPlay || heroDetails || heroPrev || heroNext || heroMovie;
@@ -3220,6 +3480,9 @@ function createApp({
   }
 
   function initialize() {
+    if (windowRef) windowRef.MovieRoomBack = handleNativeBack;
+    if (windowRef) windowRef.MovieRoomMenu = openNavigationPage;
+    if (windowRef) windowRef.MovieRoomTogglePlayback = togglePlaybackFromRemote;
     if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
       const protocol = windowRef && windowRef.location ? windowRef.location.protocol : "";
       if (protocol === "https:" || protocol === "http:") {
@@ -3248,6 +3511,11 @@ function createApp({
           ? "Storage permission allowed. Your offline download is starting."
           : "Storage permission was not allowed, so the offline download was canceled.";
         if (!granted) pendingOfflineMovie = null;
+        if (!granted && permissionPanel) {
+          permissionPanel.hidden = false;
+          if (openStorageSettingsButton) openStorageSettingsButton.hidden = false;
+          updatePermissionStatus("Storage is blocked. Choose Open app storage settings, then allow Files and media.");
+        }
         if (granted && permissionPanel && !permissionPanel.hidden) markPermissionPanelDone();
       });
     }
@@ -3256,6 +3524,18 @@ function createApp({
         button.addEventListener("click", () => {
           const page = button.dataset ? button.dataset.page : "home";
           setActivePage(page);
+        });
+      }
+      for (const button of documentRef.querySelectorAll("[data-browse-destination]")) {
+        button.addEventListener("click", () => {
+          const destination = button.dataset ? button.dataset.browseDestination : "home";
+          selectBrowseDestination(destination);
+        });
+      }
+      for (const button of documentRef.querySelectorAll("[data-profile-navigation]")) {
+        button.addEventListener("click", () => {
+          const profileId = button.dataset ? button.dataset.profileNavigation : "home";
+          openProfilePage(profileId);
         });
       }
     }
@@ -3303,23 +3583,17 @@ function createApp({
         } catch (error) { detailsStatus.textContent = error.message; }
       });
     }
-    if (movieDetailsDialog) {
-      movieDetailsDialog.addEventListener("click", (event) => {
-        if (event.target === movieDetailsDialog) {
-          closeMovieDetails();
-        }
-      });
-      movieDetailsDialog.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        closeMovieDetails();
-      });
-    }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
       for (const button of documentRef.querySelectorAll("[data-mobile-action]")) {
         button.addEventListener("click", () => {
           const action = button.dataset.mobileAction;
-          if (action === "search" && searchInput) searchInput.focus();
-          if (action === "home" && heroMovie) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" });
+          if (action === "search") selectBrowseDestination("search");
+          if (action === "home") {
+            setActivePage("home");
+            focusInitialHero();
+          }
+          if (action === "saved") selectBrowseDestination("saved");
+          if (action === "history") selectBrowseDestination("profile");
           if (action === "library") {
             activeLibraryView = "movies";
             activeFolder = "all";
@@ -3370,6 +3644,9 @@ function createApp({
     if (settingsSystemButton) {
       settingsSystemButton.addEventListener("click", () => invokeAndroidSetting("openSettings", "Open the Fire TV Settings app to manage Movie Room and device options."));
     }
+    if (settingsUpdatesButton) {
+      settingsUpdatesButton.addEventListener("click", () => invokeAndroidSetting("checkForUpdates", "The installed app can check for updates when it has network access."));
+    }
     if (settingsReloadButton) {
       settingsReloadButton.addEventListener("click", () => {
         closeSettings();
@@ -3416,6 +3693,12 @@ function createApp({
     });
 
     if (searchInput) {
+      const nativeAndroidApp = Boolean(windowRef && windowRef.MovieRoomAndroid);
+      if (nativeAndroidApp && typeof searchInput.setAttribute === "function") {
+        // Let the Fire TV WebView start on the hero instead of auto-focusing
+        // the search field. The Search page restores this field to the focus order.
+        searchInput.setAttribute("tabindex", "-1");
+      }
       searchInput.addEventListener("focus", () => {
         if (authenticated) setSearchOverlayVisible(true);
       });
@@ -3423,7 +3706,10 @@ function createApp({
         searchTerm = searchInput.value.trim().toLowerCase();
         rememberSearchForProfile(searchInput.value);
         renderMovieGrid();
-        if (authenticated) setSearchOverlayVisible(true);
+        if (authenticated) {
+          setSearchOverlayVisible(true);
+          renderSearchOverlay();
+        }
       });
     }
     if (detailsFavorite) {
@@ -3441,11 +3727,9 @@ function createApp({
       });
     }
     if (searchOverlayClose) {
-      searchOverlayClose.addEventListener("click", () => setSearchOverlayVisible(false));
-    }
-    if (searchOverlay) {
-      searchOverlay.addEventListener("click", (event) => {
-        if (event.target === searchOverlay) setSearchOverlayVisible(false);
+      searchOverlayClose.addEventListener("click", () => {
+        setSearchOverlayVisible(false);
+        focusInitialHero();
       });
     }
 
@@ -3487,6 +3771,16 @@ function createApp({
         openProfilePage(profileId);
       });
     }
+    if (documentRef && typeof documentRef.querySelectorAll === "function") {
+      for (const button of documentRef.querySelectorAll("[data-profile-destination]")) {
+        button.addEventListener("click", () => {
+          const destination = button.dataset ? button.dataset.profileDestination : "home";
+          if (profileMenu) profileMenu.hidden = true;
+          if (profileToggle && typeof profileToggle.setAttribute === "function") profileToggle.setAttribute("aria-expanded", "false");
+          selectBrowseDestination(destination);
+        });
+      }
+    }
 
     if (enablePermissionsButton) {
       enablePermissionsButton.addEventListener("click", () => {
@@ -3501,6 +3795,13 @@ function createApp({
       skipPermissionsButton.addEventListener("click", () => {
         markPermissionPanelDone();
       });
+    }
+
+    if (openStorageSettingsButton) {
+      openStorageSettingsButton.addEventListener("click", () => invokeAndroidSetting(
+        "openAppStorageSettings",
+        "Open Android app settings, choose Movie Room, then allow Files and media.",
+      ));
     }
 
     if (castButton) {
@@ -3784,11 +4085,13 @@ if (typeof document !== "undefined") {
     reloadButton: document.getElementById("reload"),
     logoutButton: document.getElementById("logout"),
     searchInput: document.getElementById("library-search"),
-    searchOverlay: document.getElementById("search-overlay"),
-    searchOverlayClose: document.getElementById("search-overlay-close"),
-    searchOverlayResults: document.getElementById("search-overlay-results"),
-    searchOverlayGenres: document.getElementById("search-overlay-genres"),
-    searchOverlaySummary: document.getElementById("search-overlay-summary"),
+    searchOverlay: document.getElementById("search-page"),
+    searchOverlayClose: document.getElementById("search-page-close"),
+    searchOverlayResults: document.getElementById("search-page-results"),
+    searchOverlayGenres: document.getElementById("search-page-genres"),
+    searchOverlaySummary: document.getElementById("search-page-summary"),
+    navigationPage: document.getElementById("navigation-page"),
+    homeNavigation: document.getElementById("home-navigation"),
     passwordForm: document.getElementById("password-form"),
     passwordInput: document.getElementById("password"),
     submitButton: document.getElementById("login-submit"),
@@ -3812,6 +4115,7 @@ if (typeof document !== "undefined") {
     permissionPanel: document.getElementById("permission-panel"),
     enablePermissionsButton: document.getElementById("enable-permissions"),
     skipPermissionsButton: document.getElementById("skip-permissions"),
+    openStorageSettingsButton: document.getElementById("open-storage-settings"),
     permissionStatus: document.getElementById("permission-status"),
     castButton: document.getElementById("cast-tv"),
     tvGuideTitle: document.getElementById("tv-guide-title"),
@@ -3831,6 +4135,8 @@ if (typeof document !== "undefined") {
     profileMenu: document.getElementById("profile-menu"),
     profileLabel: document.getElementById("profile-label"),
     profileAvatar: document.getElementById("profile-avatar"),
+    viewerHeaderLabel: document.getElementById("viewer-header-label"),
+    pageHeaderLabel: document.getElementById("page-header-label"),
     profileButtons: Array.from(document.querySelectorAll("[data-viewer-profile]")),
     heroMovie: document.getElementById("hero-movie"),
     heroBackdrop: document.getElementById("hero-backdrop"),
@@ -3848,14 +4154,19 @@ if (typeof document !== "undefined") {
     continueSummary: document.getElementById("continue-summary"),
     recentlyAddedShelf: document.getElementById("recently-added-shelf"),
     picksShelf: document.getElementById("picks-shelf"),
+    homeLibrarySection: document.getElementById("home-library-section"),
+    homeLibraryShelf: document.getElementById("home-library-shelf"),
+    homeLibrarySummary: document.getElementById("home-library-summary"),
     profilePage: document.getElementById("profile-page"),
     profilePageEyebrow: document.getElementById("profile-page-eyebrow"),
     profilePageTitle: document.getElementById("profile-page-title"),
     profilePageSummary: document.getElementById("profile-page-summary"),
     profileMostWatchedShelf: document.getElementById("profile-most-watched-shelf"),
     profileRecentlyWatchedShelf: document.getElementById("profile-recently-watched-shelf"),
-    movieDetailsDialog: document.getElementById("movie-details-dialog"),
+    movieDetailsDialog: document.getElementById("movie-details-page"),
     detailsClose: document.getElementById("details-close"),
+    detailsBackdrop: document.getElementById("details-backdrop"),
+    detailsPreviewVideo: document.getElementById("details-preview-video"),
     detailsPoster: document.getElementById("details-poster"),
     detailsTitle: document.getElementById("details-title"),
     detailsMeta: document.getElementById("details-meta"),
@@ -3877,6 +4188,7 @@ if (typeof document !== "undefined") {
     settingsDisplayButton: document.getElementById("settings-display"),
     settingsBluetoothButton: document.getElementById("settings-bluetooth"),
     settingsSystemButton: document.getElementById("settings-system"),
+    settingsUpdatesButton: document.getElementById("settings-updates"),
     settingsReloadButton: document.getElementById("settings-reload"),
     settingsCloseButton: document.getElementById("settings-close"),
     menuHomeButton: document.getElementById("menu-home"),

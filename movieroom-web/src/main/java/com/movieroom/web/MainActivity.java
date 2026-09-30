@@ -2,29 +2,51 @@ package com.movieroom.web;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.provider.Settings;
+import android.view.KeyEvent;
+import android.widget.Toast;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 /** Android wrapper for the current Movie Room website, preserving its web UI and playback flow. */
 public final class MainActivity extends Activity {
     private static final int STORAGE_PERMISSION_REQUEST = 4101;
+    private static final String NETWORK_UPDATE_PROMPT_KEY = "network_update_prompt_v1";
+    private static final String NETWORK_UPDATE_ALLOWED_KEY = "network_update_allowed";
+    private static final String UPDATE_MANIFEST_URL = "https://movie-downloads-six.vercel.app/apk/update.json";
     private WebView webView;
     private String pendingDownloadUrl;
     private String pendingDownloadFileName;
     private boolean storagePromptRequested;
+    private boolean networkPromptScheduled;
+    private boolean updateCheckInFlight;
+    private long lastSelectEventAt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +88,17 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void openAppStorageSettings() {
+            try {
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (RuntimeException ignored) {
+                launchSettings(Settings.ACTION_SETTINGS);
+            }
+        }
+
+        @JavascriptInterface
         public void openNetworkSettings() {
             launchSettings(Settings.ACTION_WIFI_SETTINGS);
         }
@@ -88,6 +121,11 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void exitVideoFullscreen() {
             runOnUiThread(() -> setVideoFullscreenOrientation(false));
+        }
+
+        @JavascriptInterface
+        public void checkForUpdates() {
+            runOnUiThread(MainActivity.this::checkForAppUpdate);
         }
 
         @JavascriptInterface
@@ -148,6 +186,7 @@ public final class MainActivity extends Activity {
     private void requestStorageAccessInternal() {
         if (hasStorageAccess()) {
             notifyStoragePermission(true);
+            scheduleNetworkUpdatePrompt();
             return;
         }
         requestPermissions(storagePermissions(), STORAGE_PERMISSION_REQUEST);
@@ -218,6 +257,7 @@ public final class MainActivity extends Activity {
         pendingDownloadFileName = null;
         boolean started = granted && (url == null || enqueueOfflineDownload(url, fileName));
         notifyStoragePermission(started);
+        scheduleNetworkUpdatePrompt();
     }
 
     private void launchSettings(String action) {
@@ -230,8 +270,10 @@ public final class MainActivity extends Activity {
 
     private boolean isTelevisionDevice() {
         int uiMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK;
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-            || uiMode == Configuration.UI_MODE_TYPE_TELEVISION;
+        boolean televisionUiMode = uiMode == Configuration.UI_MODE_TYPE_TELEVISION;
+        boolean leanbackWithoutTouch = getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+            && !getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
+        return televisionUiMode || leanbackWithoutTouch;
     }
 
     private void applyDefaultOrientation() {
@@ -260,6 +302,248 @@ public final class MainActivity extends Activity {
         setRequestedOrientation(fullscreen
             ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
+
+    private boolean dispatchNativeSelect() {
+        if (webView == null) {
+            return false;
+        }
+        webView.requestFocus();
+        webView.evaluateJavascript(
+            "(function(){var element=document.activeElement;"
+                + "if(!element||typeof element.click!=='function')return false;"
+                + "element.click();return true;})()",
+            null);
+        return true;
+    }
+
+    private boolean dispatchNativeMenu() {
+        if (webView == null) {
+            return false;
+        }
+        webView.evaluateJavascript(
+            "(function(){return typeof window.MovieRoomMenu==='function' && window.MovieRoomMenu()===true;})()",
+            null);
+        return true;
+    }
+
+    private boolean dispatchNativePlaybackToggle() {
+        if (webView == null) {
+            return false;
+        }
+        webView.evaluateJavascript(
+            "(function(){return typeof window.MovieRoomTogglePlayback==='function' && window.MovieRoomTogglePlayback()===true;})()",
+            null);
+        return true;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event != null && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
+            || event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                long now = SystemClock.uptimeMillis();
+                if (now - lastSelectEventAt >= 250L) {
+                    lastSelectEventAt = now;
+                    dispatchNativeSelect();
+                }
+            }
+            // Consume both down and up so the WebView cannot activate the same
+            // element a second time after the native click above.
+            return true;
+        }
+        if (event != null && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                dispatchNativeMenu();
+            }
+            return true;
+        }
+        if (event != null && (event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+            || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY
+            || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PAUSE)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                dispatchNativePlaybackToggle();
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView == null) {
+            super.onBackPressed();
+            return;
+        }
+        webView.evaluateJavascript(
+            "(function(){return typeof window.MovieRoomBack==='function' && window.MovieRoomBack()===true;})()",
+            handled -> {
+                if ("false".equals(handled) || "null".equals(handled) || handled == null) {
+                    // Keep Fire TV inside Movie Room even if the page is still
+                    // booting; the web page will return to Home once ready.
+                    webView.post(() -> webView.evaluateJavascript(
+                        "(function(){window.scrollTo(0,0);return true;})()",
+                        null));
+                }
+            });
+    }
+
+    private void scheduleNetworkUpdatePrompt() {
+        if (networkPromptScheduled || webView == null) {
+            return;
+        }
+        networkPromptScheduled = true;
+        webView.postDelayed(this::maybePromptForNetworkUpdates, 700);
+    }
+
+    private void maybePromptForNetworkUpdates() {
+        SharedPreferences preferences = getSharedPreferences("movie_room_preferences", MODE_PRIVATE);
+        if (preferences.getBoolean(NETWORK_UPDATE_PROMPT_KEY, false)) {
+            if (preferences.getBoolean(NETWORK_UPDATE_ALLOWED_KEY, false)) {
+                checkForAppUpdate();
+            }
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Use network for updates?")
+            .setMessage("Movie Room uses its normal internet access to load your library and check for app updates. Android grants Internet access at install; this choice controls whether Movie Room checks for updates.")
+            .setPositiveButton("Allow & check", (dialog, which) -> {
+                preferences.edit()
+                    .putBoolean(NETWORK_UPDATE_PROMPT_KEY, true)
+                    .putBoolean(NETWORK_UPDATE_ALLOWED_KEY, true)
+                    .apply();
+                checkForAppUpdate();
+            })
+            .setNegativeButton("Not now", (dialog, which) -> preferences.edit()
+                .putBoolean(NETWORK_UPDATE_PROMPT_KEY, true)
+                .putBoolean(NETWORK_UPDATE_ALLOWED_KEY, false)
+                .apply())
+            .setOnCancelListener(dialog -> preferences.edit()
+                .putBoolean(NETWORK_UPDATE_PROMPT_KEY, true)
+                .putBoolean(NETWORK_UPDATE_ALLOWED_KEY, false)
+                .apply())
+            .show();
+    }
+
+    private boolean hasNetworkConnection() {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Network network = manager.getActiveNetwork();
+            NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
+            return capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        }
+        NetworkInfo info = manager.getActiveNetworkInfo();
+        return info != null && info.isConnected();
+    }
+
+    private boolean isSafeUpdateUrl(String value) {
+        return isSafeDownloadUrl(value) && "https".equalsIgnoreCase(Uri.parse(value).getScheme());
+    }
+
+    private UpdateInfo fetchUpdateInfo() throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(UPDATE_MANIFEST_URL).openConnection();
+            connection.setConnectTimeout(6000);
+            connection.setReadTimeout(6000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/json");
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IllegalStateException("Update manifest returned HTTP " + responseCode);
+            }
+            StringBuilder body = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    body.append(line);
+                }
+            }
+            JSONObject payload = new JSONObject(body.toString());
+            int versionCode = payload.optInt("versionCode", 0);
+            String versionName = payload.optString("versionName", "");
+            String downloadUrl = payload.optString("downloadUrl", "");
+            String releaseNotes = payload.optString("releaseNotes", "");
+            if (versionCode <= 0 || versionName.isEmpty() || !isSafeUpdateUrl(downloadUrl)) {
+                throw new IllegalStateException("Update manifest is incomplete");
+            }
+            return new UpdateInfo(versionCode, versionName, downloadUrl, releaseNotes);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void checkForAppUpdate() {
+        if (updateCheckInFlight) {
+            return;
+        }
+        if (!hasNetworkConnection()) {
+            Toast.makeText(this, "No network connection is available for update checks.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        updateCheckInFlight = true;
+        new Thread(() -> {
+            UpdateInfo result = null;
+            Exception error = null;
+            try {
+                result = fetchUpdateInfo();
+            } catch (Exception exception) {
+                error = exception;
+            }
+            UpdateInfo finalResult = result;
+            Exception finalError = error;
+            runOnUiThread(() -> {
+                updateCheckInFlight = false;
+                showUpdateResult(finalResult, finalError);
+            });
+        }, "MovieRoomUpdateCheck").start();
+    }
+
+    private void showUpdateResult(UpdateInfo info, Exception error) {
+        if (error != null || info == null) {
+            Toast.makeText(this, "Unable to check for updates. Check the network and try again.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (info.versionCode > BuildConfig.VERSION_CODE && isSafeUpdateUrl(info.downloadUrl)) {
+            String message = "Version " + info.versionName + " is ready to download.";
+            if (!info.releaseNotes.isEmpty()) {
+                message += "\n\n" + info.releaseNotes;
+            }
+            new AlertDialog.Builder(this)
+                .setTitle("Update available")
+                .setMessage(message)
+                .setNegativeButton("Later", null)
+                .setPositiveButton("Open download", (dialog, which) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl)));
+                    } catch (RuntimeException ignored) {
+                        Toast.makeText(this, "The update download could not be opened.", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .show();
+            return;
+        }
+        Toast.makeText(this, "Movie Room is up to date.", Toast.LENGTH_SHORT).show();
+    }
+
+    private static final class UpdateInfo {
+        private final int versionCode;
+        private final String versionName;
+        private final String downloadUrl;
+        private final String releaseNotes;
+
+        private UpdateInfo(int versionCode, String versionName, String downloadUrl, String releaseNotes) {
+            this.versionCode = versionCode;
+            this.versionName = versionName;
+            this.downloadUrl = downloadUrl;
+            this.releaseNotes = releaseNotes;
+        }
     }
 
     @Override

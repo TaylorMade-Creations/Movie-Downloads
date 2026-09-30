@@ -1,8 +1,8 @@
-const CACHE_NAME = "movie-room-shell-v10";
+const CACHE_NAME = "movie-room-shell-v12";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/app.js?v=20260930-keyboard-hero-v4",
+  "/app.js?v=20260930-pages-v2",
   "/viewer-state.js?v=20260929-streaming-home",
   "/manifest.webmanifest",
   "/movie-room-hero.png",

@@ -220,7 +220,7 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   assert.ok(html.indexOf('id="recently-added-shelf"') < html.indexOf('id="movie-grid"'));
   assert.match(html, /id="continue-watching-shelf"/);
   assert.match(html, /id="recently-added-shelf"/);
-  assert.match(html, /id="movie-details-dialog"/);
+  assert.match(html, /id="movie-details-page"/);
   assert.match(html, /id="mobile-nav"/);
   assert.match(appSource, /\["all", "Entire Library"\]/);
   assert.match(appSource, /\["family", "Family"\]/);

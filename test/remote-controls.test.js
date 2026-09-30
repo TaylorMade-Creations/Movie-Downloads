@@ -7,6 +7,10 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const app = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
 test("Movie Room leaves Fire TV navigation to the native WebView selector", () => {
   assert.doesNotMatch(html, /id="remote-control-bar"/);
   for (const control of ["remote-up", "remote-left", "remote-select", "remote-right", "remote-down", "remote-back", "remote-home", "remote-play", "remote-settings"]) {
@@ -28,6 +32,25 @@ test("Movie Room leaves Fire TV navigation to the native WebView selector", () =
 test("the app does not intercept keyboard or remote key events", () => {
   assert.doesNotMatch(app, /documentRef\.addEventListener\("keydown"/);
   assert.doesNotMatch(app, /handleRemoteCommand/);
+  assert.doesNotMatch(app, /dblclick/);
+});
+
+test("one Fire TV select press activates only the native focused element", () => {
+  const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
+  assert.match(activity, /dispatchNativeSelect/);
+  assert.match(activity, /document\.activeElement/);
+  assert.match(activity, /lastSelectEventAt/);
+  assert.doesNotMatch(activity, /KEYCODE_DPAD_UP|KEYCODE_DPAD_DOWN|KEYCODE_DPAD_LEFT|KEYCODE_DPAD_RIGHT/);
+});
+
+test("the Fire TV Menu and media buttons have native in-app actions", () => {
+  const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
+  assert.match(activity, /KEYCODE_MENU/);
+  assert.match(activity, /MovieRoomMenu/);
+  assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.match(activity, /MovieRoomTogglePlayback/);
+  assert.match(app, /function openNavigationPage/);
+  assert.match(app, /windowRef\.MovieRoomMenu/);
 });
 
 test("permission completion returns native focus to the hero instead of opening Search", () => {
@@ -72,7 +95,7 @@ test("selecting a title opens More info and promotes that movie to the video her
   assert.match(app, /let detailsPreviousFocus = null/);
   assert.match(app, /function closeMovieDetails/);
   assert.match(app, /detailsPreviousFocus = documentRef\.activeElement/);
-  assert.match(app, /setFeaturedMovie\(movie\)/);
+  assert.match(app, /setDetailsHero\(movie\)/);
   assert.match(app, /if \(detailsPlay && hasMethod\(detailsPlay, "focus"\)\) detailsPlay\.focus\(\)/);
   assert.match(app, /card\.addEventListener\("click", \(\) => \{[\s\S]*?openMovieDetails\(movie\)/);
   assert.match(html, /id="details-title"/);

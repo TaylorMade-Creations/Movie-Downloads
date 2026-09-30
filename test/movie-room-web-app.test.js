@@ -49,8 +49,12 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /downloadForOffline/);
   assert.match(activity, /Environment\.DIRECTORY_MOVIES/);
   assert.doesNotMatch(activity, /KEYCODE_DPAD_UP/);
-  assert.doesNotMatch(activity, /KeyEvent/);
-  assert.doesNotMatch(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /KEYCODE_DPAD_LEFT/);
+  assert.doesNotMatch(activity, /KEYCODE_DPAD_RIGHT/);
+  assert.doesNotMatch(activity, /KEYCODE_DPAD_DOWN/);
+  assert.match(activity, /KEYCODE_DPAD_CENTER/);
+  assert.match(activity, /dispatchNativeSelect/);
+  assert.match(activity, /getRepeatCount\(\)/);
   assert.doesNotMatch(activity, /dispatchRemoteCommand/);
   assert.doesNotMatch(activity, /MovieRoomRemote/);
   assert.doesNotMatch(activity, /setOnKeyListener/);
@@ -59,6 +63,12 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_PORTRAIT/);
   assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_LANDSCAPE/);
   assert.match(activity, /FEATURE_LEANBACK/);
+  assert.match(activity, /FEATURE_TOUCHSCREEN/);
+  assert.match(activity, /openAppStorageSettings/);
+  assert.match(activity, /AlertDialog/);
+  assert.match(activity, /UPDATE_MANIFEST_URL/);
+  assert.match(activity, /checkForAppUpdate/);
+  assert.match(activity, /network_update_prompt/);
   assert.match(activity, /enterVideoFullscreen/);
   assert.match(activity, /exitVideoFullscreen/);
   assert.match(activity, /postDelayed/);
