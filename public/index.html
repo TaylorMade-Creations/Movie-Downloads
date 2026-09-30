@@ -1105,44 +1105,44 @@
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
       }
-      /* Streaming-home visual system: artwork-led, neutral, and readable at TV distance. */
-      :root { --gold: #e50914; --gold-soft: #fff; --ink: #050505; --panel: #141414; --panel-raised: #232323; --line: #333; background: #050505; }
-      body { background: #050505; }
-      body::before { background-color: #050505; filter: blur(10px) saturate(.92); opacity: .44; }
-      body::after { background: linear-gradient(180deg, rgba(5,5,5,.22) 0%, rgba(5,5,5,.55) 39%, #050505 82%), linear-gradient(90deg, rgba(5,5,5,.58), transparent 62%); }
-      .topbar { min-height: 68px; padding-inline: clamp(18px, 4vw, 64px); background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.64)); border: 0; box-shadow: none; }
-      .brand-primary { color: #e50914; font-size: 23px; font-weight: 900; letter-spacing: -.065em; text-transform: uppercase; }
-      .brand-secondary { color: #b9b9b9; }
+      /* Movie Room streaming-home visual system: familiar TV rails, original identity. */
+      :root { --gold: #40d8c0; --gold-soft: #a6f1e7; --ink: #061523; --panel: #0e2435; --panel-raised: #15364c; --line: #28536b; background: #061523; }
+      body { background: #061523; }
+      body::before { background-color: #061523; filter: blur(10px) saturate(.96); opacity: .48; }
+      body::after { background: linear-gradient(180deg, rgba(6,21,35,.18) 0%, rgba(6,21,35,.58) 39%, #061523 82%), linear-gradient(90deg, rgba(6,21,35,.64), transparent 62%); }
+      .topbar { min-height: 68px; padding-inline: clamp(18px, 4vw, 64px); background: linear-gradient(180deg, rgba(6,21,35,.98), rgba(6,21,35,.78)); border: 0; box-shadow: 0 14px 34px rgba(0,0,0,.24); }
+      .brand-primary { color: #a6f1e7; font-size: 23px; font-weight: 900; letter-spacing: -.065em; text-transform: uppercase; }
+      .brand-secondary { color: #8fb5c7; }
       .primary-nav { gap: 2px; }
-      .primary-nav button { color: #d2d2d2; }
-      .primary-nav button:hover, .primary-nav button.active { background: transparent; color: #fff; }
-      .primary-nav button.active::after { content: ""; display: block; width: 4px; height: 4px; margin: 4px auto -4px; border-radius: 50%; background: #e50914; }
-      .search-wrap input, input, select { border-color: #4a4a4a; background: rgba(18,18,18,.92); color: #fff; }
+      .primary-nav button { color: #c5e1ed; }
+      .primary-nav button:hover, .primary-nav button.active { background: rgba(64,216,192,.14); color: #fff; }
+      .primary-nav button.active::after { content: ""; display: block; width: 22px; height: 3px; margin: 4px auto -4px; border-radius: 4px; background: #40d8c0; }
+      .search-wrap input, input, select { border-color: #35647c; background: rgba(10,31,47,.94); color: #fff; }
       input::placeholder { color: #9b9b9b; }
-      button.secondary, .profile-toggle, .profile-menu, .auth-panel, .movie-details-dialog, .mobile-nav { border-color: #3a3a3a; background: #1d1d1d; }
+      button.secondary, .profile-toggle, .profile-menu, .auth-panel, .movie-details-dialog, .mobile-nav { border-color: #28536b; background: #0e2435; }
       button { border-radius: 4px; }
       button:not(.secondary):not(.profile-toggle) { background: #e50914; color: #fff; }
       button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
       .page { width: min(1660px, 100%); padding-inline: clamp(18px, 4vw, 64px); }
-      .category-chip, .folder-chip { border-color: #3d3d3d; background: #262626; color: #f4f4f4; }
-      .category-chip.active, .category-chip[aria-pressed="true"] { border-color: #e50914; background: #e50914; color: #fff; }
-      .movie-card, .movie-card.unavailable { border: 0; border-radius: 5px; background: #181818; }
-      .movie-card:hover, .movie-card:focus-visible { transform: scale(1.045); box-shadow: 0 14px 36px rgba(0,0,0,.78), 0 0 0 2px #fff; }
-      .poster { border-radius: 5px 5px 0 0; background: #1a1a1a; }
+      .category-chip, .folder-chip { border-color: #35647c; background: #15364c; color: #edfaff; }
+      .category-chip.active, .category-chip[aria-pressed="true"] { border-color: #40d8c0; background: #40d8c0; color: #061523; }
+      .movie-card, .movie-card.unavailable { border: 1px solid rgba(64,216,192,.08); border-radius: 5px; background: #0e2435; }
+      .movie-card:hover, .movie-card:focus-visible { transform: scale(1.045); box-shadow: 0 14px 36px rgba(0,0,0,.78), 0 0 0 2px #40d8c0; }
+      .poster { border-radius: 5px 5px 0 0; background: #0a1d2d; }
       .poster > img { position: absolute; inset: 0; object-fit: cover; }
       .poster-preview-video { object-fit: cover; }
       .movie-info { min-height: 94px; padding: 11px 12px 13px; }
       .movie-meta, .hero-meta, .hero-description, .library-summary, .empty-state, .status { color: #b6b6b6; }
       .hero-movie { min-height: clamp(280px, 38vw, 540px); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-      .hero-movie::after { background: linear-gradient(90deg, #050505 0%, rgba(5,5,5,.86) 28%, rgba(5,5,5,.2) 69%, rgba(5,5,5,.72)); }
+      .hero-movie::after { background: linear-gradient(90deg, #061523 0%, rgba(6,21,35,.88) 28%, rgba(6,21,35,.2) 69%, rgba(6,21,35,.72)); }
       .hero-movie img { inset: 0 0 0 24%; width: 76%; opacity: 1; }
       .hero-copy { width: min(590px, 72%); }
       .hero-copy h1 { font-size: clamp(36px, 5.4vw, 68px); }
       .hero-actions button:first-child { min-width: 118px; background: #fff; color: #0b0b0b; }
       .hero-carousel-nav button { border-color: #4a4a4a; background: rgba(10,10,10,.78); color: #fff; }
-      .catalog-status { border-left: 3px solid #e50914; color: #e8e8e8; background: rgba(20,20,20,.82); }
-      .watch-stage.player-page { background: rgba(0,0,0,.98); }
-      .close-player-page { border-color: #555; background: #202020; }
+      .catalog-status { border-left: 3px solid #40d8c0; color: #e8faff; background: rgba(10,31,47,.88); }
+      .watch-stage.player-page { background: rgba(3,15,25,.98); }
+      .close-player-page { border-color: #35647c; background: #15364c; }
       .movie-card.preview-loading .poster::after { content: "Preview"; font-size: 11px; }
       @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     </style>

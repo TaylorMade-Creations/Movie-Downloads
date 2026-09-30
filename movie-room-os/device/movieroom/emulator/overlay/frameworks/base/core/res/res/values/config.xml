@@ -1,0 +1,3 @@
+<resources>
+    <string name="config_defaultHomeComponent" translatable="false">com.movieroom.firetv/.MainActivity</string>
+</resources>
