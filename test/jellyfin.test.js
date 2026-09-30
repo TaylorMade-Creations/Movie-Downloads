@@ -154,6 +154,10 @@ test("Jellyfin provider exposes an H264/AAC compatibility stream for unsupported
   assert.match(streamRequest.url, /AudioCodec=aac/);
   assert.match(streamRequest.url, /Container=mp4/);
   assert.match(streamRequest.url, /EnableAutoStreamCopy=false/);
+  assert.match(streamRequest.url, /MediaSourceId=movie-avi/);
+  assert.match(streamRequest.url, /AudioStreamIndex=1/);
+  assert.match(streamRequest.url, /VideoStreamIndex=0/);
+  assert.match(streamRequest.url, /\.mp4\?/);
 });
 
 test("Jellyfin playback resolves item details through a valid Jellyfin user context", async () => {
