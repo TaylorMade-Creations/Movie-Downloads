@@ -1,0 +1,7 @@
+{
+  "packageName": "com.movieroom.shell",
+  "versionCode": 4,
+  "versionName": "0.3.1",
+  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/MovieRoom-OS-v0.3.1.apk",
+  "releaseNotes": "Movie Room OS now owns deterministic Fire TV DPAD focus: up, down, left, right, Select, Menu, and Play/Pause are handled at the HOME shell before the web app opens."
+}

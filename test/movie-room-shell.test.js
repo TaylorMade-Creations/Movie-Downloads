@@ -20,6 +20,10 @@ function readWeb(relativePath) {
   return fs.readFileSync(path.join(webRoot, relativePath), "utf8");
 }
 
+function readPublic(relativePath) {
+  return fs.readFileSync(path.join(root, "public", relativePath), "utf8");
+}
+
 function claimsHomeRole(manifest) {
   return /<category\s+android:name="android\.intent\.category\.HOME"\s*\/>/.test(manifest);
 }
@@ -98,6 +102,14 @@ test("Movie Room shell provides an explicit Fire TV focus path across library sh
   assert.match(activity, /KEYCODE_BACK/);
   assert.match(activity, /KEYCODE_MENU/);
   assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.match(activity, /dispatchKeyEvent/);
+  assert.match(activity, /moveShellFocus/);
+  assert.match(activity, /KEYCODE_DPAD_UP/);
+  assert.match(activity, /KEYCODE_DPAD_LEFT/);
+  assert.match(activity, /KEYCODE_DPAD_CENTER/);
+  assert.match(activity, /KEYCODE_DPAD_RIGHT/);
+  assert.match(activity, /KEYCODE_DPAD_DOWN/);
+  assert.match(activity, /performClick/);
   assert.match(activity, /requestFocus/);
   assert.match(activity, /ImageView/);
   assert.match(activity, /taylormade_movies_cover/);
@@ -109,4 +121,16 @@ test("Movie Room shell provides an explicit Fire TV focus path across library sh
   assert.match(activity, /GENRES/);
   assert.match(activity, /Comedy/);
   assert.match(activity, /Soap/);
+});
+
+test("the published OS launcher artifact matches the shell version", () => {
+  const build = read("build.gradle");
+  const update = JSON.parse(readPublic("apk/os-update.json"));
+  assert.match(build, /versionCode\s+4/);
+  assert.match(build, /versionName\s+"0\.3\.1"/);
+  assert.equal(update.packageName, "com.movieroom.shell");
+  assert.equal(update.versionCode, 4);
+  assert.equal(update.versionName, "0.3.1");
+  assert.match(update.downloadUrl, /MovieRoom-OS-v0\.3\.1\.apk$/);
+  assert.equal(fs.existsSync(path.join(root, "public", "downloads", "MovieRoom-OS-v0.3.1.apk")), true);
 });

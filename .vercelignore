@@ -11,5 +11,6 @@ test-results/
 tmp-runtime/
 *.apk
 !public/downloads/TaylorMade-Movies-Android-v1.0.15.apk
+!public/downloads/MovieRoom-OS-v0.3.1.apk
 skills-lock.json
 0

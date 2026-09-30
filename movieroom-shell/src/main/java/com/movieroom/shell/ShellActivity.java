@@ -35,6 +35,9 @@ public final class ShellActivity extends Activity {
     private String activeProfile = "Home";
     private TextView connectionStatus;
     private boolean settingsScreen;
+    private List<List<Button>> activeFocusRows = new ArrayList<>();
+    private int focusedRowIndex;
+    private int focusedColumnIndex;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -148,6 +151,9 @@ public final class ShellActivity extends Activity {
     }
 
     private void connectFocusRows(List<List<Button>> rows) {
+        activeFocusRows = rows;
+        focusedRowIndex = 0;
+        focusedColumnIndex = 0;
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
             List<Button> row = rows.get(rowIndex);
             for (int column = 0; column < row.size(); column++) {
@@ -164,6 +170,114 @@ public final class ShellActivity extends Activity {
                 }
             }
         }
+    }
+
+    /**
+     * Fire TV sends DPAD events to the HOME activity before the web app is
+     * launched. Keep navigation inside the shell's known button rows instead
+     * of depending on Android's view-tree heuristics, which can stop at a
+     * ScrollView or jump to an unexpected control.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        if (!isShellRemoteKey(keyCode)) {
+            return super.dispatchKeyEvent(event);
+        }
+        if (event.getAction() != KeyEvent.ACTION_DOWN) {
+            return true;
+        }
+
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                return moveShellFocus(View.FOCUS_UP);
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                return moveShellFocus(View.FOCUS_LEFT);
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                return performFocusedShellAction();
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                return moveShellFocus(View.FOCUS_RIGHT);
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                return moveShellFocus(View.FOCUS_DOWN);
+            case KeyEvent.KEYCODE_MENU:
+                showSettingsScreen();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                openMovieRoomApp();
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    private boolean isShellRemoteKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_UP
+                || keyCode == KeyEvent.KEYCODE_DPAD_LEFT
+                || keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+                || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                || keyCode == KeyEvent.KEYCODE_MENU
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
+    }
+
+    private boolean moveShellFocus(int direction) {
+        if (activeFocusRows.isEmpty()) {
+            return true;
+        }
+
+        int[] position = findFocusedShellPosition();
+        int nextRow = position[0];
+        int nextColumn = position[1];
+        if (direction == View.FOCUS_LEFT) {
+            nextColumn = Math.max(0, nextColumn - 1);
+        } else if (direction == View.FOCUS_RIGHT) {
+            nextColumn = Math.min(activeFocusRows.get(nextRow).size() - 1, nextColumn + 1);
+        } else if (direction == View.FOCUS_UP) {
+            nextRow = Math.max(0, nextRow - 1);
+            nextColumn = Math.min(nextColumn, activeFocusRows.get(nextRow).size() - 1);
+        } else if (direction == View.FOCUS_DOWN) {
+            nextRow = Math.min(activeFocusRows.size() - 1, nextRow + 1);
+            nextColumn = Math.min(nextColumn, activeFocusRows.get(nextRow).size() - 1);
+        }
+
+        Button target = activeFocusRows.get(nextRow).get(nextColumn);
+        focusedRowIndex = nextRow;
+        focusedColumnIndex = nextColumn;
+        target.requestFocus();
+        target.post(() -> target.requestRectangleOnScreen(
+                new android.graphics.Rect(0, 0, target.getWidth(), target.getHeight()), true));
+        return true;
+    }
+
+    private int[] findFocusedShellPosition() {
+        View current = getCurrentFocus();
+        for (int row = 0; row < activeFocusRows.size(); row++) {
+            List<Button> buttons = activeFocusRows.get(row);
+            for (int column = 0; column < buttons.size(); column++) {
+                if (buttons.get(column) == current) {
+                    focusedRowIndex = row;
+                    focusedColumnIndex = column;
+                    return new int[]{row, column};
+                }
+            }
+        }
+        int row = Math.min(focusedRowIndex, activeFocusRows.size() - 1);
+        int column = Math.min(focusedColumnIndex, activeFocusRows.get(row).size() - 1);
+        return new int[]{row, column};
+    }
+
+    private boolean performFocusedShellAction() {
+        View current = getCurrentFocus();
+        if (current instanceof Button) {
+            ((Button) current).performClick();
+        }
+        return true;
     }
 
     private void onCardSelected(String title) {
