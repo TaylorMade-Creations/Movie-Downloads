@@ -97,6 +97,20 @@ const GENRE_PATTERNS = {
   action: /\b(?:action|jurassic|superman|spider\s*man|mutiny|the fix|jackass|masters of the universe)\b/i,
   comedy: /\b(?:comedy|home\s+alone|jackass|paw\s+patrol|toy\s+story|magic faraway tree)\b/i,
   drama: /\b(?:drama|fifty\s+shades|mamma\s+mia|northern\s+exposure|bomb\s+girls|love hypothesis)\b/i,
+  soap: /\b(?:soap|soap\s+opera|general\s+hospital|days?\s+of\s+our\s+lives|the\s+young\s+and\s+the\s+restless|bold\s+and\s+the\s+beautiful|eastenders|coronation\s+street|dynasty)\b/i,
+  romance: /\b(?:romance|romantic|love|wedding|notebook|pride\s+and\s+prejudice|titanic|fault\s+in\s+our\s+stars)\b/i,
+  thriller: /\b(?:thriller|suspense|gone\s+girl|silence\s+of\s+the\s+lambs|girl\s+on\s+the\s+train)\b/i,
+  documentary: /\b(?:documentary|documentaries|behind\s+the\s+scenes|true\s+story|making\s+of)\b/i,
+  "sci-fi": /\b(?:sci[- ]?fi|science\s+fiction|star\s+wars|star\s+trek|alien|matrix|terminator|avatar)\b/i,
+  fantasy: /\b(?:fantasy|wizard|witch|dragon|lord\s+of\s+the\s+rings|hobbit|fairy|magical)\b/i,
+  animation: /\b(?:animation|animated|cartoon|pixar|disney|dreamworks)\b/i,
+  crime: /\b(?:crime|criminal|gangster|mafia|mob|detective|heist|narcos)\b/i,
+  mystery: /\b(?:mystery|murder|whodunit|sherlock|clue|agatha\s+christie)\b/i,
+  adventure: /\b(?:adventure|quest|treasure|jungle|indiana\s+jones|pirates?\s+of\s+the\s+caribbean)\b/i,
+  western: /\b(?:western|cowboy|frontier|outlaw|wild\s+west)\b/i,
+  musical: /\b(?:musical|mamma\s+mia|les\s+mis[ée]rables|west\s+side\s+story|grease)\b/i,
+  history: /\b(?:history|historical|biography|period\s+piece)\b/i,
+  war: /\b(?:war|world\s+war|battle|soldier|military)\b/i,
   family: FAMILY_MOVIE_PATTERN,
   kids: KIDS_MOVIE_PATTERN,
 };
@@ -374,6 +388,7 @@ function createApp({
   let detailsPreviousFocus = null;
   let detailsPreviousPage = "library";
   let detailsPreviewVersion = 0;
+  let settingsPreviousPage = "home";
   let pendingOfflineMovie = null;
   let playerMode = "normal";
   let progressTimer = null;
@@ -464,8 +479,9 @@ function createApp({
           : activeLibraryView === "genres" ? "Genres" : "General library")
         : activePage === "profile" ? `${profile.label} profile`
           : activePage === "user" ? "Profile"
-            : activePage === "search" ? "Search"
-              : activePage === "menu" ? "Movie Room menu"
+              : activePage === "search" ? "Search"
+                : activePage === "menu" ? "Movie Room menu"
+                  : activePage === "settings" ? "Settings"
             : "Home / Trending";
       pageHeaderLabel.textContent = pageLabel;
     }
@@ -713,7 +729,7 @@ function createApp({
   }
 
   function setActivePage(page) {
-    activePage = ["home", "library", "profile", "user", "search", "menu", "details"].includes(page) ? page : "home";
+    activePage = ["home", "library", "profile", "user", "search", "menu", "details", "settings"].includes(page) ? page : "home";
     const homeVisible = activePage === "home";
     const libraryVisible = activePage === "library";
     const profileVisible = activePage === "profile";
@@ -721,6 +737,7 @@ function createApp({
     const searchVisible = activePage === "search";
     const menuVisible = activePage === "menu";
     const detailsVisible = activePage === "details";
+    const settingsVisible = activePage === "settings";
     if (heroMovie) heroMovie.hidden = !homeVisible;
     if (homeNavigation) homeNavigation.hidden = !homeVisible;
     if (homeLibrarySection) homeLibrarySection.hidden = !homeVisible;
@@ -739,6 +756,7 @@ function createApp({
     }
     if (navigationPage) navigationPage.hidden = !menuVisible;
     if (movieDetailsDialog) movieDetailsDialog.hidden = !detailsVisible;
+    if (settingsDialog) settingsDialog.hidden = !settingsVisible;
     if (categoryShelf && categoryShelf.parentElement) categoryShelf.parentElement.hidden = !libraryVisible;
     if (folderShelf && folderShelf.parentElement) folderShelf.parentElement.hidden = !libraryVisible;
     if (profileMenu) {
@@ -748,6 +766,17 @@ function createApp({
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
       for (const button of documentRef.querySelectorAll("[data-page]")) {
         button.classList.toggle("active", button.dataset.page === activePage);
+      }
+      for (const button of documentRef.querySelectorAll(".primary-nav [data-browse-destination]")) {
+        const destination = button.dataset ? button.dataset.browseDestination : "";
+        const isActive = destination === "home"
+          ? activePage === "home"
+          : destination === "library"
+            ? activePage === "library" && activeLibraryView !== "genres"
+            : destination === "genres"
+              ? activePage === "library" && activeLibraryView === "genres"
+              : destination === "menu" && activePage === "menu";
+        button.classList.toggle("active", isActive);
       }
     }
     if (searchInput && typeof searchInput.setAttribute === "function") {
@@ -1472,7 +1501,7 @@ function createApp({
     return Array.from(documentRef.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"))
       .filter((element) => !(searchInput && element === searchInput && (!searchOverlay || searchOverlay.hidden)))
       .filter((element) => {
-        if (settingsDialog && hasMethod(settingsDialog, "contains") && settingsDialog.contains(element) && !settingsDialog.open) return false;
+        if (settingsDialog && hasMethod(settingsDialog, "contains") && settingsDialog.contains(element) && settingsDialog.hidden) return false;
         if (element.hidden || (element.closest && element.closest("[hidden]"))) return false;
         const rect = hasMethod(element, "getBoundingClientRect") ? element.getBoundingClientRect() : null;
         return !rect || (rect.width > 0 && rect.height > 0);
@@ -1481,12 +1510,8 @@ function createApp({
 
   function openSettings() {
     if (!settingsDialog) return false;
-    try {
-      if (hasMethod(settingsDialog, "showModal")) settingsDialog.showModal();
-      else settingsDialog.hidden = false;
-    } catch {
-      settingsDialog.hidden = false;
-    }
+    settingsPreviousPage = activePage === "settings" ? settingsPreviousPage : activePage;
+    setActivePage("settings");
     const firstMenuTarget = menuHomeButton || settingsNetworkButton;
     if (firstMenuTarget && hasMethod(firstMenuTarget, "focus")) firstMenuTarget.focus();
     return true;
@@ -1494,8 +1519,9 @@ function createApp({
 
   function closeSettings() {
     if (!settingsDialog) return false;
-    if (hasMethod(settingsDialog, "close")) settingsDialog.close();
-    else settingsDialog.hidden = true;
+    const returnPage = settingsPreviousPage || "home";
+    settingsPreviousPage = "home";
+    if (activePage === "settings") setActivePage(returnPage);
     const firstFocusable = visibleFocusableElements()[0];
     if (firstFocusable && hasMethod(firstFocusable, "focus")) firstFocusable.focus();
     return true;
@@ -1701,7 +1727,7 @@ function createApp({
       focusInitialHero();
       return true;
     }
-    if (settingsDialog && (settingsDialog.open || settingsDialog.hasAttribute && settingsDialog.hasAttribute("open"))) {
+    if (activePage === "settings" || (settingsDialog && !settingsDialog.hidden)) {
       closeSettings();
       return true;
     }
@@ -2103,6 +2129,20 @@ function createApp({
       ["action", "Action"],
       ["comedy", "Comedy"],
       ["drama", "Drama"],
+      ["soap", "Soap"],
+      ["romance", "Romance"],
+      ["thriller", "Thriller"],
+      ["documentary", "Documentary"],
+      ["sci-fi", "Sci-Fi"],
+      ["fantasy", "Fantasy"],
+      ["animation", "Animation"],
+      ["crime", "Crime"],
+      ["mystery", "Mystery"],
+      ["adventure", "Adventure"],
+      ["western", "Western"],
+      ["musical", "Musical"],
+      ["history", "History"],
+      ["war", "War"],
     ];
     const buttons = viewGroups.map(([view, label, count]) => {
       const button = documentRef.createElement("button");
@@ -3625,12 +3665,6 @@ function createApp({
       [menuProfileMorganneButton, "profile-morganne"],
     ]) {
       if (button) button.addEventListener("click", () => selectBrowseDestination(destination));
-    }
-    if (settingsDialog) {
-      settingsDialog.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        closeSettings();
-      });
     }
     if (settingsNetworkButton) {
       settingsNetworkButton.addEventListener("click", () => invokeAndroidSetting("openNetworkSettings", "Open Fire TV Settings, then Network to choose Wi-Fi."));

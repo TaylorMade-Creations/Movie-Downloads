@@ -74,3 +74,22 @@ test("home keeps a visible profile library rail and page shortcuts", () => {
   assert.match(app, /homeLibraryShelf/);
   assert.match(app, /renderShelf\(homeLibraryShelf/);
 });
+
+test("the shared header exposes page tabs and Settings is a standalone destination", () => {
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="home"/);
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="library"/);
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="genres"/);
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="menu"/);
+  assert.match(html, /id="settings-dialog" class="page settings-page"[^>]*hidden/);
+  assert.match(html, /data-browse-destination="settings"/);
+  assert.match(app, /activePage === "settings"/);
+  assert.match(app, /function openSettings/);
+  assert.match(app, /function closeSettings/);
+});
+
+test("the library exposes common genre selectors including soap", () => {
+  assert.match(app, /soap: \/\\b\(\?:soap/);
+  assert.match(app, /\["soap", "Soap"\]/);
+  assert.match(app, /\["comedy", "Comedy"\]/);
+  assert.match(app, /\["action", "Action"\]/);
+});

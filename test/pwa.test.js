@@ -17,7 +17,7 @@ test("Movie Room ships an installable standalone PWA shell", () => {
   assert.match(html, /rel="manifest" href="\/manifest\.webmanifest"/);
   assert.match(html, /rel="icon"[^>]+taylormade-movies-cover\.png/);
   assert.match(app, /serviceWorker\.register\("\/sw\.js"/);
-  assert.match(serviceWorker, /movie-room-shell-v12/);
+  assert.match(serviceWorker, /movie-room-shell-v13/);
   assert.match(serviceWorker, /url\.pathname\.startsWith\("\/api\/"\)/);
   assert.match(app, /registration\.update\(\)/);
   assert.match(app, /controllerchange/);
