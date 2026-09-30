@@ -39,8 +39,7 @@ public final class MainActivity extends Activity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setSupportZoom(false);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
+        configureWebViewViewport(settings);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setWebViewClient(new WebViewClient() {
@@ -242,6 +241,18 @@ public final class MainActivity extends Activity {
             : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
+    private void configureWebViewViewport(WebSettings settings) {
+        boolean televisionDevice = isTelevisionDevice();
+        // Chrome's installed PWA uses the device-width viewport on phones. Keep
+        // the wide viewport only for Fire TV, where the TV layout is intentional.
+        settings.setUseWideViewPort(televisionDevice);
+        settings.setLoadWithOverviewMode(televisionDevice);
+        if (!televisionDevice) {
+            settings.setTextZoom(100);
+            settings.setDefaultFontSize(16);
+        }
+    }
+
     private void setVideoFullscreenOrientation(boolean fullscreen) {
         if (isTelevisionDevice()) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
@@ -252,19 +263,10 @@ public final class MainActivity extends Activity {
             : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
-    private String remoteActionForKeyCode(int keyCode) {
+    private String remoteCommandForKeyCode(int keyCode) {
         switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                return "up";
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                return "down";
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                return "left";
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                return "right";
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                return "select";
+            case KeyEvent.KEYCODE_MENU:
+                return "settings";
             case KeyEvent.KEYCODE_BACK:
                 return "back";
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
@@ -275,108 +277,39 @@ public final class MainActivity extends Activity {
                 return "rewind";
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
                 return "fastforward";
-            case KeyEvent.KEYCODE_MENU:
-                return "settings";
             default:
                 return null;
         }
     }
 
-    private boolean isRepeatableRemoteAction(String action) {
-        return "up".equals(action)
-            || "down".equals(action)
-            || "left".equals(action)
-            || "right".equals(action)
-            || "rewind".equals(action)
-            || "fastforward".equals(action);
-    }
-
-    private boolean handleRemoteKeyEvent(KeyEvent event, int keyCode) {
-        if (event == null) {
-            return false;
-        }
-        String action = remoteActionForKeyCode(keyCode);
-        if (action == null) {
-            return false;
-        }
-
-        // Fire TV sends a KeyEvent for each remote press. Dispatch the first
-        // ACTION_DOWN immediately so Select and navigation never wait for a
-        // delayed ACTION_UP; allow only directional repeats while a button is
-        // held, and consume ACTION_UP without firing a second action.
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            if (event.getRepeatCount() == 0 || isRepeatableRemoteAction(action)) {
-                return dispatchRemoteAction(action);
-            }
-        }
-        return true;
-    }
-
-    private String keyboardKeyForAction(String action) {
-        switch (action) {
-            case "up":
-                return "ArrowUp";
-            case "down":
-                return "ArrowDown";
-            case "left":
-                return "ArrowLeft";
-            case "right":
-                return "ArrowRight";
-            case "select":
-                return "Enter";
-            case "back":
-                return "Backspace";
-            case "playpause":
-                return " ";
-            case "rewind":
-                return "MediaRewind";
-            case "fastforward":
-                return "MediaFastForward";
-            case "settings":
-                return "ContextMenu";
-            default:
-                return null;
-        }
-    }
-
-    private String keyboardCodeForAction(String action) {
-        if ("playpause".equals(action)) {
-            return "Space";
-        }
-        return keyboardKeyForAction(action);
-    }
-
-    private String escapeJavascriptString(String value) {
-        return value.replace("\\", "\\\\").replace("'", "\\'");
-    }
-
-    private boolean dispatchRemoteAction(String action) {
-        if (webView == null || action == null) {
-            return false;
-        }
-        String key = keyboardKeyForAction(action);
-        String code = keyboardCodeForAction(action);
-        if (key == null || code == null) {
+    private boolean dispatchRemoteCommand(String command) {
+        if (webView == null || command == null) {
             return false;
         }
         webView.requestFocus();
-        String escapedKey = escapeJavascriptString(key);
-        String escapedCode = escapeJavascriptString(code);
-        String script = "(function(){var event = new KeyboardEvent('keydown',{key:'"
-            + escapedKey
-            + "',code:'"
-            + escapedCode
-            + "',bubbles:true,cancelable:true});document.dispatchEvent(event);return true;})()";
+        String script = "if(window.MovieRoomRemote){window.MovieRoomRemote('" + command + "');}";
         webView.evaluateJavascript(script, null);
         return true;
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (handleRemoteKeyEvent(event, event.getKeyCode())) {
-            return true;
+        if (event != null
+            && event.getAction() == KeyEvent.ACTION_DOWN
+            && event.getRepeatCount() == 0) {
+            String command = remoteCommandForKeyCode(event.getKeyCode());
+            if (command != null) {
+                return dispatchRemoteCommand(command);
+            }
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!dispatchRemoteCommand("back")) {
+            super.onBackPressed();
+        }
     }
 
     @Override

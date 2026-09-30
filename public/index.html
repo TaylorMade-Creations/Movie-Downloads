@@ -23,9 +23,10 @@
         --line: #303234;
       }
 
-      body[data-viewer-profile="mom"] { --gold: #e6a6b8; --gold-soft: #ffd0dc; }
-      body[data-viewer-profile="morganne"] { --gold: #bba4ff; --gold-soft: #d6c8ff; }
-      body[data-viewer-profile="kids"] { --gold: #65d7e8; --gold-soft: #a6f1f8; }
+      body[data-viewer-profile="home"] { --gold: #f0c45b; --gold-soft: #f8d77d; --profile-accent: #f0c45b; }
+      body[data-viewer-profile="mom"] { --gold: #28c48f; --gold-soft: #7ef0c0; --profile-accent: #28c48f; }
+      body[data-viewer-profile="morganne"] { --gold: #ff74ad; --gold-soft: #ffb7d5; --profile-accent: #ff74ad; }
+      body[data-viewer-profile="kids"] { --gold: #f59e0b; --gold-soft: #ffc766; --profile-accent: #f59e0b; }
 
       * {
         box-sizing: border-box;
@@ -902,7 +903,7 @@
         color: #b8b8b8;
       }
 
-      .hero-movie { position: relative; min-height: clamp(220px, 30vw, 360px); overflow: hidden; margin-bottom: 20px; border: 1px solid rgba(240,196,91,.34); border-radius: 18px; background: rgba(7,7,7,.72); box-shadow: 0 28px 70px rgba(0,0,0,.5); isolation: isolate; }
+      .hero-movie { position: relative; min-height: clamp(220px, 30vw, 360px); overflow: hidden; margin-bottom: 20px; border: 1px solid rgba(240,196,91,.34); border-radius: 18px; background: rgba(7,7,7,.72); box-shadow: 0 28px 70px rgba(0,0,0,.5); isolation: isolate; scroll-margin-top: 84px; }
       .hero-movie::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(0,0,0,.94), rgba(0,0,0,.58) 42%, rgba(0,0,0,.12) 78%, #090a0b); }
       .hero-movie img { position: absolute; inset: 0 0 0 28%; z-index: -2; width: 72%; height: 100%; object-fit: cover; opacity: .82; mask-image: linear-gradient(90deg, transparent, black 18%, black 82%, transparent); }
       .hero-copy { display: grid; align-content: end; min-height: inherit; width: min(560px, 78%); padding: clamp(22px, 4vw, 44px); }
@@ -921,6 +922,14 @@
       .shelf-summary { color: #a7a7a7; font-size: 12px; }
       .movie-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(190px, 224px); gap: 14px; overflow-x: auto; padding: 3px 2px 10px; scroll-snap-type: x mandatory; scrollbar-color: #5a481f transparent; }
       .movie-rail .movie-card { scroll-snap-align: start; }
+      .profile-page { display: grid; gap: 28px; margin-top: 4px; }
+      .profile-page-header { display: grid; gap: 8px; max-width: 760px; padding: clamp(22px, 4vw, 44px); border: 1px solid var(--profile-accent, var(--gold)); border-radius: 22px; background: linear-gradient(135deg, rgba(20, 21, 22, .98), rgba(10, 11, 12, .94)); box-shadow: 0 22px 58px rgba(0, 0, 0, .28); }
+      .profile-page-eyebrow { margin: 0; color: var(--profile-accent, var(--gold-soft)); font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+      .profile-page-header h1 { margin: 0; color: #fff; font-size: clamp(32px, 5vw, 58px); letter-spacing: -.05em; }
+      .profile-page-summary { margin: 0; color: #c8c8c8; font-size: 15px; }
+      .profile-page .shelf-section { padding-top: 4px; }
+      .profile-page .shelf-heading h2 { color: var(--gold-soft); }
+      .profile-page .movie-rail { grid-auto-columns: minmax(156px, 188px); }
       .progress-track { height: 4px; overflow: hidden; background: #343434; }
       .progress-track span { display: block; height: 100%; background: var(--gold); }
       .movie-details-dialog { display: grid; grid-template-columns: minmax(160px, 240px) minmax(0, 1fr); gap: 24px; width: min(780px, calc(100% - 32px)); border: 1px solid #56431e; border-radius: 16px; padding: 26px; color: #fff; background: #141516; box-shadow: 0 24px 90px #000; }
@@ -1127,7 +1136,7 @@
           min-height: 62px;
         }
 
-        .hero-movie { min-height: 300px; }
+        .hero-movie { min-height: 300px; scroll-margin-top: 128px; }
         .hero-movie img { inset: 0; width: 100%; height: 58%; mask-image: linear-gradient(180deg, black, transparent); }
         .hero-movie::after { background: linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.72) 45%, #090a0b); }
         .hero-copy { width: 100%; padding: 24px; }
@@ -1428,6 +1437,22 @@
             <section class="shelf-section" aria-labelledby="picks-title">
               <div class="shelf-heading"><h2 id="picks-title">Taylor-Made Picks</h2></div>
               <div id="picks-shelf" class="movie-rail" aria-live="polite"></div>
+            </section>
+          </section>
+
+          <section id="profile-page" class="profile-page" hidden aria-labelledby="profile-page-title">
+            <header class="profile-page-header">
+              <p id="profile-page-eyebrow" class="profile-page-eyebrow">Profile</p>
+              <h1 id="profile-page-title">Home</h1>
+              <p id="profile-page-summary" class="profile-page-summary">Choose a title to start building this profile’s watch history.</p>
+            </header>
+            <section class="shelf-section" aria-labelledby="profile-most-watched-title">
+              <div class="shelf-heading"><h2 id="profile-most-watched-title">Most watched</h2></div>
+              <div id="profile-most-watched-shelf" class="movie-rail" aria-live="polite"></div>
+            </section>
+            <section class="shelf-section" aria-labelledby="profile-recently-watched-title">
+              <div class="shelf-heading"><h2 id="profile-recently-watched-title">Recently watched</h2></div>
+              <div id="profile-recently-watched-shelf" class="movie-rail" aria-live="polite"></div>
             </section>
           </section>
 

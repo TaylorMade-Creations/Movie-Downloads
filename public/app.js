@@ -292,6 +292,12 @@ function createApp({
   continueSummary,
   recentlyAddedShelf,
   picksShelf,
+  profilePage,
+  profilePageEyebrow,
+  profilePageTitle,
+  profilePageSummary,
+  profileMostWatchedShelf,
+  profileRecentlyWatchedShelf,
   movieDetailsDialog,
   detailsClose,
   detailsPoster,
@@ -659,9 +665,10 @@ function createApp({
   }
 
   function setActivePage(page) {
-    activePage = ["home", "library", "user"].includes(page) ? page : "home";
+    activePage = ["home", "library", "profile", "user"].includes(page) ? page : "home";
     const homeVisible = activePage === "home";
     const libraryVisible = activePage === "library";
+    const profileVisible = activePage === "profile";
     const userVisible = activePage === "user";
     if (heroMovie) heroMovie.hidden = !homeVisible;
     if (continueWatchingShelf && continueWatchingShelf.closest) {
@@ -672,6 +679,7 @@ function createApp({
       const browse = movieGrid.closest(".browse-section");
       if (browse) browse.hidden = !libraryVisible;
     }
+    if (profilePage) profilePage.hidden = !profileVisible;
     if (categoryShelf && categoryShelf.parentElement) categoryShelf.parentElement.hidden = !libraryVisible;
     if (folderShelf && folderShelf.parentElement) folderShelf.parentElement.hidden = !libraryVisible;
     if (profileMenu) {
@@ -1164,7 +1172,7 @@ function createApp({
       if (remoteTarget.classList) remoteTarget.classList.remove("remote-target-active");
       remoteTarget = null;
     }
-    const firstRemoteTarget = visibleRemoteTargets()[0];
+    const firstRemoteTarget = heroPlay || heroDetails || null;
     if (firstRemoteTarget) {
       rememberRemoteTarget(firstRemoteTarget);
       if (hasMethod(firstRemoteTarget, "focus")) firstRemoteTarget.focus();
@@ -1421,143 +1429,6 @@ function createApp({
     if (remoteFocusLabel) remoteFocusLabel.textContent = `Selected: ${remoteTargetLabel(remoteTarget)}`;
   }
 
-  function moveRemoteFocus(direction) {
-    const targets = visibleRemoteTargets();
-    if (!targets.length) return false;
-    const current = remoteTarget && targets.includes(remoteTarget)
-      ? remoteTarget
-      : (documentRef && targets.includes(documentRef.activeElement) ? documentRef.activeElement : targets[0]);
-    if (!current || !hasMethod(current, "getBoundingClientRect")) {
-      rememberRemoteTarget(targets[0]);
-      targets[0].focus();
-      return true;
-    }
-    const currentRail = current.closest(".movie-rail, .movie-grid, .genre-group-grid");
-    const railSelector = ".movie-rail, .movie-grid, .genre-group-grid";
-    const focusRemoteTarget = (next) => {
-      if (!next) return false;
-      rememberRemoteTarget(next);
-      if (hasMethod(next, "focus")) next.focus();
-      if (hasMethod(next, "scrollIntoView")) next.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
-      return true;
-    };
-    const targetsInRail = (rail) => targets.filter((target) => (
-      hasMethod(target, "closest") && target.closest(railSelector) === rail
-    ));
-
-    const heroHasFocus = heroMovie
-      && hasMethod(heroMovie, "contains")
-      && heroMovie.contains(current);
-    if (heroHasFocus && direction === "down") {
-      const rails = documentRef && hasMethod(documentRef, "querySelectorAll")
-        ? Array.from(documentRef.querySelectorAll(".movie-rail"))
-        : [];
-      const firstMovieRail = rails.find((rail) => {
-        if (rail.hidden || !hasMethod(rail, "getBoundingClientRect")) return false;
-        const rect = rail.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      });
-      const firstTarget = firstMovieRail && targetsInRail(firstMovieRail)[0];
-      if (firstTarget) return focusRemoteTarget(firstTarget);
-    }
-
-    if (currentRail && (direction === "left" || direction === "right")) {
-      const railTargets = targetsInRail(currentRail);
-      const currentIndex = railTargets.indexOf(current);
-      if (currentIndex >= 0 && railTargets.length > 1) {
-        const origin = current.getBoundingClientRect();
-        const originY = origin.top + origin.height / 2;
-        const rowTargets = railTargets
-          .filter((target) => {
-            if (target === current || !hasMethod(target, "getBoundingClientRect")) return false;
-            const rect = target.getBoundingClientRect();
-            return Math.abs((rect.top + rect.height / 2) - originY) <= Math.max(16, origin.height * 0.72);
-          })
-          .sort((left, right) => left.getBoundingClientRect().left - right.getBoundingClientRect().left);
-        const orderedTargets = rowTargets.length ? [current, ...rowTargets] : railTargets;
-        const orderedIndex = orderedTargets.indexOf(current);
-        const step = direction === "left" ? -1 : 1;
-        const nextIndex = (orderedIndex + step + orderedTargets.length) % orderedTargets.length;
-        return focusRemoteTarget(orderedTargets[nextIndex]);
-      }
-    }
-
-    if (currentRail && (direction === "up" || direction === "down") && currentRail.classList && currentRail.classList.contains("movie-rail")) {
-      const currentRailRect = currentRail.getBoundingClientRect();
-      const currentRailCenter = currentRailRect.top + currentRailRect.height / 2;
-      const rails = documentRef && hasMethod(documentRef, "querySelectorAll")
-        ? Array.from(documentRef.querySelectorAll(railSelector))
-        : [];
-      const nextRail = rails
-        .filter((rail) => rail !== currentRail && !rail.hidden && hasMethod(rail, "getBoundingClientRect"))
-        .map((rail) => {
-          const rect = rail.getBoundingClientRect();
-          return { rail, rect, center: rect.top + rect.height / 2 };
-        })
-        .filter(({ rect, center }) => rect.width > 0 && rect.height > 0 && (direction === "down" ? center > currentRailCenter + 4 : center < currentRailCenter - 4))
-        .sort((left, right) => direction === "down" ? left.center - right.center : right.center - left.center)[0];
-      if (nextRail) {
-        const origin = current.getBoundingClientRect();
-        const originX = origin.left + origin.width / 2;
-        const nextTarget = targetsInRail(nextRail.rail)
-          .filter((target) => hasMethod(target, "getBoundingClientRect"))
-          .sort((left, right) => {
-            const leftRect = left.getBoundingClientRect();
-            const rightRect = right.getBoundingClientRect();
-            return Math.abs((leftRect.left + leftRect.width / 2) - originX)
-              - Math.abs((rightRect.left + rightRect.width / 2) - originX);
-          })[0];
-        if (nextTarget) return focusRemoteTarget(nextTarget);
-      }
-    }
-
-    const navigationTargets = currentRail && (direction === "up" || direction === "down")
-      ? targets.filter((target) => hasMethod(target, "closest") && target.closest(railSelector) === currentRail)
-      : targets;
-    const origin = current.getBoundingClientRect();
-    const candidates = navigationTargets
-      .filter((target) => target !== current && hasMethod(target, "getBoundingClientRect"))
-      .map((target) => {
-        const rect = target.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const originX = origin.left + origin.width / 2;
-        const originY = origin.top + origin.height / 2;
-        const primary = direction === "left" ? originX - centerX : direction === "right" ? centerX - originX : direction === "up" ? originY - centerY : centerY - originY;
-        const cross = direction === "left" || direction === "right" ? Math.abs(centerY - originY) : Math.abs(centerX - originX);
-        return { target, primary, score: (primary >= -8 ? 0 : 100000) + Math.max(0, primary) * 100 + cross };
-      })
-      .sort((left, right) => left.score - right.score);
-    let next = candidates[0] && candidates[0].primary >= -8 ? candidates[0].target : null;
-    if (!next) {
-      const edgeCandidates = navigationTargets
-        .filter((target) => target !== current && hasMethod(target, "getBoundingClientRect"))
-        .map((target) => ({ target, rect: target.getBoundingClientRect() }))
-        .sort((left, right) => {
-          const leftRect = left.rect;
-          const rightRect = right.rect;
-          const currentCross = direction === "left" || direction === "right"
-            ? origin.top + origin.height / 2
-            : origin.left + origin.width / 2;
-          const leftCross = direction === "left" || direction === "right"
-            ? leftRect.top + leftRect.height / 2
-            : leftRect.left + leftRect.width / 2;
-          const rightCross = direction === "left" || direction === "right"
-            ? rightRect.top + rightRect.height / 2
-            : rightRect.left + rightRect.width / 2;
-          const crossDifference = Math.abs(leftCross - currentCross) - Math.abs(rightCross - currentCross);
-          if (Math.abs(crossDifference) > 8) return crossDifference;
-          if (direction === "left") return rightRect.left - leftRect.left;
-          if (direction === "right") return leftRect.left - rightRect.left;
-          if (direction === "up") return rightRect.top - leftRect.top;
-          return leftRect.top - rightRect.top;
-        });
-      next = edgeCandidates[0] ? edgeCandidates[0].target : null;
-    }
-    if (!next) return false;
-    return focusRemoteTarget(next);
-  }
-
   function activateRemoteTarget() {
     if (remoteTarget && hasMethod(remoteTarget, "click")) {
       remoteTarget.click();
@@ -1589,16 +1460,34 @@ function createApp({
     return true;
   }
 
+  function openProfilePage(profileId) {
+    setViewerProfile(profileId);
+    setActivePage("profile");
+    closeSettings();
+    if (allMovies.length) {
+      renderProfilePage();
+    } else {
+      loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "", { quiet: true })
+        .then(() => renderProfilePage())
+        .catch(() => renderProfilePage());
+    }
+    if (profilePage && hasMethod(profilePage, "scrollIntoView")) {
+      profilePage.scrollIntoView({ behavior: "auto", block: "start" });
+    }
+    const firstTarget = profileMostWatchedShelf && profileMostWatchedShelf.querySelector
+      ? profileMostWatchedShelf.querySelector("button, [tabindex]")
+      : null;
+    if (firstTarget && hasMethod(firstTarget, "focus")) {
+      firstTarget.focus();
+      rememberRemoteTarget(firstTarget);
+    }
+    return true;
+  }
+
   function selectBrowseDestination(destination) {
     const target = String(destination || "").toLowerCase();
     if (target.startsWith("profile-")) {
-      setViewerProfile(target.replace("profile-", ""));
-      setActivePage("home");
-      if (allMovies.length) renderLibrary();
-      loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "").catch(() => {});
-      closeSettings();
-      focusInitialHero();
-      return true;
+      return openProfilePage(target.replace("profile-", ""));
     }
     if (target === "home") {
       setActivePage("home");
@@ -1684,22 +1573,8 @@ function createApp({
     return true;
   }
 
-  function bindRemoteButton(button, action) {
-    if (!button || !hasMethod(button, "addEventListener")) return;
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      if (["up", "left", "right", "down"].includes(action)) moveRemoteFocus(action);
-      else if (action === "select") activateRemoteTarget();
-      else if (action === "back") remoteBack();
-      else if (action === "home") { setActivePage("home"); if (heroMovie && hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" }); }
-      else if (action === "play") remotePlayPause();
-      else if (action === "settings") openSettings();
-    });
-  }
-
   function handleRemoteCommand(action) {
     const command = String(action || "").toLowerCase();
-    if (["up", "left", "right", "down"].includes(command)) return moveRemoteFocus(command);
     if (command === "select" || command === "ok" || command === "center") return activateRemoteTarget();
     if (command === "back") { remoteBack(); return true; }
     if (command === "home") { setActivePage("home"); if (heroMovie && hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" }); return true; }
@@ -2652,6 +2527,46 @@ function createApp({
     shelf.replaceChildren(...movies.map((movie) => createShelfCard(movie, shelf, shelfType)));
   }
 
+  function renderProfilePage() {
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const watched = allMovies
+      .filter(isMoviePlayable)
+      .filter(profile.pick)
+      .filter((movie) => {
+        const record = viewerRecord(movie.id);
+        return record && (
+          Number(record.playCount) > 0
+          || Number(record.positionSeconds) > 0
+          || Number(record.lastWatchedAt) > 0
+        );
+      });
+    const recordFor = (movie) => viewerRecord(movie.id) || {};
+    const mostWatched = [...watched]
+      .sort((left, right) => (
+        (Number(recordFor(right).playCount) || 0) - (Number(recordFor(left).playCount) || 0)
+        || (Number(recordFor(right).positionSeconds) || 0) - (Number(recordFor(left).positionSeconds) || 0)
+        || String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || ""))
+      ))
+      .slice(0, 12);
+    const recentlyWatched = [...watched]
+      .sort((left, right) => (
+        (Number(recordFor(right).lastWatchedAt) || 0) - (Number(recordFor(left).lastWatchedAt) || 0)
+        || String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || ""))
+      ))
+      .slice(0, 12);
+
+    if (profilePageEyebrow) profilePageEyebrow.textContent = `${profile.label} profile`;
+    if (profilePageTitle) profilePageTitle.textContent = profile.label;
+    if (profilePageSummary) {
+      profilePageSummary.textContent = watched.length
+        ? `${watched.length} watched title${watched.length === 1 ? "" : "s"} for ${profile.label}.`
+        : `Choose a title to start building ${profile.label}'s watch history.`;
+    }
+    renderShelf(profileMostWatchedShelf, mostWatched, "No watched titles yet.");
+    renderShelf(profileRecentlyWatchedShelf, recentlyWatched, "Start a title and it will appear here.");
+    setActivePage("profile");
+  }
+
   function stopHeroPreview() {
     heroPreviewVersion += 1;
     for (const previewVideo of [heroPreviewVideo, libraryBackgroundPreview]) {
@@ -3519,15 +3434,6 @@ function createApp({
     setActivePage(activePage);
     pendingFireTvCode = readFireTvCodeFromUrl();
 
-    bindRemoteButton(remoteUpButton, "up");
-    bindRemoteButton(remoteLeftButton, "left");
-    bindRemoteButton(remoteSelectButton, "select");
-    bindRemoteButton(remoteRightButton, "right");
-    bindRemoteButton(remoteDownButton, "down");
-    bindRemoteButton(remoteBackButton, "back");
-    bindRemoteButton(remoteHomeButton, "home");
-    bindRemoteButton(remotePlayButton, "play");
-    bindRemoteButton(remoteSettingsButton, "settings");
     if (windowRef) {
       windowRef.MovieRoomRemote = handleRemoteCommand;
     }
@@ -3680,8 +3586,7 @@ function createApp({
         }
         if (tag === "input" || tag === "textarea" || (target && target.isContentEditable)) return;
         if (["arrowup", "arrowleft", "arrowright", "arrowdown"].includes(key)) {
-          event.preventDefault();
-          moveRemoteFocus(key.replace("arrow", ""));
+          // Let Android WebView perform its normal spatial focus and scrolling.
         } else if (key === "enter") {
           event.preventDefault();
           activateRemoteTarget();
@@ -3716,20 +3621,7 @@ function createApp({
     for (const button of profileButtons) {
       button.addEventListener("click", () => {
         const profileId = button.dataset ? button.dataset.viewerProfile : "home";
-        setViewerProfile(profileId);
-        if (!allMovies.length) {
-          return;
-        }
-        const rememberedMovieId = storedMovieForProfile();
-        const rememberedMovie = allMovies.find((movie) => movie.id === rememberedMovieId && (Number(movie.size) || 0) > 0);
-        const fallbackMovie = allMovies.find((movie) => (Number(movie.size) || 0) > 0);
-        const nextMovie = rememberedMovie || fallbackMovie;
-        if (nextMovie) {
-          movieSelect.value = nextMovie.id;
-          updateNowPlaying(null);
-          updateStatus("Choose a movie to start streaming.");
-        }
-        loadLibrary(movieSelect.value).catch(() => {});
+        openProfilePage(profileId);
       });
     }
 
@@ -4093,6 +3985,12 @@ if (typeof document !== "undefined") {
     continueSummary: document.getElementById("continue-summary"),
     recentlyAddedShelf: document.getElementById("recently-added-shelf"),
     picksShelf: document.getElementById("picks-shelf"),
+    profilePage: document.getElementById("profile-page"),
+    profilePageEyebrow: document.getElementById("profile-page-eyebrow"),
+    profilePageTitle: document.getElementById("profile-page-title"),
+    profilePageSummary: document.getElementById("profile-page-summary"),
+    profileMostWatchedShelf: document.getElementById("profile-most-watched-shelf"),
+    profileRecentlyWatchedShelf: document.getElementById("profile-recently-watched-shelf"),
     movieDetailsDialog: document.getElementById("movie-details-dialog"),
     detailsClose: document.getElementById("details-close"),
     detailsPoster: document.getElementById("details-poster"),

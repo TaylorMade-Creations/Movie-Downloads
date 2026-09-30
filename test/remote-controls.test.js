@@ -16,27 +16,26 @@ test("Movie Room uses the physical remote without rendering an on-page control s
   assert.match(html, /id="settings-network"/);
   assert.match(html, /id="settings-display"/);
   assert.match(html, /id="settings-bluetooth"/);
-  assert.match(app, /function moveRemoteFocus/);
   assert.match(app, /openSettings/);
   assert.match(app, /MovieRoomRemote/);
   assert.match(app, /windowRef\.MovieRoomRemote/);
-  assert.match(app, /arrowleft|arrowright/i);
   assert.match(html, /\.movie-grid\s*\{[\s\S]*minmax\(120px,\s*138px\)/);
   assert.match(html, /\.movie-rail[^\{]*\{[\s\S]*grid-auto-columns:\s*minmax\(112px,\s*132px\)/);
   assert.match(html, /\.remote-target-active/);
   assert.match(html, /\.movie-card:focus-visible[\s\S]*outline/);
+  assert.doesNotMatch(app, /function moveRemoteFocus/);
+  assert.doesNotMatch(app, /moveRemoteFocus\(key\.replace\("arrow", ""\)\)/);
 });
 
-test("remote focus wraps to another visible target when a direction reaches an edge", () => {
-  assert.match(app, /edgeCandidates/);
-  assert.match(app, /behavior:\s*"auto"/);
-  assert.match(app, /rememberRemoteTarget\(next\)/);
+test("the basic remote path leaves arrow movement to the WebView focus engine", () => {
+  assert.match(app, /documentRef\.addEventListener\("keydown"/);
+  assert.match(app, /if \(\["arrowup", "arrowleft", "arrowright", "arrowdown"\]\.includes\(key\)\)/);
+  assert.doesNotMatch(app, /event\.preventDefault\(\);\s*moveRemoteFocus/);
 });
 
-test("directional focus keeps left and right movement inside the current title rail", () => {
-  assert.match(app, /const currentRail = current\.closest\("\.movie-rail, \.movie-grid, \.genre-group-grid"\)/);
-  assert.match(app, /if \(currentRail && \(direction === "left" \|\| direction === "right"\)\)/);
-  assert.match(app, /const railTargets =/);
+test("permission completion returns focus to the hero instead of opening Search", () => {
+  assert.match(app, /const firstRemoteTarget = heroPlay \|\| heroDetails \|\| null/);
+  assert.doesNotMatch(app, /markPermissionPanelDone[\s\S]{0,500}visibleRemoteTargets\(\)\[0\]/);
 });
 
 test("selecting a movie starts the player immediately and previews the focused title", () => {
@@ -60,6 +59,11 @@ test("the initial TV focus keeps the trending hero at the top until the user mov
   assert.match(app, /behavior:\s*"auto", block:\s*"start"/);
   assert.match(app, /const previewVideo = heroVisible \? heroPreviewVideo/);
   assert.match(html, /Trending now/);
+});
+
+test("the mobile startup hero clears the sticky Chrome-style top bar", () => {
+  assert.match(html, /\.hero-movie\s*\{[^}]*scroll-margin-top:\s*84px/);
+  assert.match(html, /@media \(max-width: 720px\)[\s\S]*?\.hero-movie\s*\{[^}]*scroll-margin-top:\s*128px/);
 });
 
 test("the home hero uses the selected movie video instead of leaving the poster visible", () => {
@@ -86,12 +90,6 @@ test("the physical Menu keeps browse destinations available without restoring a 
   assert.match(app, /activeLibraryView = "collections"/);
   assert.match(app, /activeLibraryView = "genres"/);
   assert.match(app, /menuHomeButton/);
-});
-
-test("Down from the hero enters the first movie rail instead of the search field", () => {
-  assert.match(app, /heroMovie\.contains\(current\)/);
-  assert.match(app, /const firstMovieRail/);
-  assert.match(app, /targetsInRail\(firstMovieRail\)/);
 });
 
 test("the web player requests landscape only for fullscreen and returns to the device default", () => {
