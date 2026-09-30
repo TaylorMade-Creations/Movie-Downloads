@@ -278,6 +278,7 @@ function createApp({
   profileButtons = [],
   heroMovie,
   heroBackdrop,
+  heroPreviewVideo,
   heroTitle,
   heroMeta,
   heroDescription,
@@ -317,6 +318,16 @@ function createApp({
   remoteBackButton,
   remoteHomeButton,
   remotePlayButton,
+  remoteSettingsButton,
+  settingsDialog,
+  settingsNetworkButton,
+  settingsDisplayButton,
+  settingsBluetoothButton,
+  settingsSystemButton,
+  settingsReloadButton,
+  settingsCloseButton,
+  playerSettingsButton,
+  playerNetworkSettingsButton,
   fetchImpl,
   locationOrigin,
   createOption,
@@ -354,6 +365,7 @@ function createApp({
   let activePage = "home";
   let heroMovies = [];
   let heroIndex = 0;
+  let heroPreviewVersion = 0;
   let heroSelectionInitialized = false;
   let searchTerm = "";
   let searchOverlayGenre = "all";
@@ -1317,6 +1329,7 @@ function createApp({
     return Array.from(documentRef.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"))
       .filter((element) => !(remoteControlBar && remoteControlBar.contains(element)))
       .filter((element) => {
+        if (settingsDialog && hasMethod(settingsDialog, "contains") && settingsDialog.contains(element) && !settingsDialog.open) return false;
         if (element.hidden || (element.closest && element.closest("[hidden]"))) return false;
         const rect = hasMethod(element, "getBoundingClientRect") ? element.getBoundingClientRect() : null;
         return !rect || (rect.width > 0 && rect.height > 0);
@@ -1381,6 +1394,38 @@ function createApp({
     return false;
   }
 
+  function openSettings() {
+    if (!settingsDialog) return false;
+    try {
+      if (hasMethod(settingsDialog, "showModal")) settingsDialog.showModal();
+      else settingsDialog.hidden = false;
+    } catch {
+      settingsDialog.hidden = false;
+    }
+    if (settingsNetworkButton && hasMethod(settingsNetworkButton, "focus")) settingsNetworkButton.focus();
+    if (settingsNetworkButton) rememberRemoteTarget(settingsNetworkButton);
+    return true;
+  }
+
+  function closeSettings() {
+    if (!settingsDialog) return false;
+    if (hasMethod(settingsDialog, "close")) settingsDialog.close();
+    else settingsDialog.hidden = true;
+    const firstRemoteTarget = visibleRemoteTargets()[0];
+    if (firstRemoteTarget) rememberRemoteTarget(firstRemoteTarget);
+    return true;
+  }
+
+  function invokeAndroidSetting(methodName, browserMessage) {
+    const bridge = windowRef && windowRef.MovieRoomAndroid;
+    if (bridge && typeof bridge[methodName] === "function") {
+      bridge[methodName]();
+      return true;
+    }
+    updateStatus(browserMessage);
+    return false;
+  }
+
   function remoteBack() {
     if (searchOverlay && !searchOverlay.hidden) {
       setSearchOverlayVisible(false);
@@ -1388,6 +1433,10 @@ function createApp({
     }
     if (movieDetailsDialog && movieDetailsDialog.open) {
       if (hasMethod(movieDetailsDialog, "close")) movieDetailsDialog.close();
+      return;
+    }
+    if (settingsDialog && settingsDialog.open) {
+      closeSettings();
       return;
     }
     if (playerVisible && closePlayerPage) {
@@ -1420,6 +1469,7 @@ function createApp({
       else if (action === "back") remoteBack();
       else if (action === "home") { setActivePage("home"); if (heroMovie && hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" }); }
       else if (action === "play") remotePlayPause();
+      else if (action === "settings") openSettings();
     });
   }
 
@@ -1854,7 +1904,7 @@ function createApp({
         video.load();
         video.remove();
       }
-      card.classList.remove("previewing", "preview-loading");
+      card.classList.remove("previewing", "preview-loading", "preview-paused");
       if (activePreviewCancel === cancelPreview) activePreviewCancel = null;
     }
 
@@ -1896,7 +1946,14 @@ function createApp({
           card.classList.remove("preview-loading");
           card.classList.add("previewing");
           if (stopTimer !== null) clearTimeoutImpl(stopTimer);
-          stopTimer = setTimeoutImpl(cancelPreview, 5000);
+          stopTimer = setTimeoutImpl(() => {
+            if (preview !== video) return;
+            video.pause();
+            stopTimer = null;
+            // Keep the paused video in the poster so the second preview frame
+            // remains visible instead of snapping back to the cover art.
+            card.classList.add("previewing", "preview-paused");
+          }, 2000);
         });
         video.addEventListener("error", () => { if (preview === video) cancelPreview(); });
         video.addEventListener("ended", () => { if (preview === video) cancelPreview(); });
@@ -2333,7 +2390,43 @@ function createApp({
     shelf.replaceChildren(...movies.map((movie) => createShelfCard(movie, shelf, shelfType)));
   }
 
+  function stopHeroPreview() {
+    heroPreviewVersion += 1;
+    if (!heroPreviewVideo) return;
+    heroPreviewVideo.pause();
+    heroPreviewVideo.removeAttribute("src");
+    heroPreviewVideo.load();
+    heroPreviewVideo.hidden = true;
+    if (heroMovie && heroMovie.classList) heroMovie.classList.remove("hero-video-active");
+  }
+
+  async function startHeroPreview(movie) {
+    if (!heroPreviewVideo || !movie || !isMoviePlayable(movie)) return;
+    if ((windowRef && hasMethod(windowRef, "matchMedia") && windowRef.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      || (navigatorRef && navigatorRef.connection && navigatorRef.connection.saveData)) return;
+    const version = heroPreviewVersion;
+    try {
+      const playback = await requestPlaybackLink(movie.id, "Unable to load the featured preview.");
+      if (version !== heroPreviewVersion || !playback || !playback.url) return;
+      heroPreviewVideo.muted = true;
+      heroPreviewVideo.defaultMuted = true;
+      heroPreviewVideo.playsInline = true;
+      heroPreviewVideo.loop = true;
+      heroPreviewVideo.preload = "metadata";
+      heroPreviewVideo.setAttribute("aria-hidden", "true");
+      heroPreviewVideo.setAttribute("playsinline", "");
+      heroPreviewVideo.src = new URL(playback.url, locationOrigin).toString();
+      heroPreviewVideo.hidden = false;
+      if (heroMovie && heroMovie.classList) heroMovie.classList.add("hero-video-active");
+      const playPromise = heroPreviewVideo.play();
+      if (playPromise && hasMethod(playPromise, "catch")) await playPromise.catch(() => {});
+    } catch {
+      if (version === heroPreviewVersion) stopHeroPreview();
+    }
+  }
+
   function renderDiscovery() {
+    stopHeroPreview();
     const playable = allMovies.filter(isMoviePlayable);
     const continueMovies = playable
       .filter((movie) => {
@@ -2367,6 +2460,7 @@ function createApp({
       if (heroMovie) heroMovie.hidden = false;
       const backdropUrl = featured.backdropUrl || featured.posterUrl || "/movie-room-hero.png";
       if (heroBackdrop) { heroBackdrop.src = backdropUrl; heroBackdrop.alt = `${featured.title || "Featured movie"} backdrop`; }
+      void startHeroPreview(featured);
       if (documentRef && documentRef.body && backdropUrl) {
         const safeBackdropUrl = String(backdropUrl).replaceAll('"', "%22");
         documentRef.body.style.setProperty("--page-backdrop", `url("${safeBackdropUrl}")`);
@@ -3043,6 +3137,40 @@ function createApp({
     bindRemoteButton(remoteBackButton, "back");
     bindRemoteButton(remoteHomeButton, "home");
     bindRemoteButton(remotePlayButton, "play");
+    bindRemoteButton(remoteSettingsButton, "settings");
+    if (settingsCloseButton) {
+      settingsCloseButton.addEventListener("click", closeSettings);
+    }
+    if (settingsDialog) {
+      settingsDialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeSettings();
+      });
+    }
+    if (settingsNetworkButton) {
+      settingsNetworkButton.addEventListener("click", () => invokeAndroidSetting("openNetworkSettings", "Open Fire TV Settings, then Network to choose Wi-Fi."));
+    }
+    if (settingsDisplayButton) {
+      settingsDisplayButton.addEventListener("click", () => invokeAndroidSetting("openDisplaySettings", "Open Fire TV Settings, then Display to adjust the screen."));
+    }
+    if (settingsBluetoothButton) {
+      settingsBluetoothButton.addEventListener("click", () => invokeAndroidSetting("openBluetoothSettings", "Open Fire TV Settings, then Controllers & Bluetooth Devices."));
+    }
+    if (settingsSystemButton) {
+      settingsSystemButton.addEventListener("click", () => invokeAndroidSetting("openSettings", "Open the Fire TV Settings app to manage Movie Room and device options."));
+    }
+    if (settingsReloadButton) {
+      settingsReloadButton.addEventListener("click", () => {
+        closeSettings();
+        reloadButton.click();
+      });
+    }
+    if (playerSettingsButton) {
+      playerSettingsButton.addEventListener("click", openSettings);
+    }
+    if (playerNetworkSettingsButton) {
+      playerNetworkSettingsButton.addEventListener("click", () => invokeAndroidSetting("openNetworkSettings", "Open Fire TV Settings, then Network to choose Wi-Fi."));
+    }
     if (documentRef && hasMethod(documentRef, "addEventListener")) {
       documentRef.addEventListener("focusin", (event) => {
         if (!(remoteControlBar && remoteControlBar.contains(event.target))) rememberRemoteTarget(event.target);
@@ -3537,6 +3665,7 @@ if (typeof document !== "undefined") {
     profileButtons: Array.from(document.querySelectorAll("[data-viewer-profile]")),
     heroMovie: document.getElementById("hero-movie"),
     heroBackdrop: document.getElementById("hero-backdrop"),
+    heroPreviewVideo: document.getElementById("hero-preview-video"),
     heroTitle: document.getElementById("hero-title"),
     heroMeta: document.getElementById("hero-meta"),
     heroDescription: document.getElementById("hero-description"),
@@ -3576,6 +3705,16 @@ if (typeof document !== "undefined") {
     remoteBackButton: document.getElementById("remote-back"),
     remoteHomeButton: document.getElementById("remote-home"),
     remotePlayButton: document.getElementById("remote-play"),
+    remoteSettingsButton: document.getElementById("remote-settings"),
+    settingsDialog: document.getElementById("settings-dialog"),
+    settingsNetworkButton: document.getElementById("settings-network"),
+    settingsDisplayButton: document.getElementById("settings-display"),
+    settingsBluetoothButton: document.getElementById("settings-bluetooth"),
+    settingsSystemButton: document.getElementById("settings-system"),
+    settingsReloadButton: document.getElementById("settings-reload"),
+    settingsCloseButton: document.getElementById("settings-close"),
+    playerSettingsButton: document.getElementById("player-settings"),
+    playerNetworkSettingsButton: document.getElementById("player-network-settings"),
     fetchImpl: fetch,
     locationOrigin: window.location.origin,
     createOption: () => document.createElement("option"),

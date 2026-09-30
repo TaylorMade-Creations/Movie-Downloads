@@ -46,7 +46,7 @@ function harness(extension) {
 }
 
 for (const extension of STREAMABLE_EXTENSIONS) {
-  test(`${extension}: preview keeps cover until playing, then stops after five seconds`, async () => {
+  test(`${extension}: preview keeps the paused second frame after two seconds`, async () => {
     const h = harness(extension);
     await h.app.loadLibrary();
     const card = h.grid.children[0];
@@ -64,11 +64,14 @@ for (const extension of STREAMABLE_EXTENSIONS) {
     assert.equal(card.classList.contains('previewing'), false);
     video.emit('playing');
     assert.equal(card.classList.contains('previewing'), true);
-    await h.runTimer(5000);
-    assert.equal(video.removed, true);
+    video.currentTime = 2;
+    await h.runTimer(2000);
     assert.equal(video.paused, true);
-    assert.equal(card.classList.contains('previewing'), false);
-    assert.ok(poster.children.some(child => child.tag === 'img' && !child.removed));
+    assert.equal(video.currentTime, 2);
+    assert.equal(video.removed, undefined);
+    assert.equal(card.classList.contains('previewing'), true);
+    assert.equal(card.classList.contains('preview-paused'), true);
+    assert.ok(poster.children.includes(video));
   });
 }
 

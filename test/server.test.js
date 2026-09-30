@@ -230,8 +230,18 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   assert.match(appSource, /collection-preview-strip/);
   assert.match(appSource, /function installHoverPreview/);
   assert.match(appSource, /preview\.muted = true/);
-  assert.match(html, /\.watch-stage\.player-page \{[^}]*justify-items: center/);
-  assert.match(html, /\.watch-stage\.player-page \.player-frame \{[^}]*justify-self: center/);
+  assert.match(html, /\.watch-stage\.player-page \{[^}]*align-items: start/);
+  assert.match(html, /\.watch-stage\.player-page \.player-frame \{[^}]*justify-self: stretch/);
+  assert.match(html, /\.player-frame \{[^}]*overflow: visible/);
+  assert.match(html, /video \{[^}]*max-height: none/);
+  assert.match(html, /video \{[^}]*object-fit: contain/);
+  assert.match(html, /id="player-side-panel"/);
+  assert.match(html, /id="player-settings"/);
+  assert.match(html, /id="player-network-settings"/);
+  assert.match(html, /\.watch-stage\.player-page \{[^}]*grid-template-columns: minmax\(0, min\(40vw/);
+  assert.match(html, /\.watch-stage\.player-page \.player-frame \{[^}]*grid-column: 1/);
+  assert.match(html, /id="hero-preview-video"/);
+  assert.match(appSource, /heroPreviewVersion/);
 
   const calls = [];
   const client = createViewerStateClient({
@@ -282,8 +292,7 @@ test("serves the watch page and protects the movie catalog", async (t) => {
 
 test("preloads the selected movie for smoother in-page playback", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
-  assert.match(html, /<video[\s\S]*preload="auto"[\s\S]*><\/video>/);
-  assert.doesNotMatch(html, /preload="metadata"/);
+  assert.match(html, /<video\s+id="player"[\s\S]*preload="auto"[\s\S]*><\/video>/);
 });
 
 test("exposes phone and TV playback controls", () => {

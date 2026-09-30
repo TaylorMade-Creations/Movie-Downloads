@@ -20,11 +20,17 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(manifest, /android\.permission\.INTERNET/);
   assert.match(manifest, /android\.permission\.ACCESS_NETWORK_STATE/);
   assert.match(manifest, /android\.intent\.category\.LEANBACK_LAUNCHER/);
+  assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
+  assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
+  assert.match(manifest, /android:label="TaylorMade Movies"/);
+  assert.match(activity, /setBackgroundColor\(0xff061523\)/);
   assert.match(activity, /WebView/);
   assert.match(activity, /BuildConfig\.MOVIE_ROOM_BASE_URL/);
   assert.match(activity, /setJavaScriptEnabled\(true\)/);
   assert.match(activity, /setDomStorageEnabled\(true\)/);
   assert.match(activity, /setMediaPlaybackRequiresUserGesture\(false\)/);
+  assert.match(activity, /addJavascriptInterface/);
+  assert.match(activity, /openNetworkSettings/);
 });
 
 test("Movie Room public mode starts without a login screen", () => {

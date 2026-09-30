@@ -7,8 +7,10 @@
     <application
         android:allowBackup="false"
         android:appCategory="video"
+        android:banner="@drawable/taylormade_movies_cover"
         android:hardwareAccelerated="true"
-        android:label="Movie Room Web"
+        android:icon="@mipmap/ic_launcher"
+        android:label="TaylorMade Movies"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">

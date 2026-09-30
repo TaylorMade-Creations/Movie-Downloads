@@ -399,7 +399,7 @@
 
       .player-frame {
         position: relative;
-        overflow: hidden;
+        overflow: visible;
         border: 1px solid #3b301d;
         border-radius: 14px;
         background: #000;
@@ -449,9 +449,11 @@
       video {
         display: block;
         width: 100%;
+        height: auto;
         aspect-ratio: 16 / 9;
-        max-height: 72vh;
+        max-height: none;
         background: #000;
+        object-fit: contain;
       }
 
       .timeline-control {
@@ -931,10 +933,23 @@
       .primary-nav { display: flex; align-items: center; gap: 6px; }
       .primary-nav button { border: 0; border-radius: 7px; padding: 8px 11px; background: transparent; color: #d5e8fb; font-size: 14px; font-weight: 700; }
       .primary-nav button:hover, .primary-nav button.active { color: #102e49; background: #62e3db; }
-      .watch-stage.player-page { position: fixed; inset: 0; z-index: 30; display: grid; align-content: center; justify-items: center; overflow: auto; padding: max(18px, env(safe-area-inset-top)) 5vw max(18px, env(safe-area-inset-bottom)); background: rgba(5, 15, 29, .98); }
-      .watch-stage.player-page .player-frame { width: min(1280px, 100%); margin: 0 auto; justify-self: center; }
-      .watch-stage.player-page .watch-meta, .watch-stage.player-page .up-next-panel { width: min(1280px, 100%); margin-inline: auto; }
+      .watch-stage.player-page { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-columns: minmax(0, min(40vw, 820px)) minmax(280px, 420px); align-content: start; justify-content: center; align-items: start; gap: 18px 26px; overflow: auto; padding: max(72px, env(safe-area-inset-top)) 5vw max(18px, env(safe-area-inset-bottom)); background: rgba(5, 15, 29, .98); }
+      .watch-stage.player-page .player-frame { grid-column: 1; width: 100%; max-width: 820px; margin: 0; justify-self: stretch; }
+      .watch-stage.player-page .watch-meta { grid-column: 2; width: 100%; margin: 0; }
+      .watch-stage.player-page .up-next-panel { grid-column: 1 / -1; width: 100%; margin: 0; }
+      .player-side-panel { grid-column: 2; display: grid; gap: 10px; align-self: stretch; border: 1px solid #28536b; border-radius: 14px; padding: 18px; background: linear-gradient(145deg, rgba(14,36,53,.98), rgba(6,21,35,.98)); box-shadow: 0 18px 44px rgba(0,0,0,.42); }
+      .player-side-panel h2 { margin: 0; color: #a6f1e7; font-size: 20px; }
+      .player-side-panel p { margin: 0; color: #c5e1ed; line-height: 1.45; }
+      .player-side-panel .connection-status { padding-top: 6px; border-top: 1px solid rgba(64,216,192,.26); color: #fff; font-size: 13px; }
+      @media (max-width: 900px) {
+        .watch-stage.player-page { grid-template-columns: minmax(0, 1fr); }
+        .watch-stage.player-page .player-frame, .watch-stage.player-page .watch-meta, .watch-stage.player-page .up-next-panel, .player-side-panel { grid-column: 1; width: 100%; max-width: none; }
+      }
       .close-player-page { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 18px; z-index: 32; border: 1px solid #648daf; border-radius: 999px; padding: 10px 15px; background: #173957; color: #fff; font-weight: 800; }
+      .hero-movie::after { z-index: 1; }
+      .hero-movie > img { z-index: 0; }
+      .hero-preview-video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; opacity: .5; filter: saturate(.92) contrast(1.08); pointer-events: none; }
+      .hero-copy, .hero-carousel-nav { position: relative; z-index: 2; }
       .library-panel.theater-mode .watch-stage { width: 100%; }
       .library-panel.theater-mode .folder-panel, .library-panel.theater-mode .guidance-area { display: none; }
       .library-panel.miniplayer-mode .player-frame { position: fixed; right: 18px; bottom: 18px; z-index: 12; width: min(360px, calc(100vw - 36px)); border-color: var(--gold); box-shadow: 0 18px 50px #000; }
@@ -969,6 +984,14 @@
       .movie-card:focus-visible, .movie-card.remote-target-active { border-color: #fff; outline: 3px solid #ffd166; outline-offset: 4px; box-shadow: 0 0 0 7px #07121b, 0 18px 34px rgba(0, 0, 0, .72); transform: translateY(-4px) scale(1.035); }
       .remote-control-bar .remote-control-button.remote-target-active { background: #ffd166; color: #07121b; }
       @media (max-width: 760px) { .remote-control-bar { width: calc(100% - 20px); overflow-x: auto; justify-content: flex-start; } .remote-focus-label { min-width: 118px; } }
+      .settings-dialog { width: min(620px, calc(100% - 32px)); border: 2px solid #40d8c0; border-radius: 16px; padding: 24px; background: #0e2435; color: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.78); }
+      .settings-dialog::backdrop { background: rgba(0,0,0,.74); backdrop-filter: blur(8px); }
+      .settings-dialog h2 { margin: 0 0 8px; color: #a6f1e7; }
+      .settings-dialog p { color: #c5e1ed; }
+      .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+      .settings-grid button { min-height: 52px; text-align: left; }
+      .settings-dialog .settings-close { margin-top: 18px; background: #15364c; color: #fff; }
+      @media (max-width: 600px) { .settings-grid { grid-template-columns: 1fr; } }
 
       .guidance-area {
         display: grid;
@@ -1258,6 +1281,7 @@
         <button id="remote-right" class="remote-control-button" type="button" data-remote-action="right" aria-label="Move focus right">▶</button>
         <button id="remote-down" class="remote-control-button" type="button" data-remote-action="down" aria-label="Move focus down">▼</button>
         <button id="remote-play" class="remote-control-button" type="button" data-remote-action="play" aria-label="Play or pause movie">▶/Ⅱ</button>
+        <button id="remote-settings" class="remote-control-button" type="button" data-remote-action="settings" aria-label="Open Movie Room settings">⚙ Settings</button>
       </div>
     </nav>
 
@@ -1275,6 +1299,19 @@
         <div id="search-overlay-results" class="search-overlay-results" tabindex="0" aria-live="polite"></div>
       </div>
     </section>
+
+    <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+      <h2 id="settings-title">Movie Room settings</h2>
+      <p>Use these controls with the Fire TV remote. On the website, the network and display buttons show guidance; in the Movie Room APK they open the matching Fire TV system settings.</p>
+      <div class="settings-grid">
+        <button id="settings-network" type="button">Wi-Fi / Network</button>
+        <button id="settings-display" type="button">Display</button>
+        <button id="settings-bluetooth" type="button">Bluetooth / Remote</button>
+        <button id="settings-system" type="button">Android settings</button>
+        <button id="settings-reload" type="button">Refresh movie library</button>
+      </div>
+      <button id="settings-close" class="settings-close" type="button">Close settings</button>
+    </dialog>
 
     <section id="auth-panel" class="auth-panel" hidden>
       <h1>Movie Room</h1>
@@ -1302,6 +1339,7 @@
       <p id="catalog-status" class="catalog-status" role="status" aria-live="polite">Loading your library…</p>
       <section id="hero-movie" class="hero-movie" aria-labelledby="hero-title">
         <img id="hero-backdrop" src="/movie-room-hero.png" alt="" />
+        <video id="hero-preview-video" class="hero-preview-video" muted loop playsinline preload="metadata" aria-hidden="true" hidden></video>
         <div class="hero-copy">
           <p class="eyebrow">Featured in your library</p>
           <h1 id="hero-title">Your private movie room</h1>
@@ -1354,6 +1392,13 @@
               Full screen
             </button>
           </div>
+          <aside id="player-side-panel" class="player-side-panel" aria-label="Movie player connection settings">
+            <h2>Playback &amp; connection</h2>
+            <p>Movie Room is playing on this page. Keep the player on the left and use these controls for the Fire TV connection.</p>
+            <button id="player-settings" class="secondary" type="button">Open Movie Room settings</button>
+            <button id="player-network-settings" class="secondary" type="button">Wi-Fi / connection settings</button>
+            <p class="connection-status">The web app uses the active connection on this device. The APK buttons open the matching Fire TV system settings.</p>
+          </aside>
           <div class="watch-meta" hidden>
             <h1 id="now-playing-title">Choose a movie</h1>
             <p id="now-playing-detail" class="now-playing-detail">Select a thumbnail below to start streaming.</p>
@@ -1481,6 +1526,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260930-public-access" defer></script>
+    <script src="/app.js?v=20260930-player-tv-controls" defer></script>
   </body>
 </html>
