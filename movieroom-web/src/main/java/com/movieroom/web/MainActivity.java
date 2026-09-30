@@ -4,7 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -23,10 +25,12 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private String pendingDownloadUrl;
     private String pendingDownloadFileName;
+    private boolean storagePromptRequested;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        applyDefaultOrientation();
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -39,14 +43,20 @@ public final class MainActivity extends Activity {
         settings.setUseWideViewPort(true);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (!storagePromptRequested) {
+                    storagePromptRequested = true;
+                    view.postDelayed(MainActivity.this::requestStorageAccessInternal, 250);
+                }
+            }
+        });
         webView.addJavascriptInterface(new MovieRoomAndroidBridge(), "MovieRoomAndroid");
         webView.setBackgroundColor(0xff061523);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
-        webView.setOnKeyListener((view, keyCode, event) -> {
-            return handleRemoteKeyEvent(event, keyCode);
-        });
         setContentView(webView);
         webView.loadUrl(BuildConfig.MOVIE_ROOM_BASE_URL);
     }
@@ -70,6 +80,16 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void openBluetoothSettings() {
             launchSettings(Settings.ACTION_BLUETOOTH_SETTINGS);
+        }
+
+        @JavascriptInterface
+        public void enterVideoFullscreen() {
+            runOnUiThread(() -> setVideoFullscreenOrientation(true));
+        }
+
+        @JavascriptInterface
+        public void exitVideoFullscreen() {
+            runOnUiThread(() -> setVideoFullscreenOrientation(false));
         }
 
         @JavascriptInterface
@@ -105,7 +125,9 @@ public final class MainActivity extends Activity {
 
     private boolean hasStorageAccess() {
         if (Build.VERSION.SDK_INT >= 33) {
-            return checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED;
+            return checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
         }
         return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
             && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
@@ -206,6 +228,28 @@ public final class MainActivity extends Activity {
         } catch (RuntimeException ignored) {
             startActivity(new Intent(Settings.ACTION_SETTINGS));
         }
+    }
+
+    private boolean isTelevisionDevice() {
+        int uiMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK;
+        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+            || uiMode == Configuration.UI_MODE_TYPE_TELEVISION;
+    }
+
+    private void applyDefaultOrientation() {
+        setRequestedOrientation(isTelevisionDevice()
+            ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
+
+    private void setVideoFullscreenOrientation(boolean fullscreen) {
+        if (isTelevisionDevice()) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            return;
+        }
+        setRequestedOrientation(fullscreen
+            ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
     private String remoteActionForKeyCode(int keyCode) {

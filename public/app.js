@@ -394,7 +394,7 @@ function createApp({
   let authTransitionVersion = 0;
   let activeProfile = "home";
   let pendingFireTvCode = "";
-  const permissionStorageKey = "movie_room_permissions_v1";
+  const permissionStorageKey = "movie_room_permissions_v2";
   const libraryStorageKey = "movie_room_library_cache_v1";
   const profileStorageKey = "movie_room_viewer_profile_v1";
   const profileLastMoviePrefix = "movie_room_last_movie_v1_";
@@ -1105,16 +1105,36 @@ function createApp({
   async function openFullscreenPlayer() {
     const fullscreenTarget = playerFrame || player;
     if (fullscreenTarget && fullscreenTarget.requestFullscreen) {
-      await fullscreenTarget.requestFullscreen().catch(() => {});
-      return;
+      try {
+        await fullscreenTarget.requestFullscreen();
+        setVideoFullscreenOrientation(true);
+        return;
+      } catch {
+        // Fall through to the native video fullscreen path when available.
+      }
     }
 
-    if (player.webkitEnterFullscreen) {
+    if (player && player.webkitEnterFullscreen) {
       player.webkitEnterFullscreen();
+      setVideoFullscreenOrientation(true);
       return;
     }
 
     updateStatus("Fullscreen is not available in this browser.");
+  }
+
+  function setVideoFullscreenOrientation(isFullscreen) {
+    const bridge = windowRef && windowRef.MovieRoomAndroid;
+    if (bridge) {
+      if (isFullscreen && typeof bridge.enterVideoFullscreen === "function") bridge.enterVideoFullscreen();
+      if (!isFullscreen && typeof bridge.exitVideoFullscreen === "function") bridge.exitVideoFullscreen();
+    }
+
+    const screenOrientation = windowRef && windowRef.screen && windowRef.screen.orientation;
+    if (screenOrientation && hasMethod(screenOrientation, "lock")) {
+      const lockResult = screenOrientation.lock(isFullscreen ? "landscape" : "portrait");
+      if (lockResult && hasMethod(lockResult, "catch")) lockResult.catch(() => {});
+    }
   }
 
   function updateLoginStatus(message) {
@@ -1163,9 +1183,21 @@ function createApp({
       alreadyHandled = false;
     }
 
-    permissionPanel.hidden = alreadyHandled;
-    if (!alreadyHandled) {
-      updatePermissionStatus("Tap allow to let the browser show the permissions it supports.");
+    let nativeStorageNeedsPermission = false;
+    const bridge = windowRef && windowRef.MovieRoomAndroid;
+    if (bridge && typeof bridge.hasStorageAccess === "function") {
+      try {
+        nativeStorageNeedsPermission = !bridge.hasStorageAccess();
+      } catch {
+        nativeStorageNeedsPermission = false;
+      }
+    }
+
+    permissionPanel.hidden = alreadyHandled && !nativeStorageNeedsPermission;
+    if (!alreadyHandled || nativeStorageNeedsPermission) {
+      updatePermissionStatus(nativeStorageNeedsPermission
+        ? "Choose Allow when Android asks for files and media so offline movies can be saved."
+        : "Tap allow to let the browser show the permissions it supports.");
     }
   }
 
@@ -1196,6 +1228,22 @@ function createApp({
 
     const results = [];
     results.push("Cookies are allowed for this site session.");
+    const bridge = windowRef && windowRef.MovieRoomAndroid;
+    if (bridge && typeof bridge.requestStorageAccess === "function") {
+      updatePermissionStatus("Opening Android files and media permission prompts...");
+      bridge.requestStorageAccess();
+      if (typeof bridge.hasStorageAccess === "function") {
+        try {
+          if (!bridge.hasStorageAccess()) {
+            updatePermissionStatus("Choose Allow for files and media. Movie Room will continue after Android confirms it.");
+            if (enablePermissionsButton) enablePermissionsButton.disabled = false;
+            return;
+          }
+        } catch {
+          // Continue with the browser permission flow if the bridge is unavailable.
+        }
+      }
+    }
     results.push(await requestLocationPermission());
     if (navigatorRef && navigatorRef.wakeLock && hasMethod(navigatorRef.wakeLock, "request")) {
       const wakeLockStarted = await requestWakeLock();
@@ -1396,6 +1444,22 @@ function createApp({
     const targetsInRail = (rail) => targets.filter((target) => (
       hasMethod(target, "closest") && target.closest(railSelector) === rail
     ));
+
+    const heroHasFocus = heroMovie
+      && hasMethod(heroMovie, "contains")
+      && heroMovie.contains(current);
+    if (heroHasFocus && direction === "down") {
+      const rails = documentRef && hasMethod(documentRef, "querySelectorAll")
+        ? Array.from(documentRef.querySelectorAll(".movie-rail"))
+        : [];
+      const firstMovieRail = rails.find((rail) => {
+        if (rail.hidden || !hasMethod(rail, "getBoundingClientRect")) return false;
+        const rect = rail.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      const firstTarget = firstMovieRail && targetsInRail(firstMovieRail)[0];
+      if (firstTarget) return focusRemoteTarget(firstTarget);
+    }
 
     if (currentRail && (direction === "left" || direction === "right")) {
       const railTargets = targetsInRail(currentRail);
@@ -3366,6 +3430,7 @@ function createApp({
           ? "Storage permission allowed. Your offline download is starting."
           : "Storage permission was not allowed, so the offline download was canceled.";
         if (!granted) pendingOfflineMovie = null;
+        if (granted && permissionPanel && !permissionPanel.hidden) markPermissionPanelDone();
       });
     }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
@@ -3600,6 +3665,10 @@ function createApp({
     if (upNextPlay) upNextPlay.addEventListener("click", () => playNextFromQueue());
 
     if (documentRef && typeof documentRef.addEventListener === "function") {
+      documentRef.addEventListener("fullscreenchange", () => {
+        const fullscreenElement = documentRef.fullscreenElement || documentRef.webkitFullscreenElement;
+        setVideoFullscreenOrientation(Boolean(fullscreenElement));
+      });
       documentRef.addEventListener("keydown", (event) => {
         const target = event.target;
         const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
@@ -3759,6 +3828,8 @@ function createApp({
       updateCastButton();
       updateTvGuide();
     });
+    player.addEventListener("webkitbeginfullscreen", () => setVideoFullscreenOrientation(true));
+    player.addEventListener("webkitendfullscreen", () => setVideoFullscreenOrientation(false));
 
     if (documentRef && hasMethod(documentRef, "addEventListener")) {
       documentRef.addEventListener("visibilitychange", () => {

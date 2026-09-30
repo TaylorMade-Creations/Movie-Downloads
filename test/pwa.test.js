@@ -12,7 +12,7 @@ test("Movie Room ships an installable standalone PWA shell", () => {
   const serviceWorker = fs.readFileSync(path.join(publicDir, "sw.js"), "utf8");
 
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.orientation, "landscape");
+  assert.equal(manifest.orientation, "portrait");
   assert.equal(manifest.start_url, "/");
   assert.match(html, /rel="manifest" href="\/manifest\.webmanifest"/);
   assert.match(html, /rel="icon"[^>]+taylormade-movies-cover\.png/);

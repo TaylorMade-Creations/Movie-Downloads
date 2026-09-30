@@ -47,7 +47,8 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /KEYCODE_DPAD_UP/);
   assert.match(activity, /evaluateJavascript/);
   assert.match(activity, /document\.dispatchEvent/);
-  assert.match(activity, /setOnKeyListener/);
+  assert.match(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /setOnKeyListener/);
   assert.match(activity, /event\.getAction\(\) == KeyEvent\.ACTION_DOWN/);
   assert.match(activity, /event\.getRepeatCount\(\)/);
   assert.match(activity, /new KeyboardEvent/);
@@ -55,6 +56,12 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /Enter/);
   assert.match(activity, /Backspace/);
   assert.match(activity, /ContextMenu/);
+  assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_PORTRAIT/);
+  assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_LANDSCAPE/);
+  assert.match(activity, /FEATURE_LEANBACK/);
+  assert.match(activity, /enterVideoFullscreen/);
+  assert.match(activity, /exitVideoFullscreen/);
+  assert.match(activity, /postDelayed/);
   const bootReceiver = read("movieroom-web/src/main/java/com/movieroom/web/BootReceiver.java");
   assert.match(manifest, /\.BootReceiver/);
   assert.match(bootReceiver, /ACTION_BOOT_COMPLETED/);
@@ -79,4 +86,7 @@ test("the Android wrapper exposes storage permission and an offline movie downlo
   assert.match(html, /id="details-offline"/);
   assert.match(app, /downloadForOffline/);
   assert.match(app, /movieroom-storage-permission/);
+  assert.match(app, /enterVideoFullscreen/);
+  assert.match(app, /exitVideoFullscreen/);
+  assert.match(app, /fullscreenchange/);
 });

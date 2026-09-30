@@ -87,3 +87,18 @@ test("the physical Menu keeps browse destinations available without restoring a 
   assert.match(app, /activeLibraryView = "genres"/);
   assert.match(app, /menuHomeButton/);
 });
+
+test("Down from the hero enters the first movie rail instead of the search field", () => {
+  assert.match(app, /heroMovie\.contains\(current\)/);
+  assert.match(app, /const firstMovieRail/);
+  assert.match(app, /targetsInRail\(firstMovieRail\)/);
+});
+
+test("the web player requests landscape only for fullscreen and returns to the device default", () => {
+  assert.match(app, /function setVideoFullscreenOrientation/);
+  assert.match(app, /screenOrientation\.lock\(isFullscreen \? "landscape" : "portrait"\)/);
+  assert.match(app, /bridge\.enterVideoFullscreen/);
+  assert.match(app, /bridge\.exitVideoFullscreen/);
+  assert.match(app, /webkitbeginfullscreen/);
+  assert.match(app, /webkitendfullscreen/);
+});

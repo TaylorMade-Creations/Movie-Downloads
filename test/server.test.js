@@ -2609,7 +2609,7 @@ test("shows a first-run permission setup panel and saves the choice", async () =
   assert.equal(bluetoothRequests, 0);
   assert.match(permissionStatus.textContent, /Wi-Fi/i);
   assert.doesNotMatch(permissionStatus.textContent, /Bluetooth/i);
-  assert.equal(localStorageValues.get("movie_room_permissions_v1"), "done");
+  assert.equal(localStorageValues.get("movie_room_permissions_v2"), "done");
 });
 
 test("refreshes and resumes a stream after a sustained stall", async () => {
