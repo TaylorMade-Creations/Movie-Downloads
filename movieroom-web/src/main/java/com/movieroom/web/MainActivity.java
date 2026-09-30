@@ -12,7 +12,6 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.view.KeyEvent;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -261,55 +260,6 @@ public final class MainActivity extends Activity {
         setRequestedOrientation(fullscreen
             ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-    }
-
-    private String remoteCommandForKeyCode(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_MENU:
-                return "settings";
-            case KeyEvent.KEYCODE_BACK:
-                return "back";
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-            case KeyEvent.KEYCODE_MEDIA_PLAY:
-            case KeyEvent.KEYCODE_MEDIA_PAUSE:
-                return "playpause";
-            case KeyEvent.KEYCODE_MEDIA_REWIND:
-                return "rewind";
-            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
-                return "fastforward";
-            default:
-                return null;
-        }
-    }
-
-    private boolean dispatchRemoteCommand(String command) {
-        if (webView == null || command == null) {
-            return false;
-        }
-        webView.requestFocus();
-        String script = "if(window.MovieRoomRemote){window.MovieRoomRemote('" + command + "');}";
-        webView.evaluateJavascript(script, null);
-        return true;
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event != null
-            && event.getAction() == KeyEvent.ACTION_DOWN
-            && event.getRepeatCount() == 0) {
-            String command = remoteCommandForKeyCode(event.getKeyCode());
-            if (command != null) {
-                return dispatchRemoteCommand(command);
-            }
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (!dispatchRemoteCommand("back")) {
-            super.onBackPressed();
-        }
     }
 
     @Override

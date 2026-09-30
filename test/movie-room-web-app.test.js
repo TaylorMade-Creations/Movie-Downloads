@@ -49,10 +49,10 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /downloadForOffline/);
   assert.match(activity, /Environment\.DIRECTORY_MOVIES/);
   assert.doesNotMatch(activity, /KEYCODE_DPAD_UP/);
-  assert.match(activity, /dispatchKeyEvent/);
-  assert.match(activity, /super\.dispatchKeyEvent\(event\)/);
-  assert.match(activity, /onBackPressed/);
-  assert.match(activity, /dispatchRemoteCommand/);
+  assert.doesNotMatch(activity, /KeyEvent/);
+  assert.doesNotMatch(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /dispatchRemoteCommand/);
+  assert.doesNotMatch(activity, /MovieRoomRemote/);
   assert.doesNotMatch(activity, /setOnKeyListener/);
   assert.doesNotMatch(activity, /new KeyboardEvent/);
   assert.doesNotMatch(activity, /document\.dispatchEvent/);

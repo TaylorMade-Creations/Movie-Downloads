@@ -978,9 +978,8 @@
       .genre-group h3 { margin: 0; color: var(--gold-soft); font-size: 18px; letter-spacing: .02em; }
       .genre-group-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px 14px; }
 
-      :where(button, input, select, [tabindex]):focus-visible,
-      :where(button, input, select, [tabindex]).remote-target-active { outline: 3px solid #ffd166; outline-offset: 3px; box-shadow: 0 0 0 5px #07121b; }
-      .movie-card:focus-visible, .movie-card.remote-target-active { border-color: #fff; outline: 3px solid #ffd166; outline-offset: 4px; box-shadow: 0 0 0 7px #07121b, 0 18px 34px rgba(0, 0, 0, .72); transform: translateY(-4px) scale(1.035); }
+      :where(button, input, select, [tabindex]):focus-visible { outline: 3px solid #ffd166; outline-offset: 3px; box-shadow: 0 0 0 5px #07121b; }
+      .movie-card:focus-visible { border-color: #fff; outline: 3px solid #ffd166; outline-offset: 4px; box-shadow: 0 0 0 7px #07121b, 0 18px 34px rgba(0, 0, 0, .72); transform: translateY(-4px) scale(1.035); }
       .settings-dialog { width: min(620px, calc(100% - 32px)); max-height: calc(100vh - 40px); overflow: auto; border: 2px solid #40d8c0; border-radius: 16px; padding: 24px; background: #0e2435; color: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.78); }
       .settings-dialog::backdrop { background: rgba(0,0,0,.74); backdrop-filter: blur(8px); }
       .settings-dialog h2 { margin: 0 0 8px; color: #a6f1e7; }
@@ -1289,7 +1288,7 @@
 
     <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
       <h2 id="settings-title">Movie Room settings</h2>
-      <p>Use the Fire TV remote to open another Movie Room page or device setting. The network and display buttons open the matching Fire TV system settings in the APK.</p>
+      <p>Choose another Movie Room page or device setting. The network and display buttons open the matching Fire TV system settings in the APK.</p>
       <h3 class="settings-section-title">Browse Movie Room</h3>
       <div class="settings-grid settings-navigation-grid">
         <button id="menu-home" type="button">Home / Trending</button>

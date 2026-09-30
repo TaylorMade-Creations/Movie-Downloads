@@ -7,35 +7,32 @@ const root = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const app = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 
-test("Movie Room uses the physical remote without rendering an on-page control strip", () => {
+test("Movie Room leaves Fire TV navigation to the native WebView selector", () => {
   assert.doesNotMatch(html, /id="remote-control-bar"/);
   for (const control of ["remote-up", "remote-left", "remote-select", "remote-right", "remote-down", "remote-back", "remote-home", "remote-play", "remote-settings"]) {
     assert.doesNotMatch(html, new RegExp(`id="${control}"`));
   }
   assert.match(html, /id="settings-dialog"/);
-  assert.match(html, /id="settings-network"/);
-  assert.match(html, /id="settings-display"/);
-  assert.match(html, /id="settings-bluetooth"/);
-  assert.match(app, /openSettings/);
-  assert.match(app, /MovieRoomRemote/);
-  assert.match(app, /windowRef\.MovieRoomRemote/);
+  assert.doesNotMatch(app, /MovieRoomRemote/);
+  assert.doesNotMatch(app, /remoteControlBar/);
+  assert.doesNotMatch(app, /remoteTarget/);
+  assert.doesNotMatch(app, /activateRemoteTarget/);
+  assert.doesNotMatch(app, /rememberRemoteTarget/);
   assert.match(html, /\.movie-grid\s*\{[\s\S]*minmax\(120px,\s*138px\)/);
   assert.match(html, /\.movie-rail[^\{]*\{[\s\S]*grid-auto-columns:\s*minmax\(112px,\s*132px\)/);
-  assert.match(html, /\.remote-target-active/);
   assert.match(html, /\.movie-card:focus-visible[\s\S]*outline/);
   assert.doesNotMatch(app, /function moveRemoteFocus/);
   assert.doesNotMatch(app, /moveRemoteFocus\(key\.replace\("arrow", ""\)\)/);
 });
 
-test("the basic remote path leaves arrow movement to the WebView focus engine", () => {
-  assert.match(app, /documentRef\.addEventListener\("keydown"/);
-  assert.match(app, /if \(\["arrowup", "arrowleft", "arrowright", "arrowdown"\]\.includes\(key\)\)/);
-  assert.doesNotMatch(app, /event\.preventDefault\(\);\s*moveRemoteFocus/);
+test("the app does not intercept keyboard or remote key events", () => {
+  assert.doesNotMatch(app, /documentRef\.addEventListener\("keydown"/);
+  assert.doesNotMatch(app, /handleRemoteCommand/);
 });
 
-test("permission completion returns focus to the hero instead of opening Search", () => {
-  assert.match(app, /const firstRemoteTarget = heroPlay \|\| heroDetails \|\| null/);
-  assert.doesNotMatch(app, /markPermissionPanelDone[\s\S]{0,500}visibleRemoteTargets\(\)\[0\]/);
+test("permission completion returns native focus to the hero instead of opening Search", () => {
+  assert.match(app, /const firstStartupTarget = heroPlay \|\| heroDetails \|\| null/);
+  assert.doesNotMatch(app, /markPermissionPanelDone[\s\S]{0,500}visibleFocusableElements\(\)\[0\]/);
 });
 
 test("selecting a movie starts the player immediately and previews the focused title", () => {

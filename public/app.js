@@ -316,17 +316,6 @@ function createApp({
   upNextTitle,
   upNextPlay,
   closePlayerPage,
-  remoteControlBar,
-  remoteFocusLabel,
-  remoteUpButton,
-  remoteLeftButton,
-  remoteSelectButton,
-  remoteRightButton,
-  remoteDownButton,
-  remoteBackButton,
-  remoteHomeButton,
-  remotePlayButton,
-  remoteSettingsButton,
   settingsDialog,
   settingsNetworkButton,
   settingsDisplayButton,
@@ -389,7 +378,6 @@ function createApp({
   let searchOverlayGenre = "all";
   let searchOverlayPreviousFocus = null;
   let playerVisible = false;
-  let remoteTarget = null;
   let wakeLock = null;
   let keepAwakeWanted = true;
   let safariAirPlayAvailable = false;
@@ -656,7 +644,6 @@ function createApp({
       const playerTarget = player && hasMethod(player, "focus") ? player : closePlayerPage;
       if (playerTarget && hasMethod(playerTarget, "focus")) {
         playerTarget.focus();
-        rememberRemoteTarget(playerTarget);
       }
     }
     if (visible && scroll && watchStage && hasMethod(watchStage, "scrollIntoView")) {
@@ -1168,14 +1155,9 @@ function createApp({
       permissionPanel.hidden = true;
     }
 
-    if (remoteTarget && (!remoteTarget.isConnected || remoteTarget.hidden || (remoteTarget.closest && remoteTarget.closest("[hidden]")))) {
-      if (remoteTarget.classList) remoteTarget.classList.remove("remote-target-active");
-      remoteTarget = null;
-    }
-    const firstRemoteTarget = heroPlay || heroDetails || null;
-    if (firstRemoteTarget) {
-      rememberRemoteTarget(firstRemoteTarget);
-      if (hasMethod(firstRemoteTarget, "focus")) firstRemoteTarget.focus();
+    const firstStartupTarget = heroPlay || heroDetails || null;
+    if (firstStartupTarget && hasMethod(firstStartupTarget, "focus")) {
+      firstStartupTarget.focus();
     }
   }
 
@@ -1286,7 +1268,6 @@ function createApp({
     authenticated = Boolean(isAuthenticated);
     authPanel.hidden = authenticated;
     libraryPanel.hidden = !authenticated;
-    if (remoteControlBar) remoteControlBar.hidden = !authenticated;
     if (searchInput) {
       searchInput.disabled = !authenticated;
     }
@@ -1399,10 +1380,9 @@ function createApp({
     }
   }
 
-  function visibleRemoteTargets() {
+  function visibleFocusableElements() {
     if (!documentRef || typeof documentRef.querySelectorAll !== "function") return [];
     return Array.from(documentRef.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"))
-      .filter((element) => !(remoteControlBar && remoteControlBar.contains(element)))
       .filter((element) => !(searchInput && element === searchInput && (!searchOverlay || searchOverlay.hidden)))
       .filter((element) => {
         if (settingsDialog && hasMethod(settingsDialog, "contains") && settingsDialog.contains(element) && !settingsDialog.open) return false;
@@ -1410,31 +1390,6 @@ function createApp({
         const rect = hasMethod(element, "getBoundingClientRect") ? element.getBoundingClientRect() : null;
         return !rect || (rect.width > 0 && rect.height > 0);
       });
-  }
-
-  function remoteTargetLabel(target) {
-    if (!target) return "Home";
-    const ariaLabel = target && typeof target.getAttribute === "function" ? target.getAttribute("aria-label") : "";
-    return String(ariaLabel || target.textContent || target.id || "Selected")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 44) || "Selected";
-  }
-
-  function rememberRemoteTarget(target) {
-    if (!target || (remoteControlBar && remoteControlBar.contains(target))) return;
-    if (remoteTarget && remoteTarget.classList) remoteTarget.classList.remove("remote-target-active");
-    remoteTarget = target;
-    if (remoteTarget.classList) remoteTarget.classList.add("remote-target-active");
-    if (remoteFocusLabel) remoteFocusLabel.textContent = `Selected: ${remoteTargetLabel(remoteTarget)}`;
-  }
-
-  function activateRemoteTarget() {
-    if (remoteTarget && hasMethod(remoteTarget, "click")) {
-      remoteTarget.click();
-      return true;
-    }
-    return false;
   }
 
   function openSettings() {
@@ -1447,7 +1402,6 @@ function createApp({
     }
     const firstMenuTarget = menuHomeButton || settingsNetworkButton;
     if (firstMenuTarget && hasMethod(firstMenuTarget, "focus")) firstMenuTarget.focus();
-    if (firstMenuTarget) rememberRemoteTarget(firstMenuTarget);
     return true;
   }
 
@@ -1455,8 +1409,8 @@ function createApp({
     if (!settingsDialog) return false;
     if (hasMethod(settingsDialog, "close")) settingsDialog.close();
     else settingsDialog.hidden = true;
-    const firstRemoteTarget = visibleRemoteTargets()[0];
-    if (firstRemoteTarget) rememberRemoteTarget(firstRemoteTarget);
+    const firstFocusable = visibleFocusableElements()[0];
+    if (firstFocusable && hasMethod(firstFocusable, "focus")) firstFocusable.focus();
     return true;
   }
 
@@ -1479,7 +1433,6 @@ function createApp({
       : null;
     if (firstTarget && hasMethod(firstTarget, "focus")) {
       firstTarget.focus();
-      rememberRemoteTarget(firstTarget);
     }
     return true;
   }
@@ -1505,9 +1458,8 @@ function createApp({
       renderLibrary();
       closeSettings();
       if (movieGrid && hasMethod(movieGrid, "scrollIntoView")) movieGrid.scrollIntoView({ behavior: "auto", block: "start" });
-      const firstLibraryTarget = visibleRemoteTargets().find((element) => element !== searchInput);
+      const firstLibraryTarget = visibleFocusableElements().find((element) => element !== searchInput);
       if (firstLibraryTarget && hasMethod(firstLibraryTarget, "focus")) firstLibraryTarget.focus();
-      if (firstLibraryTarget) rememberRemoteTarget(firstLibraryTarget);
       return true;
     }
     return false;
@@ -1531,56 +1483,11 @@ function createApp({
     detailsPreviousFocus = null;
     if (previousFocus && previousFocus.isConnected !== false && hasMethod(previousFocus, "focus")) {
       previousFocus.focus();
-      rememberRemoteTarget(previousFocus);
     } else {
-      const firstRemoteTarget = visibleRemoteTargets()[0];
-      if (firstRemoteTarget) rememberRemoteTarget(firstRemoteTarget);
+      const firstFocusable = visibleFocusableElements()[0];
+      if (firstFocusable && hasMethod(firstFocusable, "focus")) firstFocusable.focus();
     }
     return true;
-  }
-
-  function remoteBack() {
-    if (searchOverlay && !searchOverlay.hidden) {
-      setSearchOverlayVisible(false);
-      return;
-    }
-    if (movieDetailsDialog && (movieDetailsDialog.open || (hasMethod(movieDetailsDialog, "hasAttribute") && movieDetailsDialog.hasAttribute("open")))) {
-      closeMovieDetails();
-      return;
-    }
-    if (settingsDialog && settingsDialog.open) {
-      closeSettings();
-      return;
-    }
-    if (playerVisible && closePlayerPage) {
-      closePlayerPage.click();
-      return;
-    }
-    setActivePage("home");
-    if (heroMovie && hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function remotePlayPause() {
-    if (!playerVisible || !player) return activateRemoteTarget();
-    if (player.paused) {
-      if (hasMethod(player, "play")) {
-        const playPromise = player.play();
-        if (playPromise && hasMethod(playPromise, "catch")) playPromise.catch(() => {});
-      }
-    } else if (hasMethod(player, "pause")) {
-      player.pause();
-    }
-    return true;
-  }
-
-  function handleRemoteCommand(action) {
-    const command = String(action || "").toLowerCase();
-    if (command === "select" || command === "ok" || command === "center") return activateRemoteTarget();
-    if (command === "back") { remoteBack(); return true; }
-    if (command === "home") { setActivePage("home"); if (heroMovie && hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" }); return true; }
-    if (command === "play" || command === "pause" || command === "playpause") return remotePlayPause();
-    if (command === "settings") return openSettings();
-    return false;
   }
 
   function rememberSearchForProfile(term) {
@@ -2457,10 +2364,8 @@ function createApp({
     } else if (movieDetailsDialog) {
       movieDetailsDialog.setAttribute("open", "");
     }
-    const detailsTarget = detailsPlay || detailsClose;
     if (detailsPlay && hasMethod(detailsPlay, "focus")) detailsPlay.focus();
     else if (detailsClose && hasMethod(detailsClose, "focus")) detailsClose.focus();
-    if (detailsTarget) rememberRemoteTarget(detailsTarget);
     return true;
   }
 
@@ -2697,9 +2602,7 @@ function createApp({
     if (hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
     const firstHeroTarget = heroPlay || heroDetails || heroPrev || heroNext || heroMovie;
     if (!firstHeroTarget) return false;
-    rememberRemoteTarget(firstHeroTarget);
     if (hasMethod(firstHeroTarget, "focus")) firstHeroTarget.focus();
-    rememberRemoteTarget(firstHeroTarget);
     return true;
   }
 
@@ -3434,9 +3337,6 @@ function createApp({
     setActivePage(activePage);
     pendingFireTvCode = readFireTvCodeFromUrl();
 
-    if (windowRef) {
-      windowRef.MovieRoomRemote = handleRemoteCommand;
-    }
     if (settingsCloseButton) {
       settingsCloseButton.addEventListener("click", closeSettings);
     }
@@ -3482,12 +3382,6 @@ function createApp({
     if (playerNetworkSettingsButton) {
       playerNetworkSettingsButton.addEventListener("click", () => invokeAndroidSetting("openNetworkSettings", "Open Fire TV Settings, then Network to choose Wi-Fi."));
     }
-    if (documentRef && hasMethod(documentRef, "addEventListener")) {
-      documentRef.addEventListener("focusin", (event) => {
-        if (!(remoteControlBar && remoteControlBar.contains(event.target))) rememberRemoteTarget(event.target);
-      });
-    }
-
     movieSelect.addEventListener("change", () => {
       rememberMovieForProfile(movieSelect.value);
       updateNowPlaying(selectedMovie());
@@ -3574,37 +3468,6 @@ function createApp({
       documentRef.addEventListener("fullscreenchange", () => {
         const fullscreenElement = documentRef.fullscreenElement || documentRef.webkitFullscreenElement;
         setVideoFullscreenOrientation(Boolean(fullscreenElement));
-      });
-      documentRef.addEventListener("keydown", (event) => {
-        const target = event.target;
-        const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
-        const key = String(event.key || "").toLowerCase();
-        if (key === "escape" && searchOverlay && !searchOverlay.hidden) {
-          event.preventDefault();
-          setSearchOverlayVisible(false);
-          return;
-        }
-        if (tag === "input" || tag === "textarea" || (target && target.isContentEditable)) return;
-        if (["arrowup", "arrowleft", "arrowright", "arrowdown"].includes(key)) {
-          // Let Android WebView perform its normal spatial focus and scrolling.
-        } else if (key === "enter") {
-          event.preventDefault();
-          activateRemoteTarget();
-        } else if (key === "backspace") {
-          event.preventDefault();
-          remoteBack();
-        } else if (key === "contextmenu") {
-          event.preventDefault();
-          openSettings();
-        } else if (key === " " || key === "k" || ["mediaplaypause", "mediaplay", "mediapause"].includes(key)) { event.preventDefault(); remotePlayPause(); }
-        else if (key === "j" || key === "mediarewind") seekPlayerBy(-10);
-        else if (key === "l" || key === "mediafastforward") seekPlayerBy(30);
-        else if (key === "f") openFullscreenPlayer();
-        else if (key === "t") setPlayerMode(playerMode === "theater" ? "normal" : "theater");
-        else if (key === "i") setPlayerMode(playerMode === "miniplayer" ? "normal" : "miniplayer");
-        else if (key === "m") player.muted = !player.muted;
-        else if (key === "escape" && playerMode !== "normal") setPlayerMode("normal");
-        else if (key === "/" && searchInput) { event.preventDefault(); searchInput.focus(); }
       });
       documentRef.addEventListener("pagehide", () => { savePlaybackProgress("pagehide").catch(() => {}); });
     }
@@ -4009,17 +3872,6 @@ if (typeof document !== "undefined") {
     upNextTitle: document.getElementById("up-next-title"),
     upNextPlay: document.getElementById("up-next-play"),
     closePlayerPage: document.getElementById("close-player-page"),
-    remoteControlBar: document.getElementById("remote-control-bar"),
-    remoteFocusLabel: document.getElementById("remote-focus-label"),
-    remoteUpButton: document.getElementById("remote-up"),
-    remoteLeftButton: document.getElementById("remote-left"),
-    remoteSelectButton: document.getElementById("remote-select"),
-    remoteRightButton: document.getElementById("remote-right"),
-    remoteDownButton: document.getElementById("remote-down"),
-    remoteBackButton: document.getElementById("remote-back"),
-    remoteHomeButton: document.getElementById("remote-home"),
-    remotePlayButton: document.getElementById("remote-play"),
-    remoteSettingsButton: document.getElementById("remote-settings"),
     settingsDialog: document.getElementById("settings-dialog"),
     settingsNetworkButton: document.getElementById("settings-network"),
     settingsDisplayButton: document.getElementById("settings-display"),
