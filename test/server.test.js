@@ -230,6 +230,8 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   assert.match(appSource, /collection-preview-strip/);
   assert.match(appSource, /function installHoverPreview/);
   assert.match(appSource, /preview\.muted = true/);
+  assert.match(html, /\.watch-stage\.player-page \{[^}]*justify-items: center/);
+  assert.match(html, /\.watch-stage\.player-page \.player-frame \{[^}]*justify-self: center/);
 
   const calls = [];
   const client = createViewerStateClient({

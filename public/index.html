@@ -927,8 +927,8 @@
       .primary-nav { display: flex; align-items: center; gap: 6px; }
       .primary-nav button { border: 0; border-radius: 7px; padding: 8px 11px; background: transparent; color: #d5e8fb; font-size: 14px; font-weight: 700; }
       .primary-nav button:hover, .primary-nav button.active { color: #102e49; background: #62e3db; }
-      .watch-stage.player-page { position: fixed; inset: 0; z-index: 30; display: grid; align-content: center; overflow: auto; padding: max(18px, env(safe-area-inset-top)) 5vw max(18px, env(safe-area-inset-bottom)); background: rgba(5, 15, 29, .98); }
-      .watch-stage.player-page .player-frame { width: min(1280px, 100%); margin: 0 auto; }
+      .watch-stage.player-page { position: fixed; inset: 0; z-index: 30; display: grid; align-content: center; justify-items: center; overflow: auto; padding: max(18px, env(safe-area-inset-top)) 5vw max(18px, env(safe-area-inset-bottom)); background: rgba(5, 15, 29, .98); }
+      .watch-stage.player-page .player-frame { width: min(1280px, 100%); margin: 0 auto; justify-self: center; }
       .watch-stage.player-page .watch-meta, .watch-stage.player-page .up-next-panel { width: min(1280px, 100%); margin-inline: auto; }
       .close-player-page { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 18px; z-index: 32; border: 1px solid #648daf; border-radius: 999px; padding: 10px 15px; background: #173957; color: #fff; font-weight: 800; }
       .library-panel.theater-mode .watch-stage { width: 100%; }

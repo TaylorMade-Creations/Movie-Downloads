@@ -36,6 +36,7 @@ import androidx.media3.common.Player;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.AspectRatioFrameLayout;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
@@ -831,6 +832,9 @@ public class MainActivity extends Activity {
         playerScreen.setBackgroundColor(0xff000000);
         PlayerView playerView = new PlayerView(this);
         playerView.setKeepScreenOn(true);
+        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        playerView.setUseController(true);
+        playerView.setBackgroundColor(Color.BLACK);
         startKeepScreenOn();
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(60_000, 300_000, 5_000, 10_000)
