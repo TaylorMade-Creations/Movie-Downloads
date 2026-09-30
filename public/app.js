@@ -1378,11 +1378,36 @@ function createApp({
         return { target, primary, score: (primary >= -8 ? 0 : 100000) + Math.max(0, primary) * 100 + cross };
       })
       .sort((left, right) => left.score - right.score);
-    const next = candidates[0] && candidates[0].primary >= -8 ? candidates[0].target : null;
+    let next = candidates[0] && candidates[0].primary >= -8 ? candidates[0].target : null;
+    if (!next) {
+      const edgeCandidates = targets
+        .filter((target) => target !== current && hasMethod(target, "getBoundingClientRect"))
+        .map((target) => ({ target, rect: target.getBoundingClientRect() }))
+        .sort((left, right) => {
+          const leftRect = left.rect;
+          const rightRect = right.rect;
+          const currentCross = direction === "left" || direction === "right"
+            ? origin.top + origin.height / 2
+            : origin.left + origin.width / 2;
+          const leftCross = direction === "left" || direction === "right"
+            ? leftRect.top + leftRect.height / 2
+            : leftRect.left + leftRect.width / 2;
+          const rightCross = direction === "left" || direction === "right"
+            ? rightRect.top + rightRect.height / 2
+            : rightRect.left + rightRect.width / 2;
+          const crossDifference = Math.abs(leftCross - currentCross) - Math.abs(rightCross - currentCross);
+          if (Math.abs(crossDifference) > 8) return crossDifference;
+          if (direction === "left") return rightRect.left - leftRect.left;
+          if (direction === "right") return leftRect.left - rightRect.left;
+          if (direction === "up") return rightRect.top - leftRect.top;
+          return leftRect.top - rightRect.top;
+        });
+      next = edgeCandidates[0] ? edgeCandidates[0].target : null;
+    }
     if (!next) return false;
     rememberRemoteTarget(next);
     next.focus();
-    if (hasMethod(next, "scrollIntoView")) next.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    if (hasMethod(next, "scrollIntoView")) next.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
     return true;
   }
 
