@@ -2810,6 +2810,12 @@ function createApp({
   }
 
   function initialize() {
+    if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
+      const protocol = windowRef && windowRef.location ? windowRef.location.protocol : "";
+      if (protocol === "https:" || protocol === "http:") {
+        navigatorRef.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+      }
+    }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
       for (const button of documentRef.querySelectorAll("[data-page]")) {
         button.addEventListener("click", () => {

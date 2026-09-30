@@ -1,0 +1,28 @@
+{
+  "name": "TaylorMade Movies - Movie Room",
+  "short_name": "Movie Room",
+  "description": "A private, profile-aware Movie Room for TaylorMade Movies.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#090a0b",
+  "theme_color": "#090a0b",
+  "icons": [
+    {
+      "src": "/taylormade-movies-cover.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "video"],
+  "shortcuts": [
+    {
+      "name": "Browse Movie Room",
+      "short_name": "Browse",
+      "url": "/?view=library",
+      "icons": [{ "src": "/taylormade-movies-cover.png", "sizes": "512x512" }]
+    }
+  ]
+}

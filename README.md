@@ -2,6 +2,14 @@
 
 A lightweight browser app for browsing and streaming a shared movie library behind one shared password.
 
+## Movie Room as an installable TV-style PWA
+
+Movie Room is also packaged as an original Progressive Web App using standard web platform features, not Amazon source code or Amazon branding. The PWA manifest enables a standalone, landscape-oriented app window with Movie Room artwork, and the service worker keeps the shell available during short network interruptions while leaving authenticated catalog, artwork, and playback requests online-only.
+
+To install it, open the running Movie Room site in a browser that supports installation, choose the browser's `Install app` or `Add to home screen` command, and launch the resulting `Movie Room` app. The `Browse Movie Room` shortcut opens the library view directly. This creates the Movie Room experience as the visible app shell; it does not replace, reflash, or modify Android/Fire OS firmware.
+
+The Fire TV APK uses the same Movie Room service and secure TV pairing flow, but remains a native Android TV launcher/player so playback controls, remote navigation, and device-token storage work reliably on Fire TV. Replacing the TV firmware would require an unlocked device boot chain and a separately built Android image, which is outside the scope of a PWA and is not part of this application.
+
 ## Project workflow source of truth
 
 The project-owned repository control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative `main` branch, OneDrive Movie downloads root, provider boundary, watcher/sync commands, deployment, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes those values to project tooling. All Codex, GPT, plugin, and skill work for this app should reference the TaylorMade Movies repository rather than creating a parallel project. Secrets are intentionally excluded.
