@@ -16,15 +16,16 @@ test("Movie Room OS declares a reproducible x86_64 emulator product", () => {
   assert.match(products, /movieroom_x86_64-userdebug/);
   assert.match(product, /PRODUCT_NAME := movieroom_x86_64/);
   assert.match(product, /PRODUCT_MODEL := Movie Room OS Emulator/);
-  assert.match(product, /PRODUCT_PACKAGES\s*\+=\s*\\?\s*MovieRoomShell/);
-  assert.match(product, /PRODUCT_PACKAGE_OVERLAYS/);
+  assert.doesNotMatch(product, /MovieRoomShell/);
+  assert.doesNotMatch(product, /PRODUCT_PACKAGE_OVERLAYS/);
   assert.equal(fs.existsSync(path.join(root, "movieroom-shell", "Android.bp")), true);
 });
 
-test("Movie Room OS selects the original Movie Room home component", () => {
-  const config = read("device/movieroom/emulator/overlay/frameworks/base/core/res/res/values/config.xml");
-  assert.match(config, /com\.movieroom\.shell\/.ShellActivity/);
-  assert.doesNotMatch(config, /amazon|fire tv|fireos/i);
+test("Movie Room OS leaves the standard Android launcher in control", () => {
+  const product = read("device/movieroom/emulator/movieroom_x86_64.mk");
+  const configPath = path.join(osRoot, "device/movieroom/emulator/overlay/frameworks/base/core/res/res/values/config.xml");
+  assert.doesNotMatch(product, /config_defaultHomeComponent/);
+  assert.equal(fs.existsSync(configPath), false);
 });
 
 test("Movie Room OS source scaffold contains no credentials or proprietary package references", () => {

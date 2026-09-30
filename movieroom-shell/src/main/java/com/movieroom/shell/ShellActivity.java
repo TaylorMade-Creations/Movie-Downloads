@@ -26,7 +26,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Native Movie Room HOME/LEANBACK launcher with Android TV-style controls. */
+/** Optional Movie Room TV APK; Fire OS remains the device HOME and settings owner. */
 public final class ShellActivity extends Activity {
     private static final int NAVY = Color.rgb(6, 21, 35);
     private static final int PANEL = Color.rgb(14, 36, 53);
@@ -173,8 +173,8 @@ public final class ShellActivity extends Activity {
     }
 
     /**
-     * Fire TV sends DPAD events to the HOME activity before the web app is
-     * launched. Keep navigation inside the shell's known button rows instead
+     * Fire TV sends DPAD events to the foreground TV activity. Keep navigation
+     * inside this optional app's known button rows instead
      * of depending on Android's view-tree heuristics, which can stop at a
      * ScrollView or jump to an unexpected control.
      */
@@ -387,7 +387,7 @@ public final class ShellActivity extends Activity {
         focusRows.add(addSettingsOption(content, "Network & internet", "Wi-Fi, Ethernet, VPN, and connection status", () -> openDeviceSettings("General network")));
         focusRows.add(addSettingsOption(content, "Storage & media", "Files, media access, and offline downloads", () -> openDeviceSettings("Android Settings")));
         focusRows.add(addSettingsOption(content, "Keep screen awake", "Prevent the display from sleeping while watching", () -> Toast.makeText(this, "Playback keep-awake is enabled by the player.", Toast.LENGTH_LONG).show()));
-        focusRows.add(addSettingsOption(content, "Startup behavior", "Movie Room OS launcher and player startup", () -> Toast.makeText(this, "Movie Room OS is registered as a TV launcher.", Toast.LENGTH_LONG).show()));
+        focusRows.add(addSettingsOption(content, "Startup behavior", "Fire OS controls Home and startup for this optional APK", () -> Toast.makeText(this, "Fire OS remains the Home and startup controller.", Toast.LENGTH_LONG).show()));
         focusRows.add(addSettingsOption(content, "App info", "Movie Room OS version 0.2.0", () -> Toast.makeText(this, "Movie Room OS 0.2.0", Toast.LENGTH_LONG).show()));
         focusRows.add(addSettingsOption(content, "Open Fire OS settings", "Open the device's native Android settings app", () -> openDeviceSettings("Android Settings")));
 

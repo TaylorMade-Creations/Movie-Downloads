@@ -1,3 +1,0 @@
-<resources>
-    <string name="config_defaultHomeComponent" translatable="false">com.movieroom.shell/.ShellActivity</string>
-</resources>

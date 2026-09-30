@@ -29,10 +29,10 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(manifest, /android\.permission\.WAKE_LOCK/);
   assert.match(manifest, /android\.permission\.ACCESS_WIFI_STATE/);
   assert.match(manifest, /android\.permission\.VIBRATE/);
-  assert.match(manifest, /android\.permission\.RECEIVE_BOOT_COMPLETED/);
   assert.match(manifest, /android\.intent\.category\.LEANBACK_LAUNCHER/);
   assert.match(manifest, /\.NativePlayerActivity/);
   assert.doesNotMatch(manifest, /android\.intent\.category\.HOME/);
+  assert.doesNotMatch(manifest, /RECEIVE_BOOT_COMPLETED|\.BootReceiver/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
   assert.match(manifest, /android:label="TaylorMade Movies"/);
@@ -85,10 +85,6 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(nativePlayer, /ExoPlayer/);
   assert.match(nativePlayer, /setAudioAttributes/);
   assert.match(nativePlayer, /video\/x-matroska/);
-  const bootReceiver = read("movieroom-web/src/main/java/com/movieroom/web/BootReceiver.java");
-  assert.match(manifest, /\.BootReceiver/);
-  assert.match(bootReceiver, /ACTION_BOOT_COMPLETED/);
-  assert.match(bootReceiver, /MainActivity\.class/);
 });
 
 test("Movie Room public mode starts without a login screen", () => {

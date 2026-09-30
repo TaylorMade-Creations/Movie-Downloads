@@ -1,7 +1,7 @@
 {
   "packageName": "com.movieroom.shell",
-  "versionCode": 4,
-  "versionName": "0.3.1",
-  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/MovieRoom-OS-v0.3.1.apk",
-  "releaseNotes": "Movie Room OS now owns deterministic Fire TV DPAD focus: up, down, left, right, Select, Menu, and Play/Pause are handled at the HOME shell before the web app opens."
+  "versionCode": 5,
+  "versionName": "0.4.0",
+  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/MovieRoom-Optional-TV-v0.4.0.apk",
+  "releaseNotes": "Transition build only: this package no longer claims the Android HOME role. Install it once to release an older Movie Room shell from HOME, then uninstall it and use the normal TaylorMade Movies APK."
 }

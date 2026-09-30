@@ -12,10 +12,5 @@ PRODUCT_SYSTEM_PROPERTIES += \
     ro.movieroom.product=MovieRoomOS \
     ro.movieroom.release=0.1.0-prototype
 
-# Install the native launcher into the product. The Android Studio application
-# id and the AOSP manifest package are the same stable home contract.
-PRODUCT_PACKAGES += \
-    MovieRoomShell
-
-PRODUCT_PACKAGE_OVERLAYS += \
-    $(LOCAL_PATH)/overlay
+# Keep the standard Android launcher in control. Movie Room is installed as an
+# ordinary APK after the system image boots; it is not an AOSP HOME package.

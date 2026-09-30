@@ -28,12 +28,12 @@ function claimsHomeRole(manifest) {
   return /<category\s+android:name="android\.intent\.category\.HOME"\s*\/>/.test(manifest);
 }
 
-test("only the native Movie Room shell owns the Android HOME role", () => {
+test("Movie Room packages do not take over the Android HOME role", () => {
   const shellManifest = read("src/main/AndroidManifest.xml");
   const playerManifest = readPlayer("src/main/AndroidManifest.xml");
   const webManifest = readWeb("src/main/AndroidManifest.xml");
 
-  assert.equal(claimsHomeRole(shellManifest), true);
+  assert.equal(claimsHomeRole(shellManifest), false);
   assert.equal(claimsHomeRole(playerManifest), false);
   assert.equal(claimsHomeRole(webManifest), false);
 });
@@ -50,11 +50,12 @@ test("the shell declares the web app and TV presentation assets", () => {
   assert.doesNotMatch(activity, /com\.movieroom\.firetv/);
 });
 
-test("Movie Room shell is a separate HOME/LEANBACK Android package", () => {
+test("Movie Room shell remains an optional LEANBACK APK", () => {
   const manifest = read("src/main/AndroidManifest.xml");
   const build = read("build.gradle");
   assert.match(manifest, /package="com\.movieroom\.shell"/);
-  assert.match(manifest, /android\.intent\.category\.HOME/);
+  assert.doesNotMatch(manifest, /android\.intent\.category\.HOME/);
+  assert.match(manifest, /android\.intent\.category\.LAUNCHER/);
   assert.match(manifest, /android\.intent\.category\.LEANBACK_LAUNCHER/);
   assert.match(build, /applicationId\s+"com\.movieroom\.shell"/);
 });
@@ -126,11 +127,11 @@ test("Movie Room shell provides an explicit Fire TV focus path across library sh
 test("the published OS launcher artifact matches the shell version", () => {
   const build = read("build.gradle");
   const update = JSON.parse(readPublic("apk/os-update.json"));
-  assert.match(build, /versionCode\s+4/);
-  assert.match(build, /versionName\s+"0\.3\.1"/);
+  assert.match(build, /versionCode\s+5/);
+  assert.match(build, /versionName\s+"0\.4\.0"/);
   assert.equal(update.packageName, "com.movieroom.shell");
-  assert.equal(update.versionCode, 4);
-  assert.equal(update.versionName, "0.3.1");
-  assert.match(update.downloadUrl, /MovieRoom-OS-v0\.3\.1\.apk$/);
-  assert.equal(fs.existsSync(path.join(root, "public", "downloads", "MovieRoom-OS-v0.3.1.apk")), true);
+  assert.equal(update.versionCode, 5);
+  assert.equal(update.versionName, "0.4.0");
+  assert.match(update.downloadUrl, /MovieRoom-Optional-TV-v0\.4\.0\.apk$/);
+  assert.equal(fs.existsSync(path.join(root, "public", "downloads", "MovieRoom-Optional-TV-v0.4.0.apk")), true);
 });
