@@ -63,6 +63,38 @@ test("hybrid provider keeps Jellyfin metadata and resolves playback through OneD
   assert.deepEqual(playbackRequests, ["onedrive-file-1"]);
 });
 
+test("hybrid provider ignores zero-byte upload placeholders when matching playback", async () => {
+  const playbackRequests = [];
+  const provider = createHybridProvider({
+    jellyfinProvider: {
+      async listLibrary() {
+        return { movies: [metadataMovie({
+          fileName: "Bomb Girls Facing the Enemy.mp4",
+          folder: "Movies/Bomb Girls Facing the Enemy",
+        })], folders: [] };
+      },
+    },
+    oneDriveProvider: {
+      async listLibrary() {
+        return { movies: [
+          { id: "broken-mp4", fileName: "Bomb Girls Facing the Enemy.mp4", folder: "Movies/Bomb Girls Facing the Enemy", size: 0 },
+          { id: "healthy-mkv", fileName: "Bomb Girls Facing the Enemy.mkv", folder: "Movies/Bomb Girls Facing the Enemy", size: 5941107910 },
+        ], folders: [] };
+      },
+      async resolvePlayback(id) {
+        playbackRequests.push(id);
+        return { url: "https://cloud.example/bomb-girls" };
+      },
+    },
+  });
+
+  const library = await provider.listLibrary();
+  assert.equal(library.movies[0].playbackAvailable, true);
+  assert.equal(library.movies[0].size, 5941107910);
+  await provider.resolvePlayback(library.movies[0].id);
+  assert.deepEqual(playbackRequests, ["healthy-mkv"]);
+});
+
 test("hybrid provider uses Jellyfin compatibility playback for browser-hostile containers", async () => {
   const compatibilityRequests = [];
   const provider = createHybridProvider({
