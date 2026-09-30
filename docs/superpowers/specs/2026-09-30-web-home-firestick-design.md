@@ -1,4 +1,6 @@
-# Movie Room Web Home for Firestick
+# Movie Room Web Home for Firestick (Superseded)
+
+> Superseded by `docs/superpowers/specs/2026-09-30-shell-home-web-app-design.md` after the user clarified that the native shell must remain the Movie Room OS/Home layer.
 
 ## Goal
 
