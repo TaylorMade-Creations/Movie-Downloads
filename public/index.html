@@ -1605,6 +1605,652 @@
       }
 
       @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+      /* Final responsive web UI pass: calm rails, clear focus, and a compact TV/mobile rhythm. */
+      :root {
+        --ui-bg: #061523;
+        --ui-surface: #0b1f2e;
+        --ui-surface-strong: #0e2a3d;
+        --ui-line: rgba(166, 241, 231, .2);
+        --ui-accent: #40d8c0;
+        --ui-accent-strong: #a6f1e7;
+        --ui-focus: #ffd166;
+        --ui-radius: 14px;
+        --ui-topbar-offset: 118px;
+      }
+
+      html {
+        background: var(--ui-bg);
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        overflow-x: hidden;
+        background:
+          radial-gradient(circle at 82% 0%, rgba(64, 216, 192, .09), transparent 32rem),
+          linear-gradient(180deg, #061523 0%, #06111d 54%, #040b12 100%);
+        color: #edf8fb;
+      }
+
+      .topbar {
+        gap: 10px;
+        padding: 12px clamp(16px, 3vw, 42px);
+        background: linear-gradient(180deg, rgba(6, 21, 35, .98), rgba(6, 21, 35, .9));
+        border-bottom: 1px solid rgba(166, 241, 231, .18);
+        box-shadow: 0 16px 38px rgba(0, 0, 0, .28);
+      }
+
+      .topbar-main {
+        gap: 12px;
+      }
+
+      .brand {
+        gap: 10px;
+      }
+
+      .brand-primary {
+        color: var(--ui-accent-strong);
+        font-size: clamp(17px, 1.8vw, 22px);
+      }
+
+      .brand-secondary {
+        color: #8fb5c7;
+        font-size: 9px;
+        letter-spacing: .18em;
+      }
+
+      .topbar-context {
+        justify-self: start;
+        min-width: 0;
+        color: #c5e1ed;
+        font-size: 12px;
+      }
+
+      .topbar-context strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .primary-nav {
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .primary-nav button {
+        min-height: 40px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 8px 13px;
+        color: #d7edf5;
+        font-size: 13px;
+      }
+
+      .primary-nav button:hover,
+      .primary-nav button.active {
+        border-color: rgba(166, 241, 231, .45);
+        background: var(--ui-accent);
+        color: #061523;
+        box-shadow: 0 8px 18px rgba(64, 216, 192, .18);
+      }
+
+      .topbar-actions {
+        justify-content: flex-end;
+      }
+
+      .profile-toggle {
+        min-height: 42px;
+        border: 1px solid rgba(166, 241, 231, .24);
+        border-radius: 999px;
+        padding: 5px 12px 5px 6px;
+        background: rgba(14, 42, 61, .92);
+      }
+
+      .profile-avatar {
+        width: 30px;
+        height: 30px;
+        background: var(--ui-accent);
+        color: #061523;
+      }
+
+      .profile-menu {
+        width: 208px;
+        border-color: var(--ui-line);
+        background: #0b1f2e;
+      }
+
+      .profile-menu button:hover,
+      .profile-menu button:focus-visible,
+      .profile-menu button.active {
+        background: #15364c;
+      }
+
+      .search-row {
+        min-height: 48px;
+        border-top: 1px solid rgba(166, 241, 231, .1);
+        padding-top: 4px;
+      }
+
+      .search-row .search-wrap {
+        max-width: 920px;
+        margin-inline: auto;
+      }
+
+      .search-wrap input {
+        min-height: 46px;
+        border: 1px solid rgba(166, 241, 231, .25);
+        border-radius: 14px;
+        background: rgba(11, 31, 46, .86);
+        color: #fff;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+      }
+
+      .search-wrap input::placeholder {
+        color: #8fb5c7;
+      }
+
+      .page {
+        width: min(1560px, 100%);
+        padding-inline: clamp(16px, 3vw, 52px);
+      }
+
+      .hero-movie {
+        min-height: clamp(330px, 40vw, 560px);
+        margin-bottom: 22px;
+        border: 1px solid rgba(166, 241, 231, .22);
+        border-radius: 20px;
+        background: #071a2a;
+        box-shadow: 0 28px 72px rgba(0, 0, 0, .46);
+        scroll-margin: calc(var(--ui-topbar-offset) + 14px) 16px 104px;
+      }
+
+      .hero-movie::after {
+        background:
+          linear-gradient(90deg, rgba(6, 21, 35, .98) 0%, rgba(6, 21, 35, .88) 30%, rgba(6, 21, 35, .24) 71%, rgba(6, 21, 35, .78) 100%),
+          linear-gradient(0deg, rgba(6, 21, 35, .95), transparent 56%);
+      }
+
+      .hero-movie img {
+        opacity: .9;
+        filter: saturate(.98) contrast(1.06);
+      }
+
+      .hero-copy {
+        width: min(640px, 76%);
+        padding: clamp(26px, 4vw, 54px);
+      }
+
+      .hero-copy h1 {
+        max-width: 620px;
+        color: #fff;
+        font-size: clamp(34px, 5vw, 66px);
+        text-shadow: 0 5px 24px rgba(0, 0, 0, .34);
+      }
+
+      .hero-meta,
+      .hero-description {
+        color: #d7edf5;
+      }
+
+      .hero-description {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 4;
+      }
+
+      .hero-actions button,
+      .details-copy .hero-actions button {
+        min-height: 44px;
+        border-radius: 999px;
+        padding-inline: 18px;
+      }
+
+      .hero-carousel-nav {
+        right: 20px;
+        bottom: 20px;
+      }
+
+      .hero-carousel-nav button {
+        min-width: 44px;
+        min-height: 40px;
+        border-color: rgba(166, 241, 231, .36);
+        border-radius: 999px;
+        background: rgba(6, 21, 35, .84);
+      }
+
+      .hero-carousel-nav button:hover,
+      .hero-carousel-nav button:focus-visible {
+        background: var(--ui-accent);
+        color: #061523;
+      }
+
+      .home-navigation,
+      .profile-page-header,
+      .search-page-panel,
+      .navigation-panel,
+      .settings-panel {
+        border-color: var(--ui-line);
+        border-radius: 18px;
+        background: linear-gradient(145deg, rgba(14, 42, 61, .94), rgba(6, 21, 35, .9));
+        box-shadow: 0 18px 48px rgba(0, 0, 0, .2);
+      }
+
+      .shelf-heading h2,
+      .browse-section h2,
+      .folder-panel h2 {
+        color: #f7feff;
+      }
+
+      .shelf-summary,
+      .library-summary {
+        color: #9bc0cf;
+      }
+
+      .movie-grid,
+      .genre-group-grid {
+        grid-template-columns: repeat(auto-fill, minmax(124px, 140px));
+        justify-content: start;
+        gap: 18px 14px;
+      }
+
+      .movie-rail,
+      .profile-page .movie-rail {
+        grid-auto-columns: minmax(124px, 140px);
+        gap: 14px;
+        padding: 4px 3px 14px;
+        scrollbar-color: var(--ui-accent) transparent;
+      }
+
+      .movie-card,
+      .movie-card.unavailable {
+        border: 1px solid rgba(166, 241, 231, .16);
+        border-radius: var(--ui-radius);
+        background: linear-gradient(180deg, #0e2a3d, #0b1f2e);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, .24);
+        scroll-margin: 124px 16px;
+      }
+
+      .movie-card:hover,
+      .movie-card:focus-visible {
+        border-color: var(--ui-accent);
+        box-shadow: 0 18px 34px rgba(0, 0, 0, .46), 0 0 0 2px rgba(64, 216, 192, .48);
+        transform: translateY(-4px) scale(1.035);
+      }
+
+      .poster {
+        border-radius: 13px 13px 0 0;
+      }
+
+      .movie-info {
+        min-height: 64px;
+        padding: 9px 9px 10px;
+      }
+
+      .movie-title {
+        font-size: 12px;
+        line-height: 1.22;
+      }
+
+      .movie-meta {
+        color: #a8c8d4;
+        font-size: 10px;
+      }
+
+      .category-chip,
+      .folder-chip,
+      .profile-shortcuts button,
+      .page-shortcuts button,
+      .navigation-grid button,
+      .profile-navigation-grid button {
+        border-color: var(--ui-line);
+        border-radius: 12px;
+        background: rgba(14, 42, 61, .78);
+      }
+
+      .category-chip.active,
+      .category-chip:hover,
+      .category-chip:focus-visible,
+      .folder-chip:hover,
+      .folder-chip:focus-visible,
+      .profile-shortcuts button:hover,
+      .profile-shortcuts button:focus-visible,
+      .page-shortcuts button:hover,
+      .page-shortcuts button:focus-visible,
+      .navigation-grid button:hover,
+      .navigation-grid button:focus-visible,
+      .profile-navigation-grid button:hover,
+      .profile-navigation-grid button:focus-visible {
+        border-color: var(--ui-accent);
+        background: #153f55;
+        color: #fff;
+      }
+
+      .page-shortcuts button,
+      .navigation-grid button,
+      .profile-navigation-grid button {
+        min-height: 54px;
+      }
+
+      /* Replace the legacy red fallback palette with the current Movie Room teal system. */
+      button:not(.secondary):not(.profile-toggle):not(.movie-card) {
+        border: 1px solid rgba(166, 241, 231, .24);
+        background: var(--ui-accent);
+        color: #061523;
+      }
+
+      .primary-nav button:not(.secondary):not(.profile-toggle),
+      .mobile-nav button:not(.secondary):not(.profile-toggle),
+      .profile-menu button:not(.secondary):not(.profile-toggle) {
+        border-color: transparent;
+        background: transparent;
+        color: #d7edf5;
+      }
+
+      .primary-nav button.active,
+      .primary-nav button:hover,
+      .mobile-nav button:hover,
+      .mobile-nav button:focus-visible,
+      .mobile-nav button.active {
+        background: var(--ui-accent);
+        color: #061523;
+      }
+
+      .profile-menu button:hover,
+      .profile-menu button:focus-visible,
+      .profile-menu button.active {
+        background: #15364c;
+        color: #fff;
+      }
+
+      .hero-actions button:not(.secondary),
+      .details-copy .hero-actions button:not(.secondary) {
+        background: var(--ui-accent);
+        color: #061523;
+      }
+
+      :where(button, input, select, a, [tabindex]):focus-visible {
+        position: relative;
+        z-index: 4;
+        outline: 3px solid var(--ui-focus);
+        outline-offset: 4px;
+        box-shadow: 0 0 0 7px rgba(6, 21, 35, .96), 0 0 24px rgba(255, 209, 102, .34);
+      }
+
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      a:focus-visible,
+      [tabindex]:focus-visible {
+        outline: 3px solid #ffd166;
+        outline-offset: 4px;
+        box-shadow: 0 0 0 7px rgba(6, 21, 35, .96), 0 0 24px rgba(255, 209, 102, .34);
+      }
+
+      .details-page-back {
+        margin-block: 10px 16px;
+      }
+
+      .details-hero {
+        min-height: min(680px, calc(100vh - 154px));
+        border-color: rgba(166, 241, 231, .24);
+        border-radius: 20px;
+        box-shadow: 0 28px 72px rgba(0, 0, 0, .42);
+        scroll-margin-top: calc(var(--ui-topbar-offset) + 14px);
+      }
+
+      .details-hero-shade {
+        background:
+          linear-gradient(90deg, rgba(6, 21, 35, .99) 0%, rgba(6, 21, 35, .84) 38%, rgba(6, 21, 35, .24) 74%, rgba(6, 21, 35, .82) 100%),
+          linear-gradient(0deg, rgba(6, 21, 35, .97), transparent 55%);
+      }
+
+      .details-hero .details-copy h1 {
+        text-shadow: 0 5px 24px rgba(0, 0, 0, .32);
+      }
+
+      .details-hero .details-art img {
+        border-color: rgba(166, 241, 231, .32);
+        border-radius: 14px;
+      }
+
+      .watch-stage.player-page {
+        background: rgba(3, 15, 25, .985);
+      }
+
+      .player-frame,
+      .player-side-panel,
+      .up-next-panel {
+        border-color: var(--ui-line);
+        border-radius: 16px;
+      }
+
+      .mobile-nav {
+        border-top: 1px solid rgba(166, 241, 231, .2);
+        background: rgba(6, 21, 35, .97);
+        box-shadow: 0 -14px 34px rgba(0, 0, 0, .28);
+        backdrop-filter: blur(16px);
+      }
+
+      @media (min-width: 1200px) {
+        .topbar {
+          padding-inline: clamp(28px, 4vw, 64px);
+        }
+
+        .page {
+          padding-inline: clamp(28px, 4vw, 64px);
+        }
+
+        .movie-grid,
+        .genre-group-grid {
+          grid-template-columns: repeat(auto-fill, minmax(132px, 148px));
+        }
+
+        .movie-rail,
+        .profile-page .movie-rail {
+          grid-auto-columns: minmax(132px, 148px);
+        }
+      }
+
+      @media (max-width: 1100px) {
+        .topbar-main {
+          grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        .topbar-context {
+          grid-column: 1 / -1;
+          grid-row: 2;
+        }
+
+        .primary-nav {
+          grid-column: 2;
+          grid-row: 1;
+        }
+      }
+
+      @media (max-width: 720px) {
+        :root {
+          --ui-topbar-offset: 176px;
+        }
+
+        .topbar {
+          gap: 7px;
+          padding: 9px 12px 10px;
+        }
+
+        .topbar-main {
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+        }
+
+        .topbar-context {
+          display: none;
+        }
+
+        .primary-nav {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 5px;
+        }
+
+        .primary-nav button {
+          min-height: 38px;
+          padding: 7px 5px;
+          font-size: 12px;
+        }
+
+        .topbar-actions {
+          grid-column: 2;
+          grid-row: 1;
+        }
+
+        .topbar-actions > #reload,
+        .topbar-actions > #logout {
+          display: none;
+        }
+
+        .profile-toggle {
+          min-height: 38px;
+          padding-right: 9px;
+        }
+
+        .profile-avatar {
+          width: 28px;
+          height: 28px;
+        }
+
+        .search-row {
+          min-height: 44px;
+          padding-top: 2px;
+        }
+
+        .search-wrap input {
+          min-height: 42px;
+          border-radius: 12px;
+        }
+
+        .page {
+          padding-inline: 12px;
+          padding-bottom: calc(92px + env(safe-area-inset-bottom));
+        }
+
+        .hero-movie {
+          min-height: 440px;
+          border-radius: 16px;
+          scroll-margin: calc(var(--ui-topbar-offset) + 10px) 12px 104px;
+        }
+
+        .hero-movie img {
+          inset: 0;
+          width: 100%;
+          height: 62%;
+          mask-image: linear-gradient(180deg, black 0%, black 52%, transparent 100%);
+        }
+
+        .hero-movie::after {
+          background: linear-gradient(180deg, rgba(6, 21, 35, .08), rgba(6, 21, 35, .74) 45%, #061523 78%);
+        }
+
+        .hero-copy {
+          width: 100%;
+          min-height: inherit;
+          align-content: start;
+          padding: 24px 18px 24px;
+        }
+
+        .hero-copy h1 {
+          font-size: clamp(32px, 9vw, 46px);
+        }
+
+        .hero-description {
+          -webkit-line-clamp: 2;
+        }
+
+        .hero-actions {
+          padding-right: 68px;
+        }
+
+        .hero-carousel-nav {
+          right: 12px;
+          bottom: 16px;
+        }
+
+        .movie-grid,
+        .genre-group-grid {
+          grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
+          gap: 15px 10px;
+        }
+
+        .movie-rail,
+        .profile-page .movie-rail {
+          grid-auto-columns: minmax(104px, 116px);
+          gap: 11px;
+        }
+
+        .movie-card {
+          scroll-margin: 190px 12px;
+        }
+
+        .movie-info {
+          min-height: 58px;
+          padding: 8px;
+        }
+
+        .details-hero {
+          min-height: 600px;
+          border-radius: 16px;
+          padding: 22px 18px 28px;
+          scroll-margin-top: calc(var(--ui-topbar-offset) + 10px);
+        }
+
+        .details-hero .details-copy h1 {
+          font-size: clamp(34px, 10vw, 52px);
+        }
+
+        .details-hero .details-art {
+          display: none;
+        }
+
+        .mobile-nav {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 2px;
+          padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+        }
+
+        .mobile-nav button {
+          min-height: 52px;
+          border: 1px solid transparent;
+          border-radius: 12px;
+          color: #b9d6e0;
+          background: transparent;
+          font-size: 20px;
+          line-height: 1;
+        }
+
+        .mobile-nav button span {
+          display: block;
+          margin-top: 4px;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: .02em;
+        }
+
+        .mobile-nav button:hover,
+        .mobile-nav button:focus-visible,
+        .mobile-nav button.active {
+          border-color: rgba(166, 241, 231, .28);
+          background: #15364c;
+          color: var(--ui-accent-strong);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+      }
     </style>
   </head>
   <body>

@@ -3095,7 +3095,13 @@ function createApp({
     if (hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
     const firstHeroTarget = heroPlay || heroDetails || heroPrev || heroNext || heroMovie;
     if (!firstHeroTarget) return false;
-    if (hasMethod(firstHeroTarget, "focus")) firstHeroTarget.focus();
+    if (hasMethod(firstHeroTarget, "focus")) {
+      try {
+        firstHeroTarget.focus({ preventScroll: true });
+      } catch {
+        firstHeroTarget.focus();
+      }
+    }
     return true;
   }
 
