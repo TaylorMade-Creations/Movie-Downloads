@@ -21,6 +21,7 @@ function harness(extension) {
       appendChild(child) { this.children.push(child); },
       replaceChildren(...children) { this.children = children; },
       remove() { this.removed = true; }, pause() { this.paused = true; }, load() {},
+      scrollIntoView(options) { this.scrollIntoViewOptions = options; },
       async play() {},
     };
   }
@@ -55,6 +56,11 @@ for (const extension of STREAMABLE_EXTENSIONS) {
     const video = poster.children.find(child => child.tag === 'video');
     assert.ok(video);
     assert.equal(video.muted, true);
+    assert.equal(video.preload, 'auto');
+    video.duration = 120;
+    video.currentTime = 9;
+    video.emit('loadedmetadata');
+    assert.equal(video.currentTime, 0);
     assert.equal(card.classList.contains('previewing'), false);
     video.emit('playing');
     assert.equal(card.classList.contains('previewing'), true);
@@ -71,6 +77,7 @@ test('unsupported preview restores cover immediately without a blank tile', asyn
   await h.app.loadLibrary();
   const card = h.grid.children[0];
   card.emit('focus');
+  assert.deepEqual(card.scrollIntoViewOptions, { behavior: 'smooth', block: 'center', inline: 'center' });
   await h.runTimer(650);
   const video = card.children[0].children.find(child => child.tag === 'video');
   video.emit('error');

@@ -1744,16 +1744,16 @@ function createApp({
         preview.muted = true;
         preview.defaultMuted = true;
         preview.playsInline = true;
-        preview.preload = "metadata";
+        // Buffer from the opening scene so the focused card immediately
+        // confirms that this title is ready to play.
+        preview.preload = "auto";
         preview.setAttribute("aria-hidden", "true");
         preview.setAttribute("playsinline", "");
         let started = false;
         video.addEventListener("loadedmetadata", () => {
           if (preview !== video) return;
           const duration = Number(video.duration) || 0;
-          if (duration > 12) {
-            try { video.currentTime = Math.min(30, duration - 6); } catch { /* start at the beginning */ }
-          }
+          try { video.currentTime = 0; } catch { /* start at the beginning */ }
         }, { once: true });
         video.addEventListener("playing", () => {
           if (preview !== video || started) return;
@@ -1815,6 +1815,11 @@ function createApp({
       button.className = ready ? "movie-card" : "movie-card unavailable";
       button.disabled = !ready;
       button.dataset.movieId = movie.id;
+      button.addEventListener("focus", () => {
+        if (hasMethod(button, "scrollIntoView")) {
+          button.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+        }
+      });
 
       const poster = documentRef.createElement("span");
       poster.className = "poster";

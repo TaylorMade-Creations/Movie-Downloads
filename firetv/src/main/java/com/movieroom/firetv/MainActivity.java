@@ -15,6 +15,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -251,6 +252,20 @@ public class MainActivity extends Activity {
             builder.append(String.format(Locale.US, "%02x", value));
         }
         return builder.toString();
+    }
+
+    private void centerFocusedCard(View view) {
+        ViewParent parent = view.getParent();
+        while (parent instanceof View) {
+            if (parent instanceof HorizontalScrollView) {
+                HorizontalScrollView shelf = (HorizontalScrollView) parent;
+                int target = view.getLeft() - Math.max(0, (shelf.getWidth() - view.getWidth()) / 2);
+                shelf.smoothScrollTo(Math.max(0, target), 0);
+                return;
+            }
+            parent = parent.getParent();
+        }
+        view.requestRectangleOnScreen(new android.graphics.Rect(0, 0, view.getWidth(), view.getHeight()), true);
     }
 
     private Bitmap createPairingQrBitmap(String pairingUrl, int size) throws WriterException {
@@ -569,6 +584,7 @@ public class MainActivity extends Activity {
             view.setScaleX(hasFocus ? 1.04f : 1.0f);
             view.setScaleY(hasFocus ? 1.04f : 1.0f);
             view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff141414, hasFocus ? 0xffffd166 : 0xff3b3424, 2));
+            if (hasFocus) view.post(() -> centerFocusedCard(view));
         });
         card.setOnClickListener(view -> {
             if (movie.isPlayable()) {
