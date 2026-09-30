@@ -1,6 +1,7 @@
 package com.movieroom.firetv;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -72,6 +73,8 @@ public class MainActivity extends Activity {
     };
     private ViewerState viewerState;
     private MovieRoomModels.Movie activeMovie;
+    private String activeProfile = "Home";
+    private TextView shellProfileLabel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -436,10 +439,25 @@ public class MainActivity extends Activity {
     private void showLibraryScreen() {
         pairingGeneration += 1;
         setScreen();
-        TextView brand = text("TAYLOR-MADE MOVIES", 32);
+        LinearLayout shellBar = new LinearLayout(this);
+        shellBar.setGravity(Gravity.CENTER_VERTICAL);
+        shellBar.setPadding(0, 0, 0, dp(10));
+        TextView brand = text("TAYLOR-MADE MOVIES", 26);
         brand.setTextColor(0xffffd166);
         brand.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(brand);
+        shellBar.addView(brand, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        shellBar.addView(shellNavButton("HOME", view -> showLibraryScreen()));
+        shellBar.addView(shellNavButton("SEARCH", view -> showSearchDialog()));
+        shellProfileLabel = text(activeProfile.toUpperCase(Locale.US), 15);
+        shellProfileLabel.setTextColor(0xffffd166);
+        shellProfileLabel.setGravity(Gravity.CENTER);
+        shellProfileLabel.setFocusable(true);
+        shellProfileLabel.setClickable(true);
+        shellProfileLabel.setPadding(dp(16), dp(8), dp(16), dp(8));
+        shellProfileLabel.setOnClickListener(view -> cycleShellProfile());
+        shellBar.addView(shellProfileLabel);
+        shellBar.addView(shellNavButton("SETTINGS", view -> showShellSettings()));
+        root.addView(shellBar);
         TextView subtitle = text("MOVIE ROOM  •  YOUR PRIVATE CINEMA", 16);
         subtitle.setTextColor(0xffbdb5a2);
         root.addView(subtitle);
@@ -543,6 +561,54 @@ public class MainActivity extends Activity {
                 handler.post(() -> status.setText("Network problem. Check Wi-Fi and try again."));
             }
         }).start();
+    }
+
+    private Button shellNavButton(String label, View.OnClickListener listener) {
+        Button nav = button(label);
+        nav.setTextSize(14);
+        nav.setMinHeight(0);
+        nav.setMinWidth(0);
+        nav.setPadding(dp(12), dp(7), dp(12), dp(7));
+        nav.setBackground(roundedBackground(0xff151a20, 0xff3b3424, 1));
+        nav.setOnClickListener(listener);
+        return nav;
+    }
+
+    private void cycleShellProfile() {
+        String[] profiles = {"Home", "Mom", "Morganne", "Kids"};
+        int current = 0;
+        for (int index = 0; index < profiles.length; index++) {
+            if (profiles[index].equals(activeProfile)) {
+                current = index;
+                break;
+            }
+        }
+        activeProfile = profiles[(current + 1) % profiles.length];
+        if (shellProfileLabel != null) shellProfileLabel.setText(activeProfile.toUpperCase(Locale.US));
+        Toast.makeText(this, activeProfile + " profile selected", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showShellSettings() {
+        new AlertDialog.Builder(this)
+                .setTitle("Movie Room TV shell")
+                .setMessage("Profile: " + activeProfile + "\n\nRemote-first navigation is active. Player sizing is centered and fitted to the screen.\n\nMore Movie Room layout and theme controls can be added here without changing Fire OS.")
+                .setPositiveButton("Done", null)
+                .show();
+    }
+
+    private void showSearchDialog() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("Search Movie Room");
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(0xffaaa39a);
+        input.setPadding(dp(18), dp(12), dp(18), dp(12));
+        new AlertDialog.Builder(this)
+                .setTitle("Search Movie Room")
+                .setView(input)
+                .setMessage("Use the remote keyboard to search titles, folders, or genres. The full browse/search experience remains available in the web app.")
+                .setPositiveButton("Done", null)
+                .show();
     }
 
     private View movieCard(MovieRoomModels.Movie movie, TextView status) {
