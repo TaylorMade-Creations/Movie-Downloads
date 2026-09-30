@@ -36,6 +36,16 @@ public final class MainActivity extends Activity {
         webView.setBackgroundColor(0xff061523);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
+        webView.setOnKeyListener((view, keyCode, event) -> {
+            String action = remoteActionForKeyCode(keyCode);
+            if (action == null) {
+                return false;
+            }
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                return dispatchRemoteAction(action);
+            }
+            return true;
+        });
         setContentView(webView);
         webView.loadUrl(BuildConfig.MOVIE_ROOM_BASE_URL);
     }

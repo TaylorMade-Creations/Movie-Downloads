@@ -34,6 +34,7 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /KEYCODE_DPAD_UP/);
   assert.match(activity, /evaluateJavascript/);
   assert.match(activity, /MovieRoomRemote/);
+  assert.match(activity, /setOnKeyListener/);
 });
 
 test("Movie Room public mode starts without a login screen", () => {
