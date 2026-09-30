@@ -126,6 +126,12 @@ function parseNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseBoolean(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return fallback;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
 function parseCookies(header = "") {
   const cookies = {};
   for (const part of header.split(";")) {
@@ -450,6 +456,7 @@ function buildAuthConfig(options = {}) {
   return {
     password: options.password ?? env.MOVIE_PASSWORD ?? "",
     sessionSecret: options.sessionSecret ?? env.SESSION_SECRET ?? "",
+    publicAccess: options.publicAccess ?? parseBoolean(env.MOVIE_ROOM_PUBLIC),
     sessionTtlMs: options.sessionTtlMs ?? parseNumber(env.SESSION_TTL_MS, DEFAULT_SESSION_TTL_MS),
     bodyLimit: options.bodyLimit ?? parseNumber(env.AUTH_BODY_LIMIT_BYTES, DEFAULT_BODY_LIMIT),
     rateLimitWindowMs: options.rateLimitWindowMs
@@ -471,7 +478,7 @@ function createSessionManager(
 
   return {
     isConfigured() {
-      return Boolean(
+      return authConfig.publicAccess || Boolean(
         authConfig.password
         && Buffer.byteLength(authConfig.sessionSecret, "utf8") >= 32
         && storageReady,
@@ -488,6 +495,13 @@ function createSessionManager(
       );
     },
     async get(request, required = true) {
+      if (authConfig.publicAccess) {
+        return {
+          sessionId: "public",
+          expiresAt: now() + authConfig.sessionTtlMs,
+        };
+      }
+
       if (!this.isConfigured()) {
         throw new HttpError(503, "Authentication is not configured.");
       }
@@ -1098,6 +1112,10 @@ function createRequestHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/login") {
         ensureSameOrigin(request, context.appOrigin, context.trustProxy);
+        if (context.authConfig.publicAccess) {
+          sendEmpty(response, 204, noStoreHeaders());
+          return;
+        }
         if (!context.sessionManager.isConfigured()) {
           throw new HttpError(503, "Authentication is not configured.");
         }
@@ -1125,6 +1143,17 @@ function createRequestHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/session") {
+        if (context.authConfig.publicAccess) {
+          await sendJson(response, 200, {
+            authenticated: true,
+            authConfigured: false,
+            publicAccess: true,
+            expiresAt: null,
+            provider: context.provider.kind,
+          }, noStoreHeaders());
+          return;
+        }
+
         if (!context.sessionManager.isConfigured()) {
           await sendJson(response, 200, {
             authenticated: false,
@@ -1176,7 +1205,7 @@ function createRequestHandler(options = {}) {
         await context.tvPairingRateLimiter.recordAndAssert(request);
         const body = await readJsonBody(request, context.authConfig.bodyLimit);
         const password = typeof body.password === "string" ? body.password : "";
-        if (!safeCompare(password, context.authConfig.password)) {
+        if (!context.authConfig.publicAccess && !safeCompare(password, context.authConfig.password)) {
           throw new HttpError(401, "The Movie Room password was not accepted.");
         }
         const device = await context.tvDeviceManager.createPasswordDevice({

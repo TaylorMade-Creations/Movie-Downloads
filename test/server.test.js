@@ -1375,6 +1375,36 @@ test("fails closed on Vercel when durable session storage is not configured", as
   assert.equal(loginResponse.status, 503);
 });
 
+test("public access mode serves the catalog without a browser login", async (t) => {
+  const { root, moviesDir, publicDir } = createTempLibrary();
+  fs.writeFileSync(path.join(moviesDir, "Family-Night.mp4"), "abcdef");
+  const server = await startServer(createAuthOptions({
+    moviesDir,
+    publicDir,
+    auth: { publicAccess: true },
+  }));
+
+  t.after(() => {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const { port } = server.address();
+  const sessionResponse = await fetch(`http://127.0.0.1:${port}/api/session`);
+  assert.equal(sessionResponse.status, 200);
+  assert.deepEqual(await sessionResponse.json(), {
+    authenticated: true,
+    authConfigured: false,
+    publicAccess: true,
+    expiresAt: null,
+    provider: "local",
+  });
+
+  const libraryResponse = await fetch(`http://127.0.0.1:${port}/api/library`);
+  assert.equal(libraryResponse.status, 200);
+  assert.equal((await libraryResponse.json()).movies.length, 1);
+});
+
 test("accepts Vercel Marketplace Upstash credentials as durable session storage", async (t) => {
   const { root, moviesDir, publicDir } = createTempLibrary();
   const server = await startServer(createAuthOptions({

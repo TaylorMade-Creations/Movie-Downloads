@@ -198,6 +198,7 @@ Use Node.js 22.9 or newer. `npm start` loads `.env` and then the ignored `.env.l
 - Set `APP_ORIGIN` to the exact deployed site origin for CSRF checks
 - `TRUST_PROXY=true` is an optional override for non-Vercel trusted-proxy deployments; Vercel is auto-detected
 - Configure both `KV_REST_API_URL` and `KV_REST_API_TOKEN`; Vercel Marketplace Upstash supplies them automatically. Standalone Upstash `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` aliases also remain supported. Vercel authentication fails closed without durable shared storage
+- Set `MOVIE_ROOM_PUBLIC=true` only when the site should omit the sign-in screen and serve the catalog/playback routes to anyone with the URL. This is intentionally public and should not be used for private libraries.
 - Protected API responses use `Cache-Control: private, no-store`
 - For production, configure the environment variables in Vercel before testing
 
@@ -220,4 +221,4 @@ This repository now includes the app-side OneDrive integration points, but the d
 - The correct `ONEDRIVE_DRIVE_ID` and `ONEDRIVE_ROOT_ITEM_ID`
 - Vercel Marketplace Upstash Redis REST credentials for required Vercel session/throttle/token storage
 
-If those values are missing, protected routes fail closed instead of allowing anonymous access.
+If those values are missing, protected routes fail closed instead of allowing anonymous access. Public mode is the explicit exception: `MOVIE_ROOM_PUBLIC=true` removes the browser login gate and makes the library public.

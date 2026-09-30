@@ -366,6 +366,7 @@ function createApp({
   let googleCastContext = null;
   let googleCastReady = false;
   let authenticated = false;
+  let publicAccess = false;
   let authTransitionVersion = 0;
   let activeProfile = "home";
   let pendingFireTvCode = "";
@@ -1107,6 +1108,16 @@ function createApp({
     if (permissionPanel) {
       permissionPanel.hidden = true;
     }
+
+    if (remoteTarget && (!remoteTarget.isConnected || remoteTarget.hidden || (remoteTarget.closest && remoteTarget.closest("[hidden]")))) {
+      if (remoteTarget.classList) remoteTarget.classList.remove("remote-target-active");
+      remoteTarget = null;
+    }
+    const firstRemoteTarget = visibleRemoteTargets()[0];
+    if (firstRemoteTarget) {
+      rememberRemoteTarget(firstRemoteTarget);
+      if (hasMethod(firstRemoteTarget, "focus")) firstRemoteTarget.focus();
+    }
   }
 
   function showPermissionPanelIfNeeded() {
@@ -1196,7 +1207,8 @@ function createApp({
       reloadButton.disabled = !authenticated;
     }
     if (logoutButton) {
-      logoutButton.disabled = !authenticated;
+      logoutButton.disabled = !authenticated || publicAccess;
+      logoutButton.hidden = publicAccess;
     }
     if (castButton) {
       updateCastButton();
@@ -2750,6 +2762,11 @@ function createApp({
     const session = await response.json();
     if (requestVersion !== authTransitionVersion) {
       return authenticated;
+    }
+    publicAccess = Boolean(session.publicAccess);
+    if (publicAccess) {
+      setAuthenticated(true);
+      return true;
     }
     setAuthUnavailable(false);
     if (session.authConfigured === false) {
