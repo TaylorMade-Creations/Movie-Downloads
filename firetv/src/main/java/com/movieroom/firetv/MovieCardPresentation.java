@@ -5,8 +5,9 @@ import java.util.List;
 
 /** Pure presentation rules shared by the remote-first movie card UI and tests. */
 public final class MovieCardPresentation {
-    public static final int TV_CARD_WIDTH_DP = 176;
-    public static final int TV_CARD_HEIGHT_DP = 224;
+    public static final int TV_CARD_WIDTH_DP = 164;
+    public static final int TV_CARD_HEIGHT_DP = 208;
+    public static final int TV_CARD_GAP_DP = 12;
     public static final float FOCUSED_SCALE = 1.05f;
     public static final int MAX_TITLE_LINES = 2;
 

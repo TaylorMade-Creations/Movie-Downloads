@@ -18,6 +18,7 @@ public class MovieCardPresentationTest {
     public void televisionCardsUseCompactRemoteFriendlyDimensions() {
         assertTrue(MovieCardPresentation.TV_CARD_WIDTH_DP < 220);
         assertTrue(MovieCardPresentation.TV_CARD_HEIGHT_DP < 250);
+        assertTrue(MovieCardPresentation.TV_CARD_GAP_DP >= 10);
         assertTrue(MovieCardPresentation.FOCUSED_SCALE > 1.0f);
         assertEquals(2, MovieCardPresentation.MAX_TITLE_LINES);
     }

@@ -17,9 +17,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.provider.Settings;
-import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -46,7 +46,6 @@ public final class MainActivity extends Activity {
     private boolean storagePromptRequested;
     private boolean networkPromptScheduled;
     private boolean updateCheckInFlight;
-    private long lastSelectEventAt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,7 +76,10 @@ public final class MainActivity extends Activity {
         webView.setBackgroundColor(0xff061523);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
+        webView.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        webView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         setContentView(webView);
+        webView.requestFocus(View.FOCUS_DOWN);
         webView.loadUrl(BuildConfig.MOVIE_ROOM_BASE_URL);
     }
 
@@ -304,71 +306,6 @@ public final class MainActivity extends Activity {
             : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
-    private boolean dispatchNativeSelect() {
-        if (webView == null) {
-            return false;
-        }
-        webView.requestFocus();
-        webView.evaluateJavascript(
-            "(function(){var element=document.activeElement;"
-                + "if(!element||typeof element.click!=='function')return false;"
-                + "element.click();return true;})()",
-            null);
-        return true;
-    }
-
-    private boolean dispatchNativeMenu() {
-        if (webView == null) {
-            return false;
-        }
-        webView.evaluateJavascript(
-            "(function(){return typeof window.MovieRoomMenu==='function' && window.MovieRoomMenu()===true;})()",
-            null);
-        return true;
-    }
-
-    private boolean dispatchNativePlaybackToggle() {
-        if (webView == null) {
-            return false;
-        }
-        webView.evaluateJavascript(
-            "(function(){return typeof window.MovieRoomTogglePlayback==='function' && window.MovieRoomTogglePlayback()===true;})()",
-            null);
-        return true;
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event != null && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
-            || event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                long now = SystemClock.uptimeMillis();
-                if (now - lastSelectEventAt >= 250L) {
-                    lastSelectEventAt = now;
-                    dispatchNativeSelect();
-                }
-            }
-            // Consume both down and up so the WebView cannot activate the same
-            // element a second time after the native click above.
-            return true;
-        }
-        if (event != null && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                dispatchNativeMenu();
-            }
-            return true;
-        }
-        if (event != null && (event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-            || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY
-            || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PAUSE)) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                dispatchNativePlaybackToggle();
-            }
-            return true;
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
     @Override
     public void onBackPressed() {
         if (webView == null) {
@@ -379,11 +316,7 @@ public final class MainActivity extends Activity {
             "(function(){return typeof window.MovieRoomBack==='function' && window.MovieRoomBack()===true;})()",
             handled -> {
                 if ("false".equals(handled) || "null".equals(handled) || handled == null) {
-                    // Keep Fire TV inside Movie Room even if the page is still
-                    // booting; the web page will return to Home once ready.
-                    webView.post(() -> webView.evaluateJavascript(
-                        "(function(){window.scrollTo(0,0);return true;})()",
-                        null));
+                    finish();
                 }
             });
     }

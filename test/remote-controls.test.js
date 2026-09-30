@@ -11,46 +11,88 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
 
-test("Movie Room leaves Fire TV navigation to the native WebView selector", () => {
+test("Movie Room leaves webpage focus to the native Fire TV WebView", () => {
   assert.doesNotMatch(html, /id="remote-control-bar"/);
   for (const control of ["remote-up", "remote-left", "remote-select", "remote-right", "remote-down", "remote-back", "remote-home", "remote-play", "remote-settings"]) {
     assert.doesNotMatch(html, new RegExp(`id="${control}"`));
   }
   assert.match(html, /id="settings-dialog"/);
-  assert.doesNotMatch(app, /MovieRoomRemote/);
-  assert.doesNotMatch(app, /remoteControlBar/);
-  assert.doesNotMatch(app, /remoteTarget/);
-  assert.doesNotMatch(app, /activateRemoteTarget/);
-  assert.doesNotMatch(app, /rememberRemoteTarget/);
+  assert.match(app, /windowRef\.MovieRoomBack/);
+  assert.doesNotMatch(app, /function moveRemoteFocus/);
+  assert.doesNotMatch(app, /function handleRemoteCommand/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomMove/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomMenu/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomTogglePlayback/);
   assert.match(html, /\.movie-grid\s*\{[\s\S]*minmax\(120px,\s*138px\)/);
   assert.match(html, /\.movie-rail[^\{]*\{[\s\S]*grid-auto-columns:\s*minmax\(112px,\s*132px\)/);
   assert.match(html, /\.movie-card:focus-visible[\s\S]*outline/);
-  assert.doesNotMatch(app, /function moveRemoteFocus/);
-  assert.doesNotMatch(app, /moveRemoteFocus\(key\.replace\("arrow", ""\)\)/);
+  assert.doesNotMatch(app, /handleRemoteCommand\(command\)/);
 });
 
-test("the app does not intercept keyboard or remote key events", () => {
+test("the app does not intercept keyboard or Fire TV remote commands", () => {
   assert.doesNotMatch(app, /documentRef\.addEventListener\("keydown"/);
   assert.doesNotMatch(app, /handleRemoteCommand/);
   assert.doesNotMatch(app, /dblclick/);
 });
 
-test("one Fire TV select press activates only the native focused element", () => {
+test("the WebView allows native focus to reach webpage descendants", () => {
   const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
-  assert.match(activity, /dispatchNativeSelect/);
-  assert.match(activity, /document\.activeElement/);
-  assert.match(activity, /lastSelectEventAt/);
-  assert.doesNotMatch(activity, /KEYCODE_DPAD_UP|KEYCODE_DPAD_DOWN|KEYCODE_DPAD_LEFT|KEYCODE_DPAD_RIGHT/);
+  assert.match(activity, /setFocusable\(true\)/);
+  assert.match(activity, /setFocusableInTouchMode\(true\)/);
+  assert.match(activity, /setDescendantFocusability\(ViewGroup\.FOCUS_AFTER_DESCENDANTS\)/);
+  assert.doesNotMatch(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /KEYCODE_DPAD_/);
 });
 
-test("the Fire TV Menu and media buttons have native in-app actions", () => {
+test("the app keeps page Back but leaves Menu and media routing to Fire TV/WebView", () => {
   const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
+  assert.match(activity, /onBackPressed/);
+  assert.match(activity, /MovieRoomBack/);
+  assert.match(app, /function handleNativeBack/);
+  assert.doesNotMatch(activity, /KEYCODE_MENU/);
+  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomMenu/);
+});
+
+test("the web app gives search its own row and exposes Menu tabs", () => {
+  const searchRowStart = html.indexOf('class="search-row"');
+  const searchInput = html.indexOf('id="library-search"');
+  const primaryNav = html.indexOf('class="primary-nav"');
+  assert.ok(searchRowStart >= 0 && searchInput > searchRowStart);
+  assert.ok(primaryNav >= 0 && searchRowStart > primaryNav);
+  assert.match(html, /role="tablist"/);
+  for (const tab of ["browse", "profiles", "settings"]) {
+    assert.match(html, new RegExp(`data-menu-tab="${tab}"`));
+    assert.match(html, new RegExp(`data-menu-panel="${tab}"`));
+  }
+  assert.match(app, /function setMenuTab/);
+});
+
+test("the native Fire TV player handles Menu and playback commands", () => {
+  const activity = read("firetv/src/main/java/com/movieroom/firetv/MainActivity.java");
+  assert.match(activity, /public boolean onKeyDown\(int keyCode, KeyEvent event\)/);
   assert.match(activity, /KEYCODE_MENU/);
-  assert.match(activity, /MovieRoomMenu/);
   assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
-  assert.match(activity, /MovieRoomTogglePlayback/);
-  assert.match(app, /function openNavigationPage/);
-  assert.match(app, /windowRef\.MovieRoomMenu/);
+  assert.match(activity, /KEYCODE_MEDIA_PLAY/);
+  assert.match(activity, /KEYCODE_MEDIA_PAUSE/);
+  assert.match(activity, /showShellSettings\(\)/);
+  assert.match(activity, /player\.isPlaying\(\)/);
+});
+
+test("native Fire TV artwork URL encoding uses an Android-compatible overload", () => {
+  const api = read("firetv/src/main/java/com/movieroom/firetv/MovieRoomApi.java");
+  assert.match(api, /URLEncoder\.encode\([^,]+,\s*"UTF-8"\)/);
+  assert.doesNotMatch(api, /URLEncoder\.encode\([^)]*StandardCharsets\.UTF_8/);
+});
+
+test("native Fire TV player links every shelf with deterministic remote focus", () => {
+  const activity = read("firetv/src/main/java/com/movieroom/firetv/MainActivity.java");
+  assert.match(activity, /connectTvFocusRows/);
+  assert.match(activity, /setNextFocusLeftId/);
+  assert.match(activity, /setNextFocusRightId/);
+  assert.match(activity, /setNextFocusUpId/);
+  assert.match(activity, /setNextFocusDownId/);
+  assert.match(activity, /KEYCODE_BACK/);
 });
 
 test("permission completion returns native focus to the hero instead of opening Search", () => {
@@ -102,7 +144,7 @@ test("selecting a title opens More info and promotes that movie to the video her
   assert.match(html, /id="details-play"/);
 });
 
-test("the physical Menu keeps browse destinations available without restoring a cluttered top bar", () => {
+test("the Menu page keeps browse and profile destinations inside its panels", () => {
   for (const destination of ["menu-home", "menu-library", "menu-collections", "menu-genres", "menu-profile-home", "menu-profile-mom", "menu-profile-kids"]) {
     assert.match(html, new RegExp(`id="${destination}"`));
   }

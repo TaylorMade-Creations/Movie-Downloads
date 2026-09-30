@@ -248,6 +248,9 @@ function createApp({
   searchOverlayGenres,
   searchOverlaySummary,
   navigationPage,
+  menuTabButtons = [],
+  menuTabPanels = [],
+  menuSettingButtons = [],
   homeNavigation,
   passwordForm,
   passwordInput,
@@ -1621,24 +1624,31 @@ function createApp({
   function openNavigationPage() {
     closeSettings();
     setActivePage("menu");
-    const firstTarget = navigationPage && navigationPage.querySelector
-      ? navigationPage.querySelector("button:not([disabled])")
-      : null;
-    if (firstTarget && hasMethod(firstTarget, "focus")) firstTarget.focus();
+    setMenuTab("browse");
     return true;
   }
 
-  function togglePlaybackFromRemote() {
-    if (!playerVisible) {
-      if (!selectedMovie()) return false;
-      playSelectedMovie({ scrollToPlayer: true }).catch((error) => updateStatus(error.message));
-      return true;
+  function setMenuTab(tabId, focusFirst = true) {
+    const allowedTabs = ["browse", "profiles", "settings"];
+    const activeTab = allowedTabs.includes(String(tabId || "")) ? String(tabId) : "browse";
+    for (const button of menuTabButtons) {
+      const selected = button && button.dataset && button.dataset.menuTab === activeTab;
+      if (button && typeof button.setAttribute === "function") {
+        button.setAttribute("aria-selected", selected ? "true" : "false");
+        button.setAttribute("tabindex", selected ? "0" : "-1");
+      }
     }
-    if (player && player.paused) {
-      const playPromise = player.play();
-      if (playPromise && hasMethod(playPromise, "catch")) playPromise.catch(() => {});
-    } else if (player && hasMethod(player, "pause")) {
-      player.pause();
+    let activePanel = null;
+    for (const panel of menuTabPanels) {
+      const visible = panel && panel.dataset && panel.dataset.menuPanel === activeTab;
+      if (panel) {
+        panel.hidden = !visible;
+        if (visible) activePanel = panel;
+      }
+    }
+    if (focusFirst && activePanel && typeof activePanel.querySelector === "function") {
+      const target = activePanel.querySelector("button:not([disabled]), input:not([disabled]), select:not([disabled])");
+      if (target && hasMethod(target, "focus")) target.focus();
     }
     return true;
   }
@@ -1748,7 +1758,7 @@ function createApp({
       return true;
     }
     focusInitialHero();
-    return true;
+    return false;
   }
 
   function rememberSearchForProfile(term) {
@@ -3521,8 +3531,6 @@ function createApp({
 
   function initialize() {
     if (windowRef) windowRef.MovieRoomBack = handleNativeBack;
-    if (windowRef) windowRef.MovieRoomMenu = openNavigationPage;
-    if (windowRef) windowRef.MovieRoomTogglePlayback = togglePlaybackFromRemote;
     if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
       const protocol = windowRef && windowRef.location ? windowRef.location.protocol : "";
       if (protocol === "https:" || protocol === "http:") {
@@ -3579,6 +3587,26 @@ function createApp({
         });
       }
     }
+    for (const button of menuTabButtons) {
+      if (button) {
+        button.addEventListener("click", () => setMenuTab(button.dataset ? button.dataset.menuTab : "browse"));
+      }
+    }
+    for (const button of menuSettingButtons) {
+      if (!button) continue;
+      button.addEventListener("click", () => {
+        const setting = button.dataset ? button.dataset.menuSetting : "";
+        const actions = {
+          network: ["openNetworkSettings", "Open Fire TV Settings, then Network to choose Wi-Fi."],
+          storage: ["openAppStorageSettings", "Open Android app settings, choose Movie Room, then allow Files and media."],
+          display: ["openDisplaySettings", "Open Fire TV Settings, then Display to adjust the screen."],
+          updates: ["checkForUpdates", "The installed app can check for updates when it has network access."],
+        };
+        const action = actions[setting];
+        if (action) invokeAndroidSetting(action[0], action[1]);
+      });
+    }
+    setMenuTab("browse", false);
     if (closePlayerPage) {
       closePlayerPage.addEventListener("click", () => {
         savePlaybackProgress("pause").catch(() => {});
@@ -4125,6 +4153,9 @@ if (typeof document !== "undefined") {
     searchOverlayGenres: document.getElementById("search-page-genres"),
     searchOverlaySummary: document.getElementById("search-page-summary"),
     navigationPage: document.getElementById("navigation-page"),
+    menuTabButtons: Array.from(document.querySelectorAll("[data-menu-tab]")),
+    menuTabPanels: Array.from(document.querySelectorAll("[data-menu-panel]")),
+    menuSettingButtons: Array.from(document.querySelectorAll("[data-menu-setting]")),
     homeNavigation: document.getElementById("home-navigation"),
     passwordForm: document.getElementById("password-form"),
     passwordInput: document.getElementById("password"),

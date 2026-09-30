@@ -6,13 +6,13 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <queries>
-        <package android:name="com.movieroom.firetv" />
+        <package android:name="com.movieroom.web" />
     </queries>
 
     <application
         android:allowBackup="false"
         android:appCategory="video"
-        android:banner="@drawable/banner"
+        android:banner="@drawable/taylormade_movies_cover"
         android:enableOnBackInvokedCallback="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"

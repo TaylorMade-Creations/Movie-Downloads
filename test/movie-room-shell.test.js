@@ -6,6 +6,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const shellRoot = path.join(root, "movieroom-shell");
 const playerRoot = path.join(root, "firetv");
+const webRoot = path.join(root, "movieroom-web");
 
 function read(relativePath) {
   return fs.readFileSync(path.join(shellRoot, relativePath), "utf8");
@@ -15,24 +16,34 @@ function readPlayer(relativePath) {
   return fs.readFileSync(path.join(playerRoot, relativePath), "utf8");
 }
 
+function readWeb(relativePath) {
+  return fs.readFileSync(path.join(webRoot, relativePath), "utf8");
+}
+
 function claimsHomeRole(manifest) {
   return /<category\s+android:name="android\.intent\.category\.HOME"\s*\/>/.test(manifest);
 }
 
-test("only the Movie Room shell owns the Android HOME role", () => {
+test("only the native Movie Room shell owns the Android HOME role", () => {
   const shellManifest = read("src/main/AndroidManifest.xml");
   const playerManifest = readPlayer("src/main/AndroidManifest.xml");
+  const webManifest = readWeb("src/main/AndroidManifest.xml");
 
   assert.equal(claimsHomeRole(shellManifest), true);
   assert.equal(claimsHomeRole(playerManifest), false);
+  assert.equal(claimsHomeRole(webManifest), false);
 });
 
-test("the shell declares the player package and TV presentation assets", () => {
+test("the shell declares the web app and TV presentation assets", () => {
   const manifest = read("src/main/AndroidManifest.xml");
+  const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
 
-  assert.match(manifest, /<queries>[\s\S]*<package\s+android:name="com\.movieroom\.firetv"\s*\/>[\s\S]*<\/queries>/);
-  assert.match(manifest, /android:banner="@drawable\/banner"/);
+  assert.match(manifest, /<queries>[\s\S]*<package\s+android:name="com\.movieroom\.web"\s*\/>[\s\S]*<\/queries>/);
+  assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
+  assert.match(activity, /com\.movieroom\.web/);
+  assert.match(activity, /com\.movieroom\.web\.MainActivity/);
+  assert.doesNotMatch(activity, /com\.movieroom\.firetv/);
 });
 
 test("Movie Room shell is a separate HOME/LEANBACK Android package", () => {
@@ -53,7 +64,7 @@ test("Movie Room shell renders a native home screen with profiles and controls",
   assert.match(activity, /Morganne/);
   assert.match(activity, /Kids/);
   assert.match(activity, /setContentView\(root\)/);
-  assert.match(activity, /openNativePlayer/);
+  assert.match(activity, /openMovieRoomApp/);
   assert.match(activity, /Settings/);
   assert.match(activity, /ACTION_SETTINGS/);
   assert.match(activity, /ACTION_WIFI_SETTINGS/);
@@ -75,4 +86,27 @@ test("Movie Room shell explains the active network and exposes Wi-Fi and mobile 
   assert.match(activity, /ACTION_WIRELESS_SETTINGS/);
   assert.match(activity, /Current connection/);
   assert.match(activity, /Mobile data/);
+});
+
+test("Movie Room shell provides an explicit Fire TV focus path across library shelves", () => {
+  const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
+
+  assert.match(activity, /setNextFocusLeftId/);
+  assert.match(activity, /setNextFocusRightId/);
+  assert.match(activity, /setNextFocusUpId/);
+  assert.match(activity, /setNextFocusDownId/);
+  assert.match(activity, /KEYCODE_BACK/);
+  assert.match(activity, /KEYCODE_MENU/);
+  assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.match(activity, /requestFocus/);
+  assert.match(activity, /ImageView/);
+  assert.match(activity, /taylormade_movies_cover/);
+  assert.match(activity, /showSettingsScreen/);
+  assert.match(activity, /Developer options/);
+  assert.match(activity, /Open Fire OS settings/);
+  assert.match(activity, /showProfilesScreen/);
+  assert.match(activity, /showGenresScreen/);
+  assert.match(activity, /GENRES/);
+  assert.match(activity, /Comedy/);
+  assert.match(activity, /Soap/);
 });

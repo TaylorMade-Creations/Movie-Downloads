@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MovieRoomApi {
@@ -72,6 +74,37 @@ public final class MovieRoomApi {
 
     public byte[] downloadPoster(String posterUrl) throws Exception {
         return downloadPoster(posterUrl, "");
+    }
+
+    public List<String> artworkUrls(String posterUrl, String title, String year) {
+        List<String> urls = new ArrayList<>();
+        if (posterUrl != null && !posterUrl.trim().isEmpty()) {
+            urls.add(posterUrl.trim());
+        }
+        if (title != null && !title.trim().isEmpty()) {
+            StringBuilder fallback = new StringBuilder(baseUrl)
+                    .append("/api/artwork?title=")
+                    .append(encodeQuery(title.trim()));
+            if (year != null && !year.trim().isEmpty() && !"0".equals(year.trim())) {
+                fallback.append("&year=")
+                        .append(encodeQuery(year.trim()));
+            }
+            String fallbackUrl = fallback.toString();
+            if (!urls.contains(fallbackUrl)) {
+                urls.add(fallbackUrl);
+            }
+        }
+        return urls;
+    }
+
+    private static String encodeQuery(String value) {
+        try {
+            // Use the String charset-name overload: Fire OS does not expose the
+            // newer Charset overload on every Android API level we support.
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (java.io.UnsupportedEncodingException error) {
+            return value;
+        }
     }
 
     public byte[] downloadPoster(String posterUrl, String deviceToken) throws Exception {

@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
     private String activeProfile = "Home";
     private TextView shellProfileLabel;
     private WebView webSearchView;
+    private final List<List<View>> tvFocusRows = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -188,6 +189,7 @@ public class MainActivity extends Activity {
 
     private Button button(String label) {
         Button button = new Button(this);
+        button.setId(View.generateViewId());
         button.setText(label);
         button.setTextSize(22);
         button.setAllCaps(false);
@@ -274,6 +276,31 @@ public class MainActivity extends Activity {
             parent = parent.getParent();
         }
         view.requestRectangleOnScreen(new android.graphics.Rect(0, 0, view.getWidth(), view.getHeight()), true);
+    }
+
+    private void connectTvFocusRows() {
+        for (int rowIndex = 0; rowIndex < tvFocusRows.size(); rowIndex++) {
+            List<View> row = tvFocusRows.get(rowIndex);
+            if (row == null || row.isEmpty()) continue;
+            for (int column = 0; column < row.size(); column++) {
+                View current = row.get(column);
+                if (current.getId() == View.NO_ID) current.setId(View.generateViewId());
+                current.setNextFocusLeftId(row.get(Math.max(0, column - 1)).getId());
+                current.setNextFocusRightId(row.get(Math.min(row.size() - 1, column + 1)).getId());
+                if (rowIndex > 0) {
+                    List<View> above = tvFocusRows.get(rowIndex - 1);
+                    if (above != null && !above.isEmpty()) {
+                        current.setNextFocusUpId(above.get(Math.min(column, above.size() - 1)).getId());
+                    }
+                }
+                if (rowIndex + 1 < tvFocusRows.size()) {
+                    List<View> below = tvFocusRows.get(rowIndex + 1);
+                    if (below != null && !below.isEmpty()) {
+                        current.setNextFocusDownId(below.get(Math.min(column, below.size() - 1)).getId());
+                    }
+                }
+            }
+        }
     }
 
     private Bitmap createPairingQrBitmap(String pairingUrl, int size) throws WriterException {
@@ -442,6 +469,7 @@ public class MainActivity extends Activity {
 
     private void showLibraryScreen() {
         pairingGeneration += 1;
+        tvFocusRows.clear();
         setScreen();
         LinearLayout shellBar = new LinearLayout(this);
         shellBar.setGravity(Gravity.CENTER_VERTICAL);
@@ -450,10 +478,15 @@ public class MainActivity extends Activity {
         brand.setTextColor(0xffffd166);
         brand.setTypeface(null, android.graphics.Typeface.BOLD);
         shellBar.addView(brand, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        shellBar.addView(shellNavButton("HOME", view -> showLibraryScreen()));
-        shellBar.addView(shellNavButton("SEARCH", view -> showSearchDialog()));
-        shellBar.addView(shellNavButton("ALEXA", view -> launchAlexa()));
-        shellBar.addView(shellNavButton("WEB SEARCH", view -> showWebSearchScreen()));
+        List<View> topControls = new ArrayList<>();
+        topControls.add(shellNavButton("HOME", view -> showLibraryScreen()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        topControls.add(shellNavButton("SEARCH", view -> showSearchDialog()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        topControls.add(shellNavButton("ALEXA", view -> launchAlexa()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        topControls.add(shellNavButton("WEB SEARCH", view -> showWebSearchScreen()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
         shellProfileLabel = text(activeProfile.toUpperCase(Locale.US), 15);
         shellProfileLabel.setTextColor(0xffffd166);
         shellProfileLabel.setGravity(Gravity.CENTER);
@@ -462,11 +495,17 @@ public class MainActivity extends Activity {
         shellProfileLabel.setPadding(dp(16), dp(8), dp(16), dp(8));
         shellProfileLabel.setOnClickListener(view -> cycleShellProfile());
         shellBar.addView(shellProfileLabel);
-        shellBar.addView(shellNavButton("SETTINGS", view -> showShellSettings()));
+        topControls.add(shellProfileLabel);
+        topControls.add(shellNavButton("SETTINGS", view -> showShellSettings()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        tvFocusRows.add(topControls);
         root.addView(shellBar);
         TextView subtitle = text("MOVIE ROOM  •  YOUR PRIVATE CINEMA", 16);
         subtitle.setTextColor(0xffbdb5a2);
         root.addView(subtitle);
+        TextView remoteHint = text("REMOTE READY  •  ▲ ▼ ◀ ▶ move  •  Select open  •  Back return  •  Menu settings  •  Play/Pause video", 14);
+        remoteHint.setTextColor(0xffbdb5a2);
+        root.addView(remoteHint);
         TextView hero = text("NEWEST FROM JELLYFIN\nThe five most recently added titles in Movie Room.", 24);
         hero.setTextColor(0xfff5f5f5);
         hero.setPadding(0, dp(16), 0, dp(14));
@@ -487,6 +526,10 @@ public class MainActivity extends Activity {
         });
         actions.addView(refresh);
         actions.addView(unpair);
+        List<View> actionControls = new ArrayList<>();
+        actionControls.add(refresh);
+        actionControls.add(unpair);
+        tvFocusRows.add(actionControls);
         root.addView(actions);
 
         ScrollView scrollView = new ScrollView(this);
@@ -555,6 +598,7 @@ public class MainActivity extends Activity {
                     for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : genreGroups.entrySet()) {
                         addMovieShelf(shelfColumn, entry.getKey(), entry.getValue(), status);
                     }
+                    connectTvFocusRows();
                     shelfColumn.post(() -> {
                         View firstCard = findFirstFocusableCard(shelfColumn);
                         if (firstCard != null) firstCard.requestFocus();
@@ -774,7 +818,8 @@ public class MainActivity extends Activity {
             if (hasFocus) view.post(() -> centerFocusedCard(view));
         });
         card.setOnKeyListener((view, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP
+            if (event.getAction() == KeyEvent.ACTION_DOWN
+                    && event.getRepeatCount() == 0
                     && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
                     || keyCode == KeyEvent.KEYCODE_ENTER)) {
                 view.performClick();
@@ -824,12 +869,17 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setFocusable(false);
         row.setPadding(dp(8), dp(4), dp(12), dp(12));
+        List<View> shelfCards = new ArrayList<>();
         for (MovieRoomModels.Movie movie : movies) {
             View card = movieCard(movie, status);
-            row.addView(card, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
                     dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150),
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
+            row.addView(card, cardParams);
+            shelfCards.add(card);
         }
+        tvFocusRows.add(shelfCards);
         scroll.addView(row);
         shelfColumn.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -852,8 +902,13 @@ public class MainActivity extends Activity {
         row.setFocusable(false);
         row.setPadding(dp(8), dp(4), dp(12), dp(12));
         View card = groupCard(title, members, status);
-        row.addView(card, new LinearLayout.LayoutParams(
-                dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150), LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150), LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
+        row.addView(card, cardParams);
+        List<View> shelfCards = new ArrayList<>();
+        shelfCards.add(card);
+        tvFocusRows.add(shelfCards);
         scroll.addView(row);
         shelfColumn.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -956,7 +1011,8 @@ public class MainActivity extends Activity {
             if (hasFocus) view.post(() -> centerFocusedCard(view));
         });
         card.setOnKeyListener((view, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP
+            if (event.getAction() == KeyEvent.ACTION_DOWN
+                    && event.getRepeatCount() == 0
                     && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
                     || keyCode == KeyEvent.KEYCODE_ENTER)) {
                 view.performClick();
@@ -996,13 +1052,14 @@ public class MainActivity extends Activity {
     }
 
     private void loadPosterIntoCard(MovieRoomModels.Movie movie, FrameLayout posterFrame, TextView fallback) {
-        if (movie.posterUrl == null || movie.posterUrl.isEmpty()) {
+        List<String> artworkUrls = api.artworkUrls(movie.posterUrl, movie.title, movie.year);
+        if (artworkUrls.isEmpty()) {
             return;
         }
 
         Bitmap cached;
         synchronized (posterCache) {
-            cached = posterCache.get(movie.posterUrl);
+            cached = posterCache.get(artworkUrls.get(0));
         }
         if (cached != null) {
             applyPoster(posterFrame, fallback, cached);
@@ -1011,18 +1068,23 @@ public class MainActivity extends Activity {
 
         new Thread(() -> {
             try {
-                byte[] bytes = api.downloadPoster(movie.posterUrl, tokenStore.getDeviceToken());
-                if (bytes.length == 0) {
-                    return;
+                Bitmap bitmap = null;
+                for (String artworkUrl : artworkUrls) {
+                    byte[] bytes = api.downloadPoster(artworkUrl, tokenStore.getDeviceToken());
+                    if (bytes.length == 0) {
+                        continue;
+                    }
+                    bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    if (bitmap != null) {
+                        break;
+                    }
                 }
-                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                if (bitmap == null) {
-                    return;
-                }
+                if (bitmap == null) return;
                 synchronized (posterCache) {
-                    posterCache.put(movie.posterUrl, bitmap);
+                    posterCache.put(artworkUrls.get(0), bitmap);
                 }
-                handler.post(() -> applyPoster(posterFrame, fallback, bitmap));
+                Bitmap loadedBitmap = bitmap;
+                handler.post(() -> applyPoster(posterFrame, fallback, loadedBitmap));
             } catch (Exception ignored) {
                 // Keep the clean initials fallback when no poster is available yet.
             }
@@ -1213,6 +1275,26 @@ public class MainActivity extends Activity {
                 webSearchView = null;
                 showLibraryScreen();
             }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            showShellSettings();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && player != null) {
+            if (player.isPlaying()) {
+                player.pause();
+            } else {
+                player.play();
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY && player != null) {
+            player.play();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE && player != null) {
+            player.pause();
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD && seekBy(30_000L)) {
