@@ -11,7 +11,6 @@ PRODUCT_SYSTEM_PROPERTIES += \
     ro.movieroom.release=0.1.0-prototype
 
 # The launcher module is supplied by the Movie Room AOSP integration step.
-# Keeping this product file independent lets the base image build before the
-# launcher module is imported into the AOSP checkout.
-PRODUCT_COPY_FILES += \
-    device/movieroom/emulator/overlay/frameworks/base/core/res/res/values/config.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/movieroom/home-config.xml
+# The Android Studio module's application id is the stable home contract.
+PRODUCT_PACKAGE_OVERLAYS += \
+    device/movieroom/emulator/overlay

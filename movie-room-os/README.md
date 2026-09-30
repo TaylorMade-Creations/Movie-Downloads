@@ -15,7 +15,7 @@ m -j$(nproc)                   # full development image
 emulator -avd movieroom-os    # after creating an x86_64 AVD
 ```
 
-The scaffold deliberately does not download AOSP automatically: that checkout is many gigabytes, Linux-specific, and should be placed where the owner wants it. The existing `firetv/` Android client remains the first launcher implementation until it is split into a dedicated AOSP-integrated module.
+The scaffold deliberately does not download AOSP automatically: that checkout is many gigabytes, Linux-specific, and should be placed where the owner wants it. The independent `movieroom-shell` Android module is now the native launcher contract; the existing `firetv/` Android client remains the native library/player bridge until its playback code is moved into the AOSP-integrated product.
 
 ## Android Studio development target
 
@@ -33,7 +33,7 @@ This is an emulator-installed Android shell, not a replacement system image. The
 ## Current contract
 
 - Product: `movieroom_x86_64`
-- Default home: `com.movieroom.firetv/.MainActivity`
+- Default home: `com.movieroom.shell/.ShellActivity`
 - Brand/model: `TaylorMade Movies` / `Movie Room OS Emulator`
 - Development build: `userdebug`
 - Hardware target: AOSP x86_64 emulator only
