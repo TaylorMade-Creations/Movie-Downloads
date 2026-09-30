@@ -5,10 +5,35 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const shellRoot = path.join(root, "movieroom-shell");
+const playerRoot = path.join(root, "firetv");
 
 function read(relativePath) {
   return fs.readFileSync(path.join(shellRoot, relativePath), "utf8");
 }
+
+function readPlayer(relativePath) {
+  return fs.readFileSync(path.join(playerRoot, relativePath), "utf8");
+}
+
+function claimsHomeRole(manifest) {
+  return /<category\s+android:name="android\.intent\.category\.HOME"\s*\/>/.test(manifest);
+}
+
+test("only the Movie Room shell owns the Android HOME role", () => {
+  const shellManifest = read("src/main/AndroidManifest.xml");
+  const playerManifest = readPlayer("src/main/AndroidManifest.xml");
+
+  assert.equal(claimsHomeRole(shellManifest), true);
+  assert.equal(claimsHomeRole(playerManifest), false);
+});
+
+test("the shell declares the player package and TV presentation assets", () => {
+  const manifest = read("src/main/AndroidManifest.xml");
+
+  assert.match(manifest, /<queries>[\s\S]*<package\s+android:name="com\.movieroom\.firetv"\s*\/>[\s\S]*<\/queries>/);
+  assert.match(manifest, /android:banner="@drawable\/banner"/);
+  assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
+});
 
 test("Movie Room shell is a separate HOME/LEANBACK Android package", () => {
   const manifest = read("src/main/AndroidManifest.xml");

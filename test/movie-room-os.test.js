@@ -16,7 +16,9 @@ test("Movie Room OS declares a reproducible x86_64 emulator product", () => {
   assert.match(products, /movieroom_x86_64-userdebug/);
   assert.match(product, /PRODUCT_NAME := movieroom_x86_64/);
   assert.match(product, /PRODUCT_MODEL := Movie Room OS Emulator/);
+  assert.match(product, /PRODUCT_PACKAGES\s*\+=\s*\\?\s*MovieRoomShell/);
   assert.match(product, /PRODUCT_PACKAGE_OVERLAYS/);
+  assert.equal(fs.existsSync(path.join(root, "movieroom-shell", "Android.bp")), true);
 });
 
 test("Movie Room OS selects the original Movie Room home component", () => {

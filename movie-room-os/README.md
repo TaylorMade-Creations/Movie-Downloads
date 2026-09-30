@@ -6,7 +6,7 @@ This directory is the first bootable-system milestone for Movie Room. It contain
 
 Build AOSP on a supported 64-bit Linux environment. The current Windows machine does not have WSL installed, so the source checkout and image build have not been run here yet. Install/configure Linux first, then obtain AOSP using the official Android source instructions.
 
-From the root of an AOSP checkout, copy or link this product directory into `device/movieroom/emulator`, add the Movie Room launcher module, then run:
+From the root of an AOSP checkout, copy or link this product directory into `device/movieroom/emulator` and copy or link `movieroom-shell/` into the AOSP source tree. The launcher now includes an `Android.bp` Soong module and the product makefile installs it as `MovieRoomShell`; no separate HOME package is needed. Then run:
 
 ```bash
 source build/envsetup.sh
@@ -16,6 +16,8 @@ emulator -avd movieroom-os    # after creating an x86_64 AVD
 ```
 
 The scaffold deliberately does not download AOSP automatically: that checkout is many gigabytes, Linux-specific, and should be placed where the owner wants it. The independent `movieroom-shell` Android module is now the native launcher contract; the existing `firetv/` Android client remains the native library/player bridge until its playback code is moved into the AOSP-integrated product.
+
+The launcher and player are intentionally separate packages. `com.movieroom.shell` owns the HOME and LEANBACK launcher roles, while `com.movieroom.firetv` exposes only its app/player launcher entry point. This prevents Android from showing two competing home applications.
 
 ## Android Studio development target
 
