@@ -279,6 +279,7 @@ function createApp({
   heroMovie,
   heroBackdrop,
   heroPreviewVideo,
+  libraryBackgroundPreview,
   heroTitle,
   heroMeta,
   heroDescription,
@@ -634,6 +635,13 @@ function createApp({
       watchMeta.hidden = !playerVisible;
     }
     if (watchStage && watchStage.classList) watchStage.classList.toggle("player-page", playerVisible);
+    if (visible) {
+      const playerTarget = player && hasMethod(player, "focus") ? player : closePlayerPage;
+      if (playerTarget && hasMethod(playerTarget, "focus")) {
+        playerTarget.focus();
+        rememberRemoteTarget(playerTarget);
+      }
+    }
     if (visible && scroll && watchStage && hasMethod(watchStage, "scrollIntoView")) {
       setTimeoutImpl(() => watchStage.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
     }
@@ -1924,6 +1932,8 @@ function createApp({
     if (!ready || !card || !poster || !hasMethod(card, "addEventListener") || !hasMethod(poster, "append")) return;
     const documentRef = poster.ownerDocument || card.ownerDocument;
     if (!documentRef || !hasMethod(documentRef, "createElement")) return;
+    const previewStartSeconds = 180;
+    const previewDurationMs = 40000;
     let hoverTimer = null;
     let stopTimer = null;
     let preview = null;
@@ -1965,8 +1975,8 @@ function createApp({
         preview.muted = true;
         preview.defaultMuted = true;
         preview.playsInline = true;
-        // Buffer from the opening scene so the focused card immediately
-        // confirms that this title is ready to play.
+        // Skip the opening credits when the source is long enough, then keep
+        // the focused title's 40-second preview alive until hover/focus ends.
         preview.preload = "auto";
         preview.setAttribute("aria-hidden", "true");
         preview.setAttribute("playsinline", "");
@@ -1974,7 +1984,11 @@ function createApp({
         video.addEventListener("loadedmetadata", () => {
           if (preview !== video) return;
           const duration = Number(video.duration) || 0;
-          try { video.currentTime = 0; } catch { /* start at the beginning */ }
+          if (duration > previewStartSeconds + (previewDurationMs / 1000)) {
+            try { video.currentTime = previewStartSeconds; } catch { /* start at the nearest available frame */ }
+          } else {
+            try { video.currentTime = Math.max(0, duration - (previewDurationMs / 1000)); } catch { /* keep the browser's current frame */ }
+          }
         }, { once: true });
         video.addEventListener("playing", () => {
           if (preview !== video || started) return;
@@ -1986,10 +2000,10 @@ function createApp({
             if (preview !== video) return;
             video.pause();
             stopTimer = null;
-            // Keep the paused video in the poster so the second preview frame
+            // Keep the paused video in the poster so the selected preview frame
             // remains visible instead of snapping back to the cover art.
             card.classList.add("previewing", "preview-paused");
-          }, 2000);
+          }, previewDurationMs);
         });
         video.addEventListener("error", () => { if (preview === video) cancelPreview(); });
         video.addEventListener("ended", () => { if (preview === video) cancelPreview(); });
@@ -2043,6 +2057,7 @@ function createApp({
       button.className = ready ? "movie-card" : "movie-card unavailable";
       button.disabled = !ready;
       button.dataset.movieId = movie.id;
+      bindFeaturedSelection(button, movie);
       button.addEventListener("focus", () => {
         if (hasMethod(button, "scrollIntoView")) {
           button.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
@@ -2167,13 +2182,18 @@ function createApp({
       badge.textContent = "Open series";
       info.append(title, meta, badge);
       button.append(poster, info);
-      button.addEventListener("click", () => {
+      const openSeries = () => {
         activeLibraryView = "movies";
         activeFolder = series.seriesPath;
         renderLibrary();
         if (movieGrid && typeof movieGrid.scrollIntoView === "function") {
           movieGrid.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+      };
+      button.addEventListener("click", openSeries);
+      bindFeaturedSelection(button, series, series.episodes.find(isMoviePlayable), {
+        playAction: openSeries,
+        detailsAction: openSeries,
       });
       return button;
     }
@@ -2235,13 +2255,18 @@ function createApp({
       badge.textContent = "Open collection";
       info.append(title, meta, badge);
       button.append(poster, info);
-      button.addEventListener("click", () => {
+      const openCollection = () => {
         activeLibraryView = "movies";
         activeFolder = collection.collectionPath;
         renderLibrary();
         if (movieGrid && typeof movieGrid.scrollIntoView === "function") {
           movieGrid.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+      };
+      button.addEventListener("click", openCollection);
+      bindFeaturedSelection(button, collection, collection.movies.find(isMoviePlayable), {
+        playAction: openCollection,
+        detailsAction: openCollection,
       });
       return button;
     }
@@ -2371,6 +2396,7 @@ function createApp({
     card.className = ready ? "movie-card" : "movie-card unavailable";
     card.disabled = !ready;
     card.dataset.movieId = movie.id;
+    bindFeaturedSelection(card, movie);
     const poster = documentRef.createElement("span");
     poster.className = "poster";
     const fallback = documentRef.createElement("span");
@@ -2428,33 +2454,72 @@ function createApp({
 
   function stopHeroPreview() {
     heroPreviewVersion += 1;
-    if (!heroPreviewVideo) return;
-    heroPreviewVideo.pause();
-    heroPreviewVideo.removeAttribute("src");
-    heroPreviewVideo.load();
-    heroPreviewVideo.hidden = true;
+    for (const previewVideo of [heroPreviewVideo, libraryBackgroundPreview]) {
+      if (!previewVideo) continue;
+      previewVideo.pause();
+      previewVideo.removeAttribute("src");
+      previewVideo.load();
+      previewVideo.hidden = true;
+    }
     if (heroMovie && heroMovie.classList) heroMovie.classList.remove("hero-video-active");
+    if (libraryPanel && libraryPanel.classList) libraryPanel.classList.remove("hero-focus-mode");
+  }
+
+  function setFeaturedMovie(movie, previewMovie = movie, { playAction = null, detailsAction = null } = {}) {
+    if (!movie) return false;
+    stopHeroPreview();
+    if (heroMovie) {
+      heroMovie.hidden = false;
+      if (heroMovie.classList) heroMovie.classList.add("hero-preview-active");
+    }
+    if (libraryPanel && libraryPanel.classList) libraryPanel.classList.add("hero-focus-mode");
+    const backdropSource = movie.backdropUrl || movie.posterUrl || previewMovie && (previewMovie.backdropUrl || previewMovie.posterUrl) || "/movie-room-hero.png";
+    if (heroBackdrop) {
+      heroBackdrop.src = backdropSource;
+      heroBackdrop.alt = `${movie.title || movie.fileName || "Featured movie"} backdrop`;
+    }
+    if (heroTitle) heroTitle.textContent = movie.title || movie.fileName || "Featured movie";
+    if (heroMeta) heroMeta.textContent = [movie.year, movie.rating, movie.runtime, metadataSourceLabel(movie)].filter(Boolean).join(" • ");
+    if (heroDescription) heroDescription.textContent = movie.description || `Watch ${movie.title || movie.fileName || "this title"} in your Taylor-Made movie room.`;
+    if (heroPlay) heroPlay.onclick = playAction || (() => moveToMovie(movie));
+    if (heroDetails) heroDetails.onclick = detailsAction || (() => openMovieDetails(movie));
+    if (documentRef && documentRef.body && backdropSource) {
+      const safeBackdropUrl = String(backdropSource).replaceAll('"', "%22");
+      documentRef.body.style.setProperty("--page-backdrop", `url("${safeBackdropUrl}")`);
+    }
+    if (previewMovie && isMoviePlayable(previewMovie)) {
+      void startHeroPreview(previewMovie);
+    }
+    return true;
+  }
+
+  function bindFeaturedSelection(card, movie, previewMovie = movie, actions = {}) {
+    if (!card || !hasMethod(card, "addEventListener")) return;
+    const updateFeaturedMovie = () => setFeaturedMovie(movie, previewMovie, actions);
+    card.addEventListener("focus", updateFeaturedMovie);
+    card.addEventListener("mouseenter", updateFeaturedMovie);
   }
 
   async function startHeroPreview(movie) {
-    if (!heroPreviewVideo || !movie || !isMoviePlayable(movie)) return;
+    const previewVideo = libraryBackgroundPreview || heroPreviewVideo;
+    if (!previewVideo || !movie || !isMoviePlayable(movie)) return;
     if ((windowRef && hasMethod(windowRef, "matchMedia") && windowRef.matchMedia("(prefers-reduced-motion: reduce)").matches)
       || (navigatorRef && navigatorRef.connection && navigatorRef.connection.saveData)) return;
     const version = heroPreviewVersion;
     try {
       const playback = await requestPlaybackLink(movie.id, "Unable to load the featured preview.");
       if (version !== heroPreviewVersion || !playback || !playback.url) return;
-      heroPreviewVideo.muted = true;
-      heroPreviewVideo.defaultMuted = true;
-      heroPreviewVideo.playsInline = true;
-      heroPreviewVideo.loop = true;
-      heroPreviewVideo.preload = "metadata";
-      heroPreviewVideo.setAttribute("aria-hidden", "true");
-      heroPreviewVideo.setAttribute("playsinline", "");
-      heroPreviewVideo.src = new URL(playback.url, locationOrigin).toString();
-      heroPreviewVideo.hidden = false;
+      previewVideo.muted = true;
+      previewVideo.defaultMuted = true;
+      previewVideo.playsInline = true;
+      previewVideo.loop = true;
+      previewVideo.preload = "metadata";
+      previewVideo.setAttribute("aria-hidden", "true");
+      previewVideo.setAttribute("playsinline", "");
+      previewVideo.src = new URL(playback.url, locationOrigin).toString();
+      previewVideo.hidden = false;
       if (heroMovie && heroMovie.classList) heroMovie.classList.add("hero-video-active");
-      const playPromise = heroPreviewVideo.play();
+      const playPromise = previewVideo.play();
       if (playPromise && hasMethod(playPromise, "catch")) await playPromise.catch(() => {});
     } catch {
       if (version === heroPreviewVersion) stopHeroPreview();
@@ -2493,19 +2558,7 @@ function createApp({
     heroIndex = Math.min(heroIndex, Math.max(0, heroMovies.length - 1));
     const featured = heroMovies[heroIndex] || browseable[0] || playable[0];
     if (featured) {
-      if (heroMovie) heroMovie.hidden = false;
-      const backdropUrl = featured.backdropUrl || featured.posterUrl || "/movie-room-hero.png";
-      if (heroBackdrop) { heroBackdrop.src = backdropUrl; heroBackdrop.alt = `${featured.title || "Featured movie"} backdrop`; }
-      void startHeroPreview(featured);
-      if (documentRef && documentRef.body && backdropUrl) {
-        const safeBackdropUrl = String(backdropUrl).replaceAll('"', "%22");
-        documentRef.body.style.setProperty("--page-backdrop", `url("${safeBackdropUrl}")`);
-      }
-      if (heroTitle) heroTitle.textContent = featured.title || featured.fileName || "Featured movie";
-      if (heroMeta) heroMeta.textContent = [featured.year, featured.rating, featured.runtime, metadataSourceLabel(featured)].filter(Boolean).join(" • ");
-      if (heroDescription) heroDescription.textContent = featured.description || "Newly added to your Taylor-Made movie room.";
-      if (heroPlay) heroPlay.onclick = () => moveToMovie(featured);
-      if (heroDetails) heroDetails.onclick = () => openMovieDetails(featured);
+      setFeaturedMovie(featured);
       if (heroIndicator) heroIndicator.textContent = `${heroIndex + 1} / ${Math.max(1, heroMovies.length)}`;
     }
     if (upNextPanel) {
@@ -2514,6 +2567,25 @@ function createApp({
       if (next && upNextTitle) upNextTitle.textContent = next.title || next.fileName || "Next movie";
       if (next && upNextPlay) upNextPlay.onclick = () => moveToMovie(next);
     }
+  }
+
+  function focusInitialTitle() {
+    const titleRails = [continueWatchingShelf, recentlyAddedShelf, picksShelf, movieGrid];
+    let firstTitle = null;
+    for (const rail of titleRails) {
+      if (!rail || rail.hidden || !hasMethod(rail, "querySelector")) continue;
+      firstTitle = rail.querySelector("button.movie-card:not([disabled])");
+      if (firstTitle) break;
+    }
+    if (!firstTitle) return false;
+    if (windowRef && hasMethod(windowRef, "scrollTo")) windowRef.scrollTo(0, 0);
+    rememberRemoteTarget(firstTitle);
+    if (hasMethod(firstTitle, "focus")) firstTitle.focus();
+    rememberRemoteTarget(firstTitle);
+    if (hasMethod(firstTitle, "scrollIntoView")) {
+      firstTitle.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
+    }
+    return true;
   }
 
   function renderLibrary() {
@@ -2727,6 +2799,7 @@ function createApp({
       }
     }
     renderLibrary();
+    if (!playerVisible && !quiet && activePage === "home") focusInitialTitle();
     return playableMovies;
   }
 
@@ -2773,6 +2846,7 @@ function createApp({
       stableRefreshPosition = resumeState.position;
     }
     player.preload = "auto";
+    player.autoplay = true;
     player.src = /^https?:\/\//i.test(playback.url)
       ? playback.url
       : new URL(playback.url, locationOrigin).toString();
@@ -3318,6 +3392,9 @@ function createApp({
         } else if (key === "backspace") {
           event.preventDefault();
           remoteBack();
+        } else if (key === "contextmenu") {
+          event.preventDefault();
+          openSettings();
         } else if (key === " " || key === "k") { event.preventDefault(); remotePlayPause(); }
         else if (key === "j") seekPlayerBy(-10);
         else if (key === "l") seekPlayerBy(30);
@@ -3705,6 +3782,7 @@ if (typeof document !== "undefined") {
     heroMovie: document.getElementById("hero-movie"),
     heroBackdrop: document.getElementById("hero-backdrop"),
     heroPreviewVideo: document.getElementById("hero-preview-video"),
+    libraryBackgroundPreview: document.getElementById("library-background-preview"),
     heroTitle: document.getElementById("hero-title"),
     heroMeta: document.getElementById("hero-meta"),
     heroDescription: document.getElementById("hero-description"),

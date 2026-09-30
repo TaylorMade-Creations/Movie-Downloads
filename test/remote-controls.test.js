@@ -32,3 +32,24 @@ test("remote focus wraps to another visible target when a direction reaches an e
   assert.match(app, /behavior:\s*"auto"/);
   assert.match(app, /rememberRemoteTarget\(next\)/);
 });
+
+test("selecting a movie starts the player immediately and previews the focused title", () => {
+  assert.match(app, /player\.autoplay\s*=\s*true/);
+  assert.match(app, /player\.play\(\)/);
+  assert.match(app, /function setFeaturedMovie/);
+  assert.match(app, /movie-card.*addEventListener\("focus"/s);
+  assert.match(app, /hero-preview-active/);
+});
+
+test("thumbnail previews start after the opening credits and remain while focused", () => {
+  assert.match(app, /const previewStartSeconds = 180/);
+  assert.match(app, /const previewDurationMs = 40000/);
+  assert.match(app, /currentTime = previewStartSeconds/);
+  assert.match(app, /setTimeoutImpl\(.*previewDurationMs/s);
+});
+
+test("the initial TV focus lands on the title rail at the top of the page", () => {
+  assert.match(app, /function focusInitialTitle/);
+  assert.match(app, /focusInitialTitle\(\)/);
+  assert.match(app, /behavior:\s*"auto", block:\s*"start"/);
+});

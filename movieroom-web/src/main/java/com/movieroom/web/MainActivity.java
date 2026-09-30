@@ -37,14 +37,7 @@ public final class MainActivity extends Activity {
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.setOnKeyListener((view, keyCode, event) -> {
-            String action = remoteActionForKeyCode(keyCode);
-            if (action == null) {
-                return false;
-            }
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                return dispatchRemoteAction(action);
-            }
-            return true;
+            return handleRemoteKeyEvent(event, keyCode);
         });
         setContentView(webView);
         webView.loadUrl(BuildConfig.MOVIE_ROOM_BASE_URL);
@@ -104,25 +97,103 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean isRepeatableRemoteAction(String action) {
+        return "up".equals(action)
+            || "down".equals(action)
+            || "left".equals(action)
+            || "right".equals(action);
+    }
+
+    private boolean handleRemoteKeyEvent(KeyEvent event, int keyCode) {
+        if (event == null) {
+            return false;
+        }
+        String action = remoteActionForKeyCode(keyCode);
+        if (action == null) {
+            return false;
+        }
+
+        // Fire TV sends a KeyEvent for each remote press. Dispatch the first
+        // ACTION_DOWN immediately so Select and navigation never wait for a
+        // delayed ACTION_UP; allow only directional repeats while a button is
+        // held, and consume ACTION_UP without firing a second action.
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (event.getRepeatCount() == 0 || isRepeatableRemoteAction(action)) {
+                return dispatchRemoteAction(action);
+            }
+        }
+        return true;
+    }
+
+    private String keyboardKeyForAction(String action) {
+        switch (action) {
+            case "up":
+                return "ArrowUp";
+            case "down":
+                return "ArrowDown";
+            case "left":
+                return "ArrowLeft";
+            case "right":
+                return "ArrowRight";
+            case "select":
+                return "Enter";
+            case "back":
+                return "Backspace";
+            case "playpause":
+                return " ";
+            case "settings":
+                return "ContextMenu";
+            default:
+                return null;
+        }
+    }
+
+    private String keyboardCodeForAction(String action) {
+        if ("playpause".equals(action)) {
+            return "Space";
+        }
+        return keyboardKeyForAction(action);
+    }
+
+    private String escapeJavascriptString(String value) {
+        return value.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
     private boolean dispatchRemoteAction(String action) {
         if (webView == null || action == null) {
             return false;
         }
+        String key = keyboardKeyForAction(action);
+        String code = keyboardCodeForAction(action);
+        if (key == null || code == null) {
+            return false;
+        }
         webView.requestFocus();
-        webView.evaluateJavascript("window.MovieRoomRemote && window.MovieRoomRemote('" + action + "');", null);
+        String escapedKey = escapeJavascriptString(key);
+        String escapedCode = escapeJavascriptString(code);
+        String script = "(function(){var event = new KeyboardEvent('keydown',{key:'"
+            + escapedKey
+            + "',code:'"
+            + escapedCode
+            + "',bubbles:true,cancelable:true});document.dispatchEvent(event);return true;})()";
+        webView.evaluateJavascript(script, null);
         return true;
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        String action = remoteActionForKeyCode(event.getKeyCode());
-        if (action != null) {
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                return dispatchRemoteAction(action);
-            }
+        if (handleRemoteKeyEvent(event, event.getKeyCode())) {
             return true;
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && webView != null) {
+            webView.requestFocus();
+        }
     }
 
     @Override

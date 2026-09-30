@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#090a0b" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/taylormade-movies-cover.png" />
     <link rel="apple-touch-icon" href="/taylormade-movies-cover.png" />
     <title>TaylorMade Movies | Movie Room</title>
     <style>
@@ -949,6 +950,14 @@
       .hero-movie::after { z-index: 1; }
       .hero-movie > img { z-index: 0; }
       .hero-preview-video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; opacity: .5; filter: saturate(.92) contrast(1.08); pointer-events: none; }
+      .library-panel { position: relative; isolation: isolate; }
+      .library-background-preview { position: fixed; inset: 0; z-index: -1; width: 100vw; height: 100vh; object-fit: cover; opacity: 0; filter: saturate(.82) contrast(1.08) blur(1px); pointer-events: none; transition: opacity 320ms ease; }
+      .library-panel.hero-focus-mode .library-background-preview { opacity: .26; }
+      .library-panel.hero-focus-mode .hero-movie { box-shadow: 0 28px 70px rgba(0, 0, 0, .68); }
+      .library-panel.hero-focus-mode .discovery-shelves,
+      .library-panel.hero-focus-mode .library-tabs-panel,
+      .library-panel.hero-focus-mode .browse-section { opacity: .82; transition: opacity 260ms ease; }
+      .hero-movie.hero-preview-active { transition: box-shadow 260ms ease, opacity 260ms ease; }
       .hero-copy, .hero-carousel-nav { position: relative; z-index: 2; }
       .library-panel.theater-mode .watch-stage { width: 100%; }
       .library-panel.theater-mode .folder-panel, .library-panel.theater-mode .guidance-area { display: none; }
@@ -1138,6 +1147,9 @@
       body::before { background-color: #061523; filter: blur(10px) saturate(.96); opacity: .48; }
       body::after { background: linear-gradient(180deg, rgba(6,21,35,.18) 0%, rgba(6,21,35,.58) 39%, #061523 82%), linear-gradient(90deg, rgba(6,21,35,.64), transparent 62%); }
       .topbar { min-height: 68px; padding-inline: clamp(18px, 4vw, 64px); background: linear-gradient(180deg, rgba(6,21,35,.98), rgba(6,21,35,.78)); border: 0; box-shadow: 0 14px 34px rgba(0,0,0,.24); }
+      .primary-nav, .topbar-actions { display: none; }
+      .topbar { justify-content: space-between; }
+      .search-wrap { max-width: min(560px, 52vw); margin-left: auto; }
       .brand-primary { color: #a6f1e7; font-size: 23px; font-weight: 900; letter-spacing: -.065em; text-transform: uppercase; }
       .brand-secondary { color: #8fb5c7; }
       .primary-nav { gap: 2px; }
@@ -1150,6 +1162,7 @@
       button { border-radius: 4px; }
       button:not(.secondary):not(.profile-toggle) { background: #e50914; color: #fff; }
       button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+      @media (max-width: 720px) { .search-wrap { width: 100%; max-width: none; margin-left: 0; } }
       .page { width: min(1660px, 100%); padding-inline: clamp(18px, 4vw, 64px); }
       .category-chip, .folder-chip { border-color: #35647c; background: #15364c; color: #edfaff; }
       .category-chip.active, .category-chip[aria-pressed="true"] { border-color: #40d8c0; background: #40d8c0; color: #061523; }
@@ -1300,11 +1313,12 @@
 
     <main id="library-panel" class="page" hidden>
       <p id="catalog-status" class="catalog-status" role="status" aria-live="polite">Loading your library…</p>
+      <video id="library-background-preview" class="library-background-preview" muted loop playsinline preload="metadata" aria-hidden="true" hidden></video>
       <section id="hero-movie" class="hero-movie" aria-labelledby="hero-title">
         <img id="hero-backdrop" src="/movie-room-hero.png" alt="" />
         <video id="hero-preview-video" class="hero-preview-video" muted loop playsinline preload="metadata" aria-hidden="true" hidden></video>
         <div class="hero-copy">
-          <p class="eyebrow">Featured in your library</p>
+          <p class="eyebrow">Trending now</p>
           <h1 id="hero-title">Your private movie room</h1>
           <p id="hero-meta" class="hero-meta"></p>
           <p id="hero-description" class="hero-description">Choose a title below and settle in for the next scene.</p>
@@ -1313,7 +1327,7 @@
             <button id="hero-details" class="secondary" type="button">More info</button>
           </div>
         </div>
-        <div class="hero-carousel-nav" aria-label="Featured in your library carousel">
+        <div class="hero-carousel-nav" aria-label="Trending now carousel">
           <button id="hero-prev" type="button" aria-label="Previous featured movie">‹</button>
           <span id="hero-indicator" class="hero-carousel-indicator">1 / 5</span>
           <button id="hero-next" type="button" aria-label="Next featured movie">›</button>
@@ -1335,6 +1349,7 @@
           <div class="player-frame" hidden>
               <video
               id="player"
+              tabindex="0"
               controls
               preload="auto"
               playsinline
@@ -1489,6 +1504,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260930-remote-clean-ui" defer></script>
+    <script src="/app.js?v=20260930-keyboard-hero-v2" defer></script>
   </body>
 </html>

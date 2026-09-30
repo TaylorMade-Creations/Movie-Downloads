@@ -46,7 +46,7 @@ function harness(extension) {
 }
 
 for (const extension of STREAMABLE_EXTENSIONS) {
-  test(`${extension}: preview keeps the paused second frame after two seconds`, async () => {
+  test(`${extension}: preview keeps a 40-second frame from the three-minute mark`, async () => {
     const h = harness(extension);
     await h.app.loadLibrary();
     const card = h.grid.children[0];
@@ -57,15 +57,15 @@ for (const extension of STREAMABLE_EXTENSIONS) {
     assert.ok(video);
     assert.equal(video.muted, true);
     assert.equal(video.preload, 'auto');
-    video.duration = 120;
+    video.duration = 420;
     video.currentTime = 9;
     video.emit('loadedmetadata');
-    assert.equal(video.currentTime, 0);
+    assert.equal(video.currentTime, 180);
     assert.equal(card.classList.contains('previewing'), false);
     video.emit('playing');
     assert.equal(card.classList.contains('previewing'), true);
     video.currentTime = 2;
-    await h.runTimer(2000);
+    await h.runTimer(40000);
     assert.equal(video.paused, true);
     assert.equal(video.currentTime, 2);
     assert.equal(video.removed, undefined);
