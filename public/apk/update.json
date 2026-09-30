@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "1.0.14",
-  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/TaylorMade-Movies-Android-v1.0.14.apk",
-  "releaseNotes": "Improved Fire TV/WebView remote focus, native page focus on launch, separate search row, Menu tabs, and safer Back navigation."
+  "versionCode": 16,
+  "versionName": "1.0.15",
+  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/TaylorMade-Movies-Android-v1.0.15.apk",
+  "releaseNotes": "Fire TV hero playback now uses the native player for MKV and E-AC-3 audio, with working DPAD focus, play/pause, seek, Full screen, Menu, and Back controls."
 }

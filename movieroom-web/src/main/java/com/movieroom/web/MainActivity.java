@@ -20,6 +20,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.KeyEvent;
 import android.widget.Toast;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -46,6 +47,7 @@ public final class MainActivity extends Activity {
     private boolean storagePromptRequested;
     private boolean networkPromptScheduled;
     private boolean updateCheckInFlight;
+    private boolean nativePlayerStarted;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,6 +128,30 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean isTelevisionDevice() {
+            return MainActivity.this.isTelevisionDevice();
+        }
+
+        @JavascriptInterface
+        public boolean playInNativePlayer(String url, String title, String fileName, String contentType) {
+            if (!isSafePlaybackUrl(url)) {
+                return false;
+            }
+            try {
+                Intent intent = new Intent(MainActivity.this, NativePlayerActivity.class);
+                intent.putExtra(NativePlayerActivity.EXTRA_URL, url);
+                intent.putExtra(NativePlayerActivity.EXTRA_TITLE, title == null ? "Movie Room" : title);
+                intent.putExtra(NativePlayerActivity.EXTRA_FILE_NAME, fileName == null ? "" : fileName);
+                intent.putExtra(NativePlayerActivity.EXTRA_CONTENT_TYPE, contentType == null ? "" : contentType);
+                startActivity(intent);
+                nativePlayerStarted = true;
+                return true;
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
         public void checkForUpdates() {
             runOnUiThread(MainActivity.this::checkForAppUpdate);
         }
@@ -201,6 +227,13 @@ public final class MainActivity extends Activity {
         Uri uri = Uri.parse(value);
         String scheme = uri.getScheme();
         return ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)) && uri.getHost() != null;
+    }
+
+    private boolean isSafePlaybackUrl(String value) {
+        if (!isSafeDownloadUrl(value)) {
+            return false;
+        }
+        return "https".equalsIgnoreCase(Uri.parse(value).getScheme());
     }
 
     private String safeDownloadFileName(String value) {
@@ -319,6 +352,92 @@ public final class MainActivity extends Activity {
                     finish();
                 }
             });
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (!isTelevisionDevice() || !isForwardedRemoteKey(event.getKeyCode())) {
+            return super.dispatchKeyEvent(event);
+        }
+        if (event.getAction() != KeyEvent.ACTION_DOWN || webView == null) {
+            return true;
+        }
+
+        switch (event.getKeyCode()) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                return dispatchNativeDirectional(event);
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                return dispatchNativeSelect();
+            case KeyEvent.KEYCODE_MENU:
+                return dispatchNativeMenu();
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                return dispatchNativePlaybackToggle("MediaPlayPause");
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+                return dispatchNativePlaybackToggle("MediaPlay");
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                return dispatchNativePlaybackToggle("MediaPause");
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                return dispatchNativePlaybackToggle("Rewind");
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                return dispatchNativePlaybackToggle("FastForward");
+            default:
+                return true;
+        }
+    }
+
+    private boolean isForwardedRemoteKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_UP
+            || keyCode == KeyEvent.KEYCODE_DPAD_LEFT
+            || keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+            || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+            || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+            || keyCode == KeyEvent.KEYCODE_ENTER
+            || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+            || keyCode == KeyEvent.KEYCODE_MENU
+            || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+            || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY
+            || keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE
+            || keyCode == KeyEvent.KEYCODE_MEDIA_REWIND
+            || keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD;
+    }
+
+    private boolean dispatchNativeDirectional(KeyEvent event) {
+        String key;
+        switch (event.getKeyCode()) {
+            case KeyEvent.KEYCODE_DPAD_UP: key = "ArrowUp"; break;
+            case KeyEvent.KEYCODE_DPAD_LEFT: key = "ArrowLeft"; break;
+            case KeyEvent.KEYCODE_DPAD_RIGHT: key = "ArrowRight"; break;
+            default: key = "ArrowDown"; break;
+        }
+        return dispatchRemoteCommand(key);
+    }
+
+    private boolean dispatchNativeSelect() {
+        return dispatchRemoteCommand("Enter");
+    }
+
+    private boolean dispatchNativeMenu() {
+        return dispatchRemoteCommand("Menu");
+    }
+
+    private boolean dispatchNativePlaybackToggle(String command) {
+        return dispatchRemoteCommand(command);
+    }
+
+    private boolean dispatchRemoteCommand(String command) {
+        if (webView == null) {
+            return false;
+        }
+        String script = "(function(){return window.MovieRoomHandleRemoteKey && window.MovieRoomHandleRemoteKey("
+            + JSONObject.quote(command)
+            + ") === true;})()";
+        webView.evaluateJavascript(script, null);
+        return true;
     }
 
     private void scheduleNetworkUpdatePrompt() {
@@ -477,6 +596,18 @@ public final class MainActivity extends Activity {
             this.downloadUrl = downloadUrl;
             this.releaseNotes = releaseNotes;
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!nativePlayerStarted || webView == null) {
+            return;
+        }
+        nativePlayerStarted = false;
+        webView.postDelayed(() -> webView.evaluateJavascript(
+            "(function(){return window.MovieRoomNativePlayerClosed && window.MovieRoomNativePlayerClosed() === true;})()",
+            null), 120);
     }
 
     @Override

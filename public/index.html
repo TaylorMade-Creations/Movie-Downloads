@@ -1779,7 +1779,7 @@
         <button id="settings-reload" type="button">Refresh movie library</button>
       </div>
       <p class="settings-download-help">Chrome’s “Install app” installs the portrait PWA. Use this link for the Android APK; it is separate from the private Fire TV shell.</p>
-      <a class="settings-download" href="/downloads/TaylorMade-Movies-Android-v1.0.13.apk" download>Download Android app</a>
+      <a class="settings-download" href="/downloads/TaylorMade-Movies-Android-v1.0.15.apk" download>Download Android app</a>
       <button id="settings-close" class="settings-close" type="button">Close settings</button>
     </main>
 
@@ -1908,6 +1908,7 @@
             <h1 id="now-playing-title">Choose a movie</h1>
             <p id="now-playing-detail" class="now-playing-detail">Select a thumbnail below to start streaming.</p>
             <div class="player-actions" aria-label="TV and phone playback controls">
+              <button id="player-play-pause" class="secondary" type="button" aria-label="Pause movie">Pause</button>
               <button id="seek-backward" class="secondary" type="button" data-key="j" aria-label="Rewind 10 seconds">−10 sec</button>
               <button id="seek-forward" class="secondary" type="button" aria-label="Fast forward 30 seconds">+30 sec</button>
               <button id="cast-tv" type="button">Cast / AirPlay</button>
@@ -2053,6 +2054,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260930-header-v3" defer></script>
+    <script src="/app.js?v=20260930-firetv-native-v1" defer></script>
   </body>
 </html>

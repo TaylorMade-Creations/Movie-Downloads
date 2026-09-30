@@ -14,10 +14,13 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   const build = read("movieroom-web/build.gradle");
   const manifest = read("movieroom-web/src/main/AndroidManifest.xml");
   const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
+  const nativePlayer = read("movieroom-web/src/main/java/com/movieroom/web/NativePlayerActivity.java");
   const app = read("public/app.js");
 
   assert.match(settings, /include ":movieroom-web"/);
   assert.match(build, /applicationId\s+"com\.movieroom\.web"/);
+  assert.match(build, /media3-exoplayer/);
+  assert.match(build, /media3-ui/);
   assert.match(manifest, /android\.permission\.INTERNET/);
   assert.match(manifest, /android\.permission\.ACCESS_NETWORK_STATE/);
   assert.match(manifest, /android\.permission\.READ_EXTERNAL_STORAGE/);
@@ -28,6 +31,7 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(manifest, /android\.permission\.VIBRATE/);
   assert.match(manifest, /android\.permission\.RECEIVE_BOOT_COMPLETED/);
   assert.match(manifest, /android\.intent\.category\.LEANBACK_LAUNCHER/);
+  assert.match(manifest, /\.NativePlayerActivity/);
   assert.doesNotMatch(manifest, /android\.intent\.category\.HOME/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
@@ -56,12 +60,11 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /webView\.requestFocus\(View\.FOCUS_DOWN\)/);
   assert.match(activity, /onBackPressed/);
   assert.match(activity, /MovieRoomBack/);
-  assert.doesNotMatch(activity, /dispatchKeyEvent/);
-  assert.doesNotMatch(activity, /KEYCODE_DPAD_/);
-  assert.doesNotMatch(activity, /dispatchNativeDirectional/);
-  assert.doesNotMatch(activity, /dispatchNativeSelect/);
-  assert.doesNotMatch(activity, /dispatchNativeMenu/);
-  assert.doesNotMatch(activity, /dispatchNativePlaybackToggle/);
+  assert.match(activity, /dispatchKeyEvent/);
+  assert.match(activity, /dispatchNativeDirectional/);
+  assert.match(activity, /dispatchNativeSelect/);
+  assert.match(activity, /dispatchNativeMenu/);
+  assert.match(activity, /dispatchNativePlaybackToggle/);
   assert.doesNotMatch(activity, /MovieRoomMove/);
   assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_PORTRAIT/);
   assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_LANDSCAPE/);
@@ -78,6 +81,10 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /finish\(\)/);
   assert.match(app, /function handleNativeBack/);
   assert.match(app, /function handleNativeBack[\s\S]*?focusInitialHero\(\);\s*return false;/);
+  assert.match(app, /playInNativePlayer/);
+  assert.match(nativePlayer, /ExoPlayer/);
+  assert.match(nativePlayer, /setAudioAttributes/);
+  assert.match(nativePlayer, /video\/x-matroska/);
   const bootReceiver = read("movieroom-web/src/main/java/com/movieroom/web/BootReceiver.java");
   assert.match(manifest, /\.BootReceiver/);
   assert.match(bootReceiver, /ACTION_BOOT_COMPLETED/);

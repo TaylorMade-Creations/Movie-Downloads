@@ -1,8 +1,8 @@
-const CACHE_NAME = "movie-room-shell-v13";
+const CACHE_NAME = "movie-room-shell-v14";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/app.js?v=20260930-header-v3",
+  "/app.js?v=20260930-firetv-native-v1",
   "/viewer-state.js?v=20260929-streaming-home",
   "/manifest.webmanifest",
   "/movie-room-hero.png",

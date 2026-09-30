@@ -18,20 +18,20 @@ test("Movie Room leaves webpage focus to the native Fire TV WebView", () => {
   }
   assert.match(html, /id="settings-dialog"/);
   assert.match(app, /windowRef\.MovieRoomBack/);
-  assert.doesNotMatch(app, /function moveRemoteFocus/);
-  assert.doesNotMatch(app, /function handleRemoteCommand/);
-  assert.doesNotMatch(app, /windowRef\.MovieRoomMove/);
-  assert.doesNotMatch(app, /windowRef\.MovieRoomMenu/);
-  assert.doesNotMatch(app, /windowRef\.MovieRoomTogglePlayback/);
+  assert.match(app, /function moveRemoteFocus/);
+  assert.match(app, /function handleRemoteCommand/);
+  assert.match(app, /windowRef\.MovieRoomHandleRemoteKey/);
+  assert.match(app, /windowRef\.MovieRoomMenu/);
+  assert.match(app, /windowRef\.MovieRoomTogglePlayback/);
   assert.match(html, /\.movie-grid\s*\{[\s\S]*minmax\(120px,\s*138px\)/);
   assert.match(html, /\.movie-rail[^\{]*\{[\s\S]*grid-auto-columns:\s*minmax\(112px,\s*132px\)/);
   assert.match(html, /\.movie-card:focus-visible[\s\S]*outline/);
-  assert.doesNotMatch(app, /handleRemoteCommand\(command\)/);
+  assert.match(app, /handleRemoteCommand\(command\)/);
 });
 
-test("the app does not intercept keyboard or Fire TV remote commands", () => {
-  assert.doesNotMatch(app, /documentRef\.addEventListener\("keydown"/);
-  assert.doesNotMatch(app, /handleRemoteCommand/);
+test("the app handles keyboard and Fire TV remote commands without double-click behavior", () => {
+  assert.match(app, /documentRef\.addEventListener\("keydown"/);
+  assert.match(app, /handleRemoteCommand/);
   assert.doesNotMatch(app, /dblclick/);
 });
 
@@ -40,8 +40,10 @@ test("the WebView allows native focus to reach webpage descendants", () => {
   assert.match(activity, /setFocusable\(true\)/);
   assert.match(activity, /setFocusableInTouchMode\(true\)/);
   assert.match(activity, /setDescendantFocusability\(ViewGroup\.FOCUS_AFTER_DESCENDANTS\)/);
-  assert.doesNotMatch(activity, /dispatchKeyEvent/);
-  assert.doesNotMatch(activity, /KEYCODE_DPAD_/);
+  assert.match(activity, /dispatchKeyEvent/);
+  for (const key of ["KEYCODE_DPAD_UP", "KEYCODE_DPAD_LEFT", "KEYCODE_DPAD_CENTER", "KEYCODE_DPAD_RIGHT", "KEYCODE_DPAD_DOWN"]) {
+    assert.match(activity, new RegExp(key));
+  }
 });
 
 test("the app keeps page Back but leaves Menu and media routing to Fire TV/WebView", () => {
@@ -49,9 +51,16 @@ test("the app keeps page Back but leaves Menu and media routing to Fire TV/WebVi
   assert.match(activity, /onBackPressed/);
   assert.match(activity, /MovieRoomBack/);
   assert.match(app, /function handleNativeBack/);
-  assert.doesNotMatch(activity, /KEYCODE_MENU/);
-  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
-  assert.doesNotMatch(app, /windowRef\.MovieRoomMenu/);
+  assert.match(activity, /KEYCODE_MENU/);
+  assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.match(app, /windowRef\.MovieRoomMenu/);
+});
+
+test("the player has remote-selectable playback controls", () => {
+  assert.match(html, /id="player-play-pause"/);
+  assert.match(html, /id="fullscreen-player"/);
+  assert.match(app, /playerPlayPause/);
+  assert.match(app, /togglePlayerPlayback/);
 });
 
 test("the web app gives search its own row and exposes Menu tabs", () => {

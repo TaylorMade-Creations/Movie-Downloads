@@ -256,6 +256,7 @@ function createApp({
   passwordInput,
   submitButton,
   player,
+  playerPlayPause,
   timeline,
   timelineCurrent,
   timelineDuration,
@@ -409,6 +410,7 @@ function createApp({
   let searchOverlayGenre = "all";
   let searchOverlayPreviousFocus = null;
   let playerVisible = false;
+  let nativePlayerMovie = null;
   let wakeLock = null;
   let keepAwakeWanted = true;
   let safariAirPlayAvailable = false;
@@ -721,7 +723,9 @@ function createApp({
     }
     if (watchStage && watchStage.classList) watchStage.classList.toggle("player-page", playerVisible);
     if (visible) {
-      const playerTarget = player && hasMethod(player, "focus") ? player : closePlayerPage;
+      const playerTarget = playerPlayPause && hasMethod(playerPlayPause, "focus")
+        ? playerPlayPause
+        : player && hasMethod(player, "focus") ? player : closePlayerPage;
       if (playerTarget && hasMethod(playerTarget, "focus")) {
         playerTarget.focus();
       }
@@ -1511,6 +1515,136 @@ function createApp({
       });
   }
 
+  function focusRemoteElement(element) {
+    if (!element || element.disabled || !hasMethod(element, "focus")) return false;
+    try {
+      element.focus({ preventScroll: true });
+    } catch {
+      element.focus();
+    }
+    if (hasMethod(element, "scrollIntoView")) {
+      try {
+        element.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
+      } catch {
+        element.scrollIntoView();
+      }
+    }
+    return true;
+  }
+
+  function moveRemoteFocus(direction) {
+    const elements = visibleFocusableElements();
+    if (!elements.length) return false;
+    const active = documentRef && documentRef.activeElement;
+    const current = elements.includes(active) ? active : elements[0];
+    if (!current) return false;
+    if (current === player && (direction === "left" || direction === "right")) {
+      seekPlayerBy(direction === "left" ? -10 : 30);
+      return true;
+    }
+
+    const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
+    if (!currentRect) return focusRemoteElement(elements[0]);
+    const currentX = currentRect.left + currentRect.width / 2;
+    const currentY = currentRect.top + currentRect.height / 2;
+    let best = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const candidate of elements) {
+      if (candidate === current || !hasMethod(candidate, "getBoundingClientRect")) continue;
+      const rect = candidate.getBoundingClientRect();
+      if (!rect.width || !rect.height) continue;
+      const candidateX = rect.left + rect.width / 2;
+      const candidateY = rect.top + rect.height / 2;
+      const dx = candidateX - currentX;
+      const dy = candidateY - currentY;
+      const primary = direction === "left" || direction === "right" ? dx : dy;
+      const secondary = direction === "left" || direction === "right" ? dy : dx;
+      if (direction === "left" && primary >= -1) continue;
+      if (direction === "right" && primary <= 1) continue;
+      if (direction === "up" && primary >= -1) continue;
+      if (direction === "down" && primary <= 1) continue;
+      const primaryDistance = Math.abs(primary);
+      const secondaryDistance = Math.abs(secondary);
+      const score = primaryDistance * 1000 + secondaryDistance;
+      if (score < bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+
+    if (!best) {
+      const fallback = direction === "left" || direction === "up" ? elements[elements.length - 1] : elements[0];
+      return focusRemoteElement(fallback);
+    }
+    return focusRemoteElement(best);
+  }
+
+  function updatePlayerPlayPauseButton() {
+    if (!playerPlayPause) return;
+    const playing = player && !player.paused && !player.ended;
+    playerPlayPause.textContent = playing ? "Pause" : "Play";
+    playerPlayPause.setAttribute("aria-label", playing ? "Pause movie" : "Play movie");
+  }
+
+  function togglePlayerPlayback() {
+    if (!player || !playerVisible) return false;
+    if (player.paused || player.ended) {
+      const playPromise = player.play();
+      if (playPromise && hasMethod(playPromise, "catch")) playPromise.catch(() => updateStatus("Press select again to start playback."));
+    } else {
+      player.pause();
+    }
+    updatePlayerPlayPauseButton();
+    return true;
+  }
+
+  function handleNativeMenu() {
+    if (playerVisible) {
+      if (hasMethod(player, "pause")) player.pause();
+      setPlayerVisibility(false);
+    }
+    openNavigationPage();
+    return true;
+  }
+
+  function selectRemoteTarget() {
+    const active = documentRef && documentRef.activeElement;
+    if (active === player) return togglePlayerPlayback();
+    if (active && hasMethod(active, "click")) {
+      active.click();
+      return true;
+    }
+    const first = visibleFocusableElements()[0];
+    return focusRemoteElement(first);
+  }
+
+  function handleRemoteCommand(command) {
+    switch (String(command || "")) {
+      case "ArrowUp": return moveRemoteFocus("up");
+      case "ArrowLeft": return moveRemoteFocus("left");
+      case "ArrowRight": return moveRemoteFocus("right");
+      case "ArrowDown": return moveRemoteFocus("down");
+      case "Enter":
+      case "Select":
+      case " ":
+      case "Spacebar": return selectRemoteTarget();
+      case "Back":
+      case "Escape":
+      case "Backspace": return handleNativeBack();
+      case "Menu": return handleNativeMenu();
+      case "MediaPlayPause": return togglePlayerPlayback();
+      case "MediaPlay":
+        if (player && playerVisible && player.paused) return togglePlayerPlayback();
+        return playerVisible;
+      case "MediaPause":
+        if (player && playerVisible && !player.paused) return togglePlayerPlayback();
+        return playerVisible;
+      case "Rewind": return playerVisible && seekPlayerBy(-10);
+      case "FastForward": return playerVisible && seekPlayerBy(30);
+      default: return false;
+    }
+  }
+
   function openSettings() {
     if (!settingsDialog) return false;
     settingsPreviousPage = activePage === "settings" ? settingsPreviousPage : activePage;
@@ -1551,6 +1685,7 @@ function createApp({
       detailsBackdrop.src = backdropSource;
       detailsBackdrop.alt = `${movie.title || movie.fileName || "Selected movie"} backdrop`;
     }
+    if (nativeTvBridge()) return true;
     if (!detailsPreviewVideo || !isMoviePlayable(movie)) return true;
     const version = ++detailsPreviewVersion;
     try {
@@ -1708,6 +1843,42 @@ function createApp({
     return false;
   }
 
+  function nativeTvBridge() {
+    const bridge = windowRef && windowRef.MovieRoomAndroid;
+    if (!bridge || typeof bridge.isTelevisionDevice !== "function" || typeof bridge.playInNativePlayer !== "function") {
+      return null;
+    }
+    try {
+      return bridge.isTelevisionDevice() ? bridge : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function openNativeTvMovie(movie, playback = null) {
+    const bridge = nativeTvBridge();
+    if (!bridge || !movie || !isMoviePlayable(movie)) return false;
+    let resolvedPlayback = playback;
+    if (!resolvedPlayback || !resolvedPlayback.url) {
+      resolvedPlayback = await requestPlaybackLink(movie.id, "Unable to start this title on Fire TV.");
+    }
+    if (!resolvedPlayback || !resolvedPlayback.url) return false;
+    const opened = bridge.playInNativePlayer(
+      String(resolvedPlayback.url),
+      String(movie.title || movie.fileName || "Movie Room"),
+      String(movie.fileName || ""),
+      String(resolvedPlayback.contentType || ""),
+    );
+    if (opened === false) {
+      updateStatus("The Fire TV player could not open this title.");
+      return false;
+    }
+    nativePlayerMovie = movie;
+    updateNowPlaying(movie, resolvedPlayback);
+    updateStatus("Playing the selected title in the Fire TV hero player.");
+    return true;
+  }
+
   function closeMovieDetails() {
     if (!movieDetailsDialog) return false;
     stopDetailsPreview();
@@ -1759,6 +1930,15 @@ function createApp({
     }
     focusInitialHero();
     return false;
+  }
+
+  function handleNativePlayerClosed() {
+    const movie = nativePlayerMovie;
+    nativePlayerMovie = null;
+    if (!movie) return false;
+    setPlayerVisibility(false);
+    openMovieDetails(movie, { autoPlayOnTv: false });
+    return true;
   }
 
   function rememberSearchForProfile(term) {
@@ -2625,7 +2805,7 @@ function createApp({
     return hours ? `${hours}h ${minutes}m remaining` : `${minutes} min remaining`;
   }
 
-  function openMovieDetails(movie) {
+  function openMovieDetails(movie, { autoPlayOnTv = true } = {}) {
     if (!movie) return false;
     if (documentRef && documentRef.activeElement && documentRef.activeElement !== movieDetailsDialog) {
       detailsPreviousFocus = documentRef.activeElement;
@@ -2665,6 +2845,9 @@ function createApp({
     if (movieDetailsDialog) movieDetailsDialog.hidden = false;
     if (detailsPlay && hasMethod(detailsPlay, "focus")) detailsPlay.focus();
     else if (detailsClose && hasMethod(detailsClose, "focus")) detailsClose.focus();
+    if (autoPlayOnTv && nativeTvBridge()) {
+      void openNativeTvMovie(movie).catch((error) => updateStatus(error.message));
+    }
     return true;
   }
 
@@ -3221,6 +3404,10 @@ function createApp({
       resumeAfterRefresh = resumeState;
       stableRefreshPosition = resumeState.position;
     }
+    const currentMovie = selectedMovie();
+    if (currentMovie && nativeTvBridge()) {
+      return openNativeTvMovie(currentMovie, playback);
+    }
     player.preload = "auto";
     player.autoplay = true;
     player.src = /^https?:\/\//i.test(playback.url)
@@ -3530,7 +3717,13 @@ function createApp({
   }
 
   function initialize() {
-    if (windowRef) windowRef.MovieRoomBack = handleNativeBack;
+    if (windowRef) {
+      windowRef.MovieRoomBack = handleNativeBack;
+      windowRef.MovieRoomHandleRemoteKey = handleRemoteCommand;
+      windowRef.MovieRoomMenu = () => handleRemoteCommand("Menu");
+      windowRef.MovieRoomTogglePlayback = () => handleRemoteCommand("MediaPlayPause");
+      windowRef.MovieRoomNativePlayerClosed = handleNativePlayerClosed;
+    }
     if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
       const protocol = windowRef && windowRef.location ? windowRef.location.protocol : "";
       if (protocol === "https:" || protocol === "http:") {
@@ -3811,6 +4004,12 @@ function createApp({
     if (upNextPlay) upNextPlay.addEventListener("click", () => playNextFromQueue());
 
     if (documentRef && typeof documentRef.addEventListener === "function") {
+      documentRef.addEventListener("keydown", (event) => {
+        const command = event && (event.key || event.code);
+        if (!handleRemoteCommand(command)) return;
+        event.preventDefault();
+        event.stopPropagation();
+      });
       documentRef.addEventListener("fullscreenchange", () => {
         const fullscreenElement = documentRef.fullscreenElement || documentRef.webkitFullscreenElement;
         setVideoFullscreenOrientation(Boolean(fullscreenElement));
@@ -3918,6 +4117,10 @@ function createApp({
       });
     }
 
+    if (playerPlayPause) {
+      playerPlayPause.addEventListener("click", () => togglePlayerPlayback());
+    }
+
     if (seekBackwardButton) {
       seekBackwardButton.addEventListener("click", () => seekPlayerBy(-10));
     }
@@ -4003,6 +4206,7 @@ function createApp({
 
     player.addEventListener("playing", () => {
       clearStallRecovery();
+      updatePlayerPlayPauseButton();
       updatePlaybackState("playing");
       if (keepAwakeWanted) {
         requestWakeLock().catch(() => {});
@@ -4046,11 +4250,13 @@ function createApp({
 
     player.addEventListener("pause", () => {
       clearStallRecovery();
+      updatePlayerPlayPauseButton();
       updatePlaybackState("paused");
       savePlaybackProgress("pause").catch(() => {});
     });
     player.addEventListener("ended", () => {
       isSeeking = false;
+      updatePlayerPlayPauseButton();
       clearStallRecovery();
       updatePlaybackState("none");
       releaseWakeLock().catch(() => {});
@@ -4161,6 +4367,7 @@ if (typeof document !== "undefined") {
     passwordInput: document.getElementById("password"),
     submitButton: document.getElementById("login-submit"),
     player: document.getElementById("player"),
+    playerPlayPause: document.getElementById("player-play-pause"),
     timeline: document.getElementById("timeline"),
     timelineCurrent: document.getElementById("timeline-current"),
     timelineDuration: document.getElementById("timeline-duration"),

@@ -10,6 +10,6 @@ movies/
 test-results/
 tmp-runtime/
 *.apk
-!public/downloads/*.apk
+!public/downloads/TaylorMade-Movies-Android-v1.0.15.apk
 skills-lock.json
 0
