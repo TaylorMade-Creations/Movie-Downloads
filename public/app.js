@@ -1473,6 +1473,17 @@ function createApp({
     });
   }
 
+  function handleRemoteCommand(action) {
+    const command = String(action || "").toLowerCase();
+    if (["up", "left", "right", "down"].includes(command)) return moveRemoteFocus(command);
+    if (command === "select" || command === "ok" || command === "center") return activateRemoteTarget();
+    if (command === "back") { remoteBack(); return true; }
+    if (command === "home") { setActivePage("home"); if (heroMovie && hasMethod(heroMovie, "scrollIntoView")) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" }); return true; }
+    if (command === "play" || command === "pause" || command === "playpause") return remotePlayPause();
+    if (command === "settings") return openSettings();
+    return false;
+  }
+
   function rememberSearchForProfile(term) {
     const normalized = String(term || "").trim();
     if (!normalized) return;
@@ -3138,6 +3149,9 @@ function createApp({
     bindRemoteButton(remoteHomeButton, "home");
     bindRemoteButton(remotePlayButton, "play");
     bindRemoteButton(remoteSettingsButton, "settings");
+    if (windowRef) {
+      windowRef.MovieRoomRemote = handleRemoteCommand;
+    }
     if (settingsCloseButton) {
       settingsCloseButton.addEventListener("click", closeSettings);
     }

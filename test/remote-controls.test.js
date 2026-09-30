@@ -19,6 +19,7 @@ test("Movie Room exposes a visible remote control line for keyboard and TV navig
   assert.match(html, /id="settings-bluetooth"/);
   assert.match(app, /function moveRemoteFocus/);
   assert.match(app, /openSettings/);
+  assert.match(app, /MovieRoomRemote/);
   assert.match(app, /remote-control-bar/);
   assert.match(app, /arrowleft|arrowright/i);
   assert.match(html, /\.movie-grid\s*\{[\s\S]*minmax\(120px,\s*138px\)/);

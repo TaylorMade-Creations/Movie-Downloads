@@ -70,10 +70,46 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private String remoteActionForKeyCode(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                return "up";
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                return "down";
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                return "left";
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                return "right";
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                return "select";
+            case KeyEvent.KEYCODE_BACK:
+                return "back";
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                return "playpause";
+            case KeyEvent.KEYCODE_MENU:
+                return "settings";
+            default:
+                return null;
+        }
+    }
+
+    private boolean dispatchRemoteAction(String action) {
+        if (webView == null || action == null) {
+            return false;
+        }
+        webView.requestFocus();
+        webView.evaluateJavascript("window.MovieRoomRemote && window.MovieRoomRemote('" + action + "');", null);
+        return true;
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_UP && event.getKeyCode() == KeyEvent.KEYCODE_BACK && webView != null && webView.canGoBack()) {
-            webView.goBack();
+        String action = remoteActionForKeyCode(event.getKeyCode());
+        if (action != null) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                return dispatchRemoteAction(action);
+            }
             return true;
         }
         return super.dispatchKeyEvent(event);
