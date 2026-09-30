@@ -18,6 +18,10 @@
         --line: #303234;
       }
 
+      body[data-viewer-profile="mom"] { --gold: #e6a6b8; --gold-soft: #ffd0dc; }
+      body[data-viewer-profile="morganne"] { --gold: #bba4ff; --gold-soft: #d6c8ff; }
+      body[data-viewer-profile="kids"] { --gold: #65d7e8; --gold-soft: #a6f1f8; }
+
       * {
         box-sizing: border-box;
       }
@@ -204,6 +208,56 @@
         outline: 2px solid rgba(240, 196, 91, 0.22);
         outline-offset: 1px;
       }
+
+      .search-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: start center;
+        padding: 92px 24px 24px;
+        background: rgba(0, 0, 0, .74);
+        backdrop-filter: blur(18px);
+      }
+
+      .search-overlay-panel {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        width: min(1120px, 100%);
+        max-height: min(820px, calc(100vh - 116px));
+        overflow: hidden;
+        border: 1px solid rgba(240, 196, 91, .38);
+        border-radius: 18px;
+        background: rgba(17, 17, 17, .98);
+        box-shadow: 0 30px 90px rgba(0, 0, 0, .75);
+      }
+
+      .search-overlay-header,
+      .search-overlay-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+      }
+
+      .search-overlay-header { border-bottom: 1px solid #2d2d2d; }
+      .search-overlay-header h2 { margin: 0; color: var(--gold-soft); }
+      .search-overlay-toolbar { overflow-x: auto; justify-content: flex-start; border-bottom: 1px solid #2d2d2d; }
+      .search-overlay-summary { margin: 0; color: #aaa; font-size: 14px; }
+      .search-overlay-genres { display: flex; gap: 8px; min-width: max-content; }
+      .search-genre-chip { border: 1px solid #3e3e3e; border-radius: 999px; padding: 8px 12px; background: #222; color: #ddd; white-space: nowrap; }
+      .search-genre-chip.active, .search-genre-chip:hover, .search-genre-chip:focus-visible { border-color: var(--gold); background: #3c3018; color: #fff; }
+      .search-overlay-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; overflow: auto; padding: 20px 22px 26px; }
+      .search-result { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; min-height: 104px; padding: 8px; border: 1px solid #303030; border-radius: 12px; background: #1b1b1b; color: #fff; text-align: left; }
+      .search-result:hover, .search-result:focus-visible { border-color: var(--gold); background: #252525; transform: translateY(-1px); }
+      .search-result-poster { position: relative; display: block; overflow: hidden; border-radius: 8px; aspect-ratio: 2 / 3; background: #0b0b0b; }
+      .search-result-poster img { width: 100%; height: 100%; object-fit: cover; }
+      .search-result-info { display: grid; align-content: center; gap: 7px; min-width: 0; }
+      .search-result-info strong { overflow: hidden; font-size: 15px; line-height: 1.2; text-overflow: ellipsis; }
+      .search-result-info span { color: #aaa; font-size: 12px; line-height: 1.3; }
+      .search-result-action { color: var(--gold-soft) !important; font-weight: 700; }
+      .search-empty-state { grid-column: 1 / -1; margin: 24px 0; color: #bbb; text-align: center; }
 
       .page {
         width: min(1500px, 100%);
@@ -1146,14 +1200,30 @@
           </button>
           <div id="profile-menu" class="profile-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-viewer-profile="home">Home</button>
-            <button type="button" role="menuitem" data-viewer-profile="family">Family</button>
-            <button type="button" role="menuitem" data-viewer-profile="guest">Guest</button>
+            <button type="button" role="menuitem" data-viewer-profile="mom">Mom</button>
+            <button type="button" role="menuitem" data-viewer-profile="morganne">Morganne</button>
+            <button type="button" role="menuitem" data-viewer-profile="kids">Kids</button>
           </div>
         </div>
         <button id="reload" class="secondary" type="button">Reload</button>
         <button id="logout" class="secondary" type="button">Log out</button>
       </div>
     </header>
+
+    <section id="search-overlay" class="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-overlay-title" aria-hidden="true" hidden>
+      <div class="search-overlay-panel">
+        <div class="search-overlay-header">
+          <div>
+            <p class="eyebrow">Browse your private library</p>
+            <h2 id="search-overlay-title">Search and browse</h2>
+            <p id="search-overlay-summary" class="search-overlay-summary"></p>
+          </div>
+          <button id="search-overlay-close" class="secondary" type="button" aria-label="Close search and browse">Close</button>
+        </div>
+        <div id="search-overlay-genres" class="search-overlay-toolbar" aria-label="Search genres and saved categories"></div>
+        <div id="search-overlay-results" class="search-overlay-results" tabindex="0" aria-live="polite"></div>
+      </div>
+    </section>
 
     <section id="auth-panel" class="auth-panel">
       <h1>Movie Room</h1>
@@ -1337,6 +1407,7 @@
         <p id="details-description" class="detail"></p>
         <div class="hero-actions">
           <button id="details-play" type="button">▶ Play</button>
+          <button id="details-favorite" class="secondary" type="button">☆ Add Favorite</button>
           <button id="details-watch-later" class="secondary" type="button">＋ Watch Later</button>
           <button id="details-queue" class="secondary" type="button">Add to queue</button>
         </div>

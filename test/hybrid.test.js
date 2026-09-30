@@ -92,6 +92,44 @@ test("hybrid provider uses Jellyfin compatibility playback for browser-hostile c
   assert.deepEqual(compatibilityRequests, [{ id: "jellyfin-movie-1", options: { transcode: true } }]);
 });
 
+test("hybrid provider refreshes a stale Jellyfin index before exposing a new MKV", async () => {
+  let refreshed = false;
+  const jellyfinProvider = {
+    async listLibrary() {
+      return refreshed
+        ? { movies: [{ id: "jellyfin-bomb", fileName: "Bomb Girls Facing the Enemy.mkv", folder: "Movies/Bomb Girls Facing the Enemy", extension: ".mkv" }], folders: [] }
+        : { movies: [], folders: [] };
+    },
+    async refreshLibrary() { refreshed = true; },
+    async resolvePlayback(id, options) {
+      assert.equal(id, "jellyfin-bomb");
+      assert.deepEqual(options, { transcode: true });
+      return { url: "/api/jellyfin/stream?movieId=jellyfin-bomb&transcode=1", contentType: "video/mp4" };
+    },
+  };
+  const provider = createHybridProvider({
+    jellyfinProvider,
+    oneDriveProvider: {
+      async listLibrary() {
+        return { movies: [{ id: "cloud-bomb", fileName: "Bomb Girls Facing the Enemy.mkv", folder: "Movies/Bomb Girls Facing the Enemy", size: 100 }], folders: [] };
+      },
+      async resolvePlayback() { return { url: "https://cloud.example/bomb" }; },
+    },
+    localProvider: {
+      async listLibrary() {
+        return { movies: [{ id: "local-bomb", fileName: "Bomb Girls Facing the Enemy.mkv", folder: "Movies/Bomb Girls Facing the Enemy", extension: ".mkv", size: 100 }], folders: [] };
+      },
+    },
+  });
+
+  const library = await provider.listLibrary();
+  assert.equal(library.movies[0].id, "jellyfin-bomb");
+  assert.deepEqual(await provider.resolvePlayback("jellyfin-bomb"), {
+    url: "/api/jellyfin/stream?movieId=jellyfin-bomb&transcode=1",
+    contentType: "video/mp4",
+  });
+});
+
 test("hybrid provider fails safely instead of playing an unrelated cloud file", async () => {
   const provider = createHybridProvider({
     jellyfinProvider: {

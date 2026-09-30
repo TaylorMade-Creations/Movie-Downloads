@@ -17,6 +17,8 @@ The user wants:
 - Search to open a separate scrollable menu rather than only filtering the current page.
 - Browsing by all movies and genres from that menu.
 - Selecting a movie to open a player with website and browser media controls.
+- Four distinct viewer profiles: Home, Mom, Morganne, and Kids, each with its own saved choices and discovery mix.
+- Newly uploaded browser-hostile files such as MKV to refresh Jellyfin indexing before playback so audio is preserved through H.264/AAC compatibility transcoding.
 - A polished private streaming experience modeled on familiar commercial streaming services, within normal browser and device media limitations.
 
 ## In scope
@@ -44,6 +46,7 @@ The user wants:
 - Show title details before or alongside playback when metadata is available.
 - Preserve play/pause, seek timeline, skip backward/forward, volume/mute, fullscreen, theater mode, miniplayer, native browser controls, resume position, and Up Next behavior.
 - Keep unsupported formats and unavailable cloud files as explicit, actionable states.
+- When hybrid mode sees a newly uploaded browser-hostile local file missing from Jellyfin, request a bounded Jellyfin library refresh before falling back to direct cloud playback.
 - Keep the experience responsive for desktop, phone-sized, and TV-sized browser layouts.
 
 ## Explicit limits
@@ -72,6 +75,7 @@ The app will provide a private streaming experience using browser media APIs. It
 - Overlay has an accessible dialog label, focus target, close button, and Escape handling.
 - Cards have clear accessible names and one primary activation path.
 - Search loading, no results, missing artwork, unavailable playback, and expired session states are visible in plain language.
+- Profile switching updates the active saved-state namespace and discovery palette without mixing another viewer's favorites or history.
 - Existing poster fallback remains an image, never a video frame unless explicitly generated as safe artwork.
 - Focus rings remain visible and controls retain touch-sized targets.
 

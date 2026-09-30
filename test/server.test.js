@@ -238,10 +238,10 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
       return { ok: true, status: 200, async json() { return { revision: 1 }; } };
     },
   });
-  const state = await client.load("family");
+  const state = await client.load("mom");
   assert.deepEqual(state, { revision: 1 });
-  await client.apply("family", [{ type: "queueAdd", movieId: "movie-1" }]);
-  assert.equal(calls[0].url, "/api/viewer-state?profileId=family");
+  await client.apply("mom", [{ type: "queueAdd", movieId: "movie-1" }]);
+  assert.equal(calls[0].url, "/api/viewer-state?profileId=mom");
   assert.equal(calls[1].options.method, "PATCH");
   assert.match(calls[1].options.body, /queueAdd/);
 });
@@ -298,8 +298,9 @@ test("exposes phone and TV playback controls", () => {
   assert.match(html, /id="seek-forward"/);
   assert.match(html, /player-frame:fullscreen \.fullscreen-overlay/);
   assert.match(html, /id="profile-toggle"/);
-  assert.match(html, /data-viewer-profile="family"/);
-  assert.match(html, /data-viewer-profile="guest"/);
+  assert.match(html, /data-viewer-profile="mom"/);
+  assert.match(html, /data-viewer-profile="morganne"/);
+  assert.match(html, /data-viewer-profile="kids"/);
   assert.match(html, /x-webkit-airplay="allow"/);
   assert.match(html, /webkit-playsinline/);
   assert.match(html, /id="buffer-status"/);
@@ -939,11 +940,11 @@ test("synchronizes viewer state between a browser profile and its paired Fire TV
   const firstMovie = libraryMovies[0].id;
   const secondMovie = libraryMovies[1].id;
 
-  const initial = await fetch(`${origin}/api/viewer-state?profileId=family`, {
+  const initial = await fetch(`${origin}/api/viewer-state?profileId=mom`, {
     headers: { Cookie: sessionCookie },
   });
   assert.equal(initial.status, 200);
-  assert.equal((await initial.json()).profileId, "family");
+  assert.equal((await initial.json()).profileId, "mom");
 
   const update = await fetch(`${origin}/api/viewer-state`, {
     method: "PATCH",
@@ -953,7 +954,7 @@ test("synchronizes viewer state between a browser profile and its paired Fire TV
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      profileId: "family",
+      profileId: "mom",
       operations: [
         { type: "progress", movieId: firstMovie, positionSeconds: 42, durationSeconds: 600 },
         { type: "setFlag", movieId: firstMovie, flag: "favorite", value: true },

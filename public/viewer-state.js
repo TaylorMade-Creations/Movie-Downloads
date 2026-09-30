@@ -7,14 +7,16 @@
     root.MovieRoomViewerState = api;
   }
 }(typeof window !== "undefined" ? window : globalThis, function createModule() {
-  const profiles = new Set(["home", "family", "guest"]);
+  const profiles = new Set(["home", "mom", "morganne", "kids"]);
+  const legacyProfileAliases = new Map([["family", "mom"], ["guest", "kids"]]);
 
   function normalizeProfileId(value) {
     const profileId = String(value || "").trim().toLowerCase();
-    if (!profiles.has(profileId)) {
+    const canonical = legacyProfileAliases.get(profileId) || profileId;
+    if (!profiles.has(canonical)) {
       throw new Error("A valid viewer profile is required.");
     }
-    return profileId;
+    return canonical;
   }
 
   function createViewerStateClient({ fetchImpl = fetch, onUnauthorized = () => {} } = {}) {
