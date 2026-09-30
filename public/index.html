@@ -1750,6 +1750,20 @@
         color: #8fb5c7;
       }
 
+      /* Keep async catalog chatter available to assistive technology without covering the hero. */
+      .catalog-status {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        border: 0;
+        padding: 0;
+        clip: rect(0, 0, 0, 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
       .page {
         width: min(1560px, 100%);
         padding-inline: clamp(16px, 3vw, 52px);

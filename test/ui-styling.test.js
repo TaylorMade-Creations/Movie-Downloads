@@ -12,6 +12,7 @@ test("the final web UI pass keeps search separate and gives remote focus a clear
   assert.ok(finalPass.startsWith("/* Final responsive web UI pass"));
   assert.match(finalPass, /\.topbar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/);
   assert.match(finalPass, /\.search-row\s*\{[\s\S]*?border-radius:\s*14px/);
+  assert.match(finalPass, /\.catalog-status\s*\{[\s\S]*?clip-path:\s*inset\(50%\)/);
   assert.match(finalPass, /:where\(button, input, select, a, \[tabindex\]\):focus-visible[\s\S]*?outline:\s*3px solid var\(--ui-focus\)/);
   assert.match(finalPass, /button:focus-visible[\s\S]*?outline:\s*3px solid #ffd166/);
   assert.match(finalPass, /@media \(min-width: 1200px\)[\s\S]*?\.movie-card/);
