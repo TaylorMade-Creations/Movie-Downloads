@@ -1328,6 +1328,7 @@ function createApp({
     }
 
     return {
+      ...(payload || {}),
       movies: payload && Array.isArray(payload.movies) ? payload.movies.map(ensureArtwork) : [],
       folders: payload && Array.isArray(payload.folders) ? payload.folders : [],
     };
@@ -1478,7 +1479,7 @@ function createApp({
       ["genres", "Genres", new Set(allMovies.flatMap((movie) => genresForMovie(movie))).size],
     ];
     const categoryGroups = [
-      ["all", "All"],
+      ["all", "Entire Library"],
       ["adults", "Adults"],
       ["kids", "Kids"],
       ["family", "Family"],
@@ -2186,9 +2187,13 @@ function createApp({
     return response.json();
   }
 
-  async function loadLibrary(selectedMovieId = movieSelect.value) {
-    updateStatus("Loading library…");
-    movieSelect.disabled = true;
+  async function loadLibrary(selectedMovieId = movieSelect.value, options = {}) {
+    const forceRefresh = options.forceRefresh === true;
+    const quiet = options.quiet === true;
+    if (!quiet) {
+      updateStatus("Loading library…");
+      movieSelect.disabled = true;
+    }
 
     if (viewerStateClient && continueWatchingShelf) {
       try {
@@ -2202,7 +2207,7 @@ function createApp({
     let usingCachedLibrary = false;
     try {
       const response = await handleApiResponse(
-        await fetchImpl("/api/library", { credentials: "same-origin" }),
+        await fetchImpl(forceRefresh ? "/api/library?refresh=1" : "/api/library", { credentials: "same-origin" }),
         "Unable to load movie library.",
       );
       library = normalizeLibraryPayload(await response.json());
@@ -2212,6 +2217,12 @@ function createApp({
       library = readCachedLibrary();
       if (!library) throw error;
       usingCachedLibrary = true;
+    }
+    const providerCacheStale = library.cacheStatus === "stale";
+    if (providerCacheStale && !forceRefresh) {
+      setTimeoutImpl(() => {
+        loadLibrary(selectedMovieId, { forceRefresh: true, quiet: true }).catch(() => {});
+      }, 0);
     }
     const movies = library.movies;
     allMovies = movies;
@@ -2225,7 +2236,7 @@ function createApp({
       player.removeAttribute("src");
       player.load();
       updateNowPlaying(null);
-      updateStatus("No movie files found yet. When the files finish showing up in the Downloads folder, they will appear here.");
+      if (!quiet) updateStatus("No movie files found yet. When the files finish showing up in the Downloads folder, they will appear here.");
       return [];
     }
 
@@ -2248,7 +2259,7 @@ function createApp({
       player.removeAttribute("src");
       player.load();
       updateNowPlaying(null);
-      updateStatus("Movie files are listed, but they are still uploading to OneDrive.");
+      if (!quiet) updateStatus("Movie files are listed, but they are still uploading to OneDrive.");
       return [];
     }
 
@@ -2261,12 +2272,22 @@ function createApp({
     movieSelect.disabled = false;
     if (!playerVisible) {
       updateNowPlaying(null);
-      updateStatus(usingCachedLibrary
-        ? "Showing your last complete library while OneDrive reconnects."
-        : "Library ready. Choose a movie to start streaming.");
+      if (!quiet) {
+        updateStatus(usingCachedLibrary || providerCacheStale
+          ? "Showing your saved library while OneDrive checks for new movies."
+          : "Library ready. Choose a movie to start streaming.");
+      } else if (!providerCacheStale) {
+        updateStatus("Library updated. Choose a movie to start streaming.");
+      }
     } else {
       updateNowPlaying(selectedMovie());
-      updateStatus(usingCachedLibrary ? "Showing the saved library while OneDrive reconnects." : "Library ready.");
+      if (!quiet) {
+        updateStatus(usingCachedLibrary || providerCacheStale
+          ? "Showing the saved library while OneDrive checks for new movies."
+          : "Library ready.");
+      } else if (!providerCacheStale) {
+        updateStatus("Library updated.");
+      }
     }
     renderLibrary();
     return playableMovies;
@@ -2678,7 +2699,14 @@ function createApp({
           const action = button.dataset.mobileAction;
           if (action === "search" && searchInput) searchInput.focus();
           if (action === "home" && heroMovie) heroMovie.scrollIntoView({ behavior: "smooth", block: "start" });
-          if (action === "library" && movieGrid) movieGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+          if (action === "library") {
+            activeLibraryView = "movies";
+            activeFolder = "all";
+            activeCategory = "all";
+            setActivePage("library");
+            renderLibrary();
+            if (movieGrid) movieGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
         });
       }
     }
@@ -2699,7 +2727,7 @@ function createApp({
     reloadButton.addEventListener("click", async () => {
       try {
         const previousSelection = movieSelect.value;
-        const movies = await loadLibrary(previousSelection);
+        const movies = await loadLibrary(previousSelection, { forceRefresh: true });
 
         if (movies.length && !playerVisible) {
           updateStatus("Library ready. Choose a movie to start streaming.");

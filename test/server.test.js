@@ -211,6 +211,8 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   assert.match(html, /aspect-ratio: 2 \/ 3/);
   assert.match(html, /\.poster > img \+ \.poster-fallback/);
   assert.match(appSource, /style\.setProperty\("--page-backdrop"/);
+  assert.match(html, /data-mobile-action="library"/);
+  assert.match(appSource, /activeLibraryView = "movies";\s*activeFolder = "all";\s*activeCategory = "all";\s*setActivePage\("library"\);\s*renderLibrary\(\);/);
   assert.match(html, /id="recent-title">Recently Downloaded/);
   assert.ok(html.indexOf('id="hero-movie"') < html.indexOf('id="category-shelf"'));
   assert.ok(html.indexOf('id="category-shelf"') < html.indexOf('id="continue-watching-shelf"'));
@@ -220,7 +222,7 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   assert.match(html, /id="recently-added-shelf"/);
   assert.match(html, /id="movie-details-dialog"/);
   assert.match(html, /id="mobile-nav"/);
-  assert.match(appSource, /\["all", "All"\]/);
+  assert.match(appSource, /\["all", "Entire Library"\]/);
   assert.match(appSource, /\["family", "Family"\]/);
   assert.match(appSource, /\["horror", "Horror"\]/);
   assert.match(appSource, /\["action", "Action"\]/);
@@ -1096,6 +1098,75 @@ test("redirects a valid Cast ticket to a fresh OneDrive playback URL", async (t)
   assert.equal(streamResponse.headers.get("access-control-allow-origin"), "*");
 });
 
+test("library API prefers a deployed poster over a stale OneDrive artwork URL", async (t) => {
+  const { root, publicDir } = createTempLibrary();
+  fs.mkdirSync(path.join(publicDir, "posters"), { recursive: true });
+  fs.writeFileSync(path.join(publicDir, "posters", "stable-movie.jpg"), "stable-poster");
+  const provider = {
+    kind: "onedrive",
+    async listLibrary() {
+      return {
+        movies: [{
+          id: "stable-movie",
+          title: "Stable Movie",
+          fileName: "Stable Movie.mp4",
+          year: 2025,
+          size: 1024,
+          posterUrl: "/api/onedrive/image/expired-poster-id",
+        }],
+        folders: [],
+      };
+    },
+  };
+  const server = await startServer(createAuthOptions({ publicDir, provider }));
+  t.after(() => {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const { port } = server.address();
+  const authResponse = await login(port);
+  const libraryResponse = await fetch(`http://127.0.0.1:${port}/api/library`, {
+    headers: { Cookie: authResponse.headers.get("set-cookie") },
+  });
+  assert.equal(libraryResponse.status, 200);
+  const library = await libraryResponse.json();
+  assert.equal(library.movies[0].posterUrl, "/posters/stable-movie.jpg");
+  assert.equal(library.movies[0].posterFallbackUrl, "/api/artwork?title=Stable+Movie&year=2025");
+});
+
+test("authenticated library refresh route awaits the provider refresh", async (t) => {
+  const { root, publicDir } = createTempLibrary();
+  let listCalls = 0;
+  let refreshCalls = 0;
+  const provider = {
+    kind: "onedrive",
+    async listLibrary() {
+      listCalls += 1;
+      return { movies: [{ id: "cached", title: "Cached Movie", size: 1 }], folders: [], cacheStatus: "stale" };
+    },
+    async refreshLibrary() {
+      refreshCalls += 1;
+      return { movies: [{ id: "fresh", title: "Fresh Movie", size: 2 }], folders: [], cacheStatus: "fresh" };
+    },
+  };
+  const server = await startServer(createAuthOptions({ publicDir, provider }));
+  t.after(() => {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const { port } = server.address();
+  const authResponse = await login(port);
+  const headers = { Cookie: authResponse.headers.get("set-cookie") };
+  const cachedResponse = await fetch(`http://127.0.0.1:${port}/api/library`, { headers });
+  const freshResponse = await fetch(`http://127.0.0.1:${port}/api/library?refresh=1`, { headers });
+  assert.equal((await cachedResponse.json()).movies[0].title, "Cached Movie");
+  assert.equal((await freshResponse.json()).movies[0].title, "Fresh Movie");
+  assert.equal(listCalls, 1);
+  assert.equal(refreshCalls, 1);
+});
+
 test("artwork resolver falls back to television artwork for series titles", async () => {
   const calls = [];
   const resolver = createArtworkResolver({
@@ -1889,6 +1960,72 @@ test("selects an uploaded movie and labels unfinished OneDrive entries", async (
   assert.equal(options[1].disabled, true);
   assert.match(options[1].textContent, /still uploading/i);
   assert.equal(options[2].disabled, false);
+});
+
+test("stale library first paint starts one awaited server refresh request", async () => {
+  const requests = [];
+  const options = [];
+  const movieSelect = {
+    value: "",
+    disabled: true,
+    addEventListener() {},
+    appendChild(option) {
+      options.push(option);
+      if (!this.value) this.value = option.value;
+    },
+  };
+  Object.defineProperty(movieSelect, "innerHTML", {
+    get() { return ""; },
+    set() {
+      options.length = 0;
+      this.value = "";
+    },
+  });
+  const app = createApp({
+    movieSelect,
+    reloadButton: {},
+    logoutButton: {},
+    passwordForm: {},
+    passwordInput: {},
+    player: { load() {}, removeAttribute() {} },
+    status: { textContent: "" },
+    loginStatus: {},
+    authPanel: {},
+    libraryPanel: {},
+    fetchImpl: async (url) => {
+      requests.push(url);
+      if (url === "/api/library") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            movies: [{ id: "cached", title: "Cached Movie", size: 1 }],
+            folders: [],
+            cacheStatus: "stale",
+          }),
+        };
+      }
+      if (url === "/api/library?refresh=1") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            movies: [{ id: "fresh", title: "Fresh Movie", size: 2 }],
+            folders: [],
+            cacheStatus: "fresh",
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+    createOption: () => ({}),
+  });
+
+  const firstPaint = await app.loadLibrary();
+  assert.equal(firstPaint[0].title, "Cached Movie");
+  await waitForCondition(() => requests.includes("/api/library?refresh=1"));
+  await waitForCondition(() => options.some((option) => option.textContent.includes("Fresh Movie")));
+  assert.deepEqual(requests, ["/api/library", "/api/library?refresh=1"]);
 });
 
 test("shows Chrome cast guidance when browser cast APIs are unavailable", async () => {
@@ -2834,6 +2971,117 @@ test("serves the persisted OneDrive catalog immediately while refresh is hung", 
   assert.equal(result.movies[0].title, "Cached Movie");
   await waitForCondition(() => refreshStarted);
   await new Promise((resolve) => setTimeout(resolve, 50));
+});
+
+test("awaited OneDrive refresh reuses unchanged sidecars and discovers new cloud movies", async () => {
+  const store = new MemoryStore();
+  await seedOneDriveLibraryCache(store, {
+    movies: [{
+      id: "existing-video",
+      title: "Existing Metadata",
+      fileName: "Existing.mp4",
+      folder: "",
+      size: 100,
+      metadataSource: "jellyfin",
+      metadataSidecarETag: "sidecar-v1",
+      metadata: { title: "Existing Metadata", year: 2020, overview: "Cached sidecar" },
+    }],
+    folders: [],
+    series: [],
+  });
+  const sidecarFetches = [];
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+      ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS: "1000",
+    },
+    store,
+    fetchImpl: async (url) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("/oauth2/v2.0/token")) {
+        return new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (requestUrl.includes("/root-item/children")) {
+        return new Response(JSON.stringify({
+          value: [
+            { id: "incomplete-folder", name: ".incomplete", folder: {} },
+            { id: "existing-video", name: "Existing.mp4", file: {}, size: 100 },
+            { id: "existing-sidecar", name: "Existing.jellyfin.json", file: {}, eTag: "sidecar-v1" },
+            { id: "fresh-video", name: "Fresh.mp4", file: {}, size: 200 },
+            { id: "fresh-sidecar", name: "Fresh.jellyfin.json", file: {}, eTag: "fresh-v1" },
+          ],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (requestUrl.includes("/existing-sidecar/content")) {
+        throw new Error("unchanged sidecar was downloaded again");
+      }
+      if (requestUrl.includes("/fresh-sidecar/content")) {
+        sidecarFetches.push("fresh");
+        return new Response(null, { status: 302, headers: { Location: "https://content.example/fresh-sidecar" } });
+      }
+      if (requestUrl === "https://content.example/fresh-sidecar") {
+        return new Response(JSON.stringify({ title: "Fresh Metadata", year: 2026, overview: "New sidecar" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (requestUrl.includes("/incomplete-folder/children")) {
+        throw new Error("the incomplete download folder was scanned");
+      }
+      throw new Error(`Unexpected request ${requestUrl}`);
+    },
+  });
+
+  const refreshed = await provider.refreshLibrary();
+  assert.deepEqual(refreshed.movies.map((movie) => movie.title), ["Existing Metadata", "Fresh Metadata"]);
+  assert.deepEqual(sidecarFetches, ["fresh"]);
+  const persisted = JSON.parse(await store.get("onedrive:library:drive-id:root-item"));
+  assert.deepEqual(persisted.library.movies.map((movie) => movie.title), ["Existing Metadata", "Fresh Metadata"]);
+});
+
+test("awaited OneDrive refresh keeps the persisted catalog when Graph times out", async () => {
+  const store = new MemoryStore();
+  const cachedLibrary = {
+    movies: [{ id: "safe", title: "Safe Movie", fileName: "Safe.mp4", size: 100 }],
+    folders: [],
+    series: [],
+  };
+  await seedOneDriveLibraryCache(store, cachedLibrary);
+  const provider = createOneDriveProvider({
+    env: {
+      ONEDRIVE_CLIENT_ID: "client-id",
+      ONEDRIVE_CLIENT_SECRET: "client-secret",
+      ONEDRIVE_REDIRECT_URI: "http://localhost/callback",
+      ONEDRIVE_REFRESH_TOKEN: "refresh-token",
+      ONEDRIVE_DRIVE_ID: "drive-id",
+      ONEDRIVE_ROOT_ITEM_ID: "root-item",
+      ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS: "25",
+    },
+    store,
+    fetchImpl: async (url) => {
+      if (String(url).includes("/oauth2/v2.0/token")) {
+        return new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Promise(() => {});
+    },
+  });
+
+  const refreshed = await provider.refreshLibrary();
+  assert.equal(refreshed.cacheStatus, "stale");
+  assert.equal(refreshed.movies[0].title, "Safe Movie");
+  const persisted = JSON.parse(await store.get("onedrive:library:drive-id:root-item"));
+  assert.deepEqual(persisted.library, cachedLibrary);
 });
 
 test("normalizes stale cached episode names before rebuilding series groups", async () => {

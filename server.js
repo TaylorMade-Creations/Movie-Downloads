@@ -9,8 +9,10 @@ const { R_OK } = fs.constants;
 
 const {
   getContentType,
+  hasBundledPoster,
   isStreamableExtension,
   movieTitleFromName,
+  posterUrlFromTitle,
 } = require("./lib/media");
 const { createLocalProvider } = require("./lib/providers/local");
 const { createOneDriveProvider } = require("./lib/providers/onedrive");
@@ -83,15 +85,21 @@ function artworkLookupUrl(movie) {
   return `/api/artwork?${params.toString()}`;
 }
 
-function addArtworkFallbacks(library) {
+function addArtworkFallbacks(library, publicDir) {
   if (!library || !Array.isArray(library.movies)) return library;
   return {
     ...library,
     movies: library.movies.map((movie) => {
       const fallback = artworkLookupUrl(movie);
+      const bundledPoster = hasBundledPoster(movie.title || movie.fileName, publicDir)
+        ? posterUrlFromTitle(movie.title || movie.fileName)
+        : "";
       return {
         ...movie,
-        posterUrl: movie.posterUrl || fallback,
+        // Artwork synchronized into the deployed application is stable across
+        // browsers and serverless instances. Prefer it over an old OneDrive
+        // item redirect retained in the durable catalog cache.
+        posterUrl: bundledPoster || movie.posterUrl || fallback,
         posterFallbackUrl: movie.posterFallbackUrl || fallback,
       };
     }),
@@ -1207,7 +1215,7 @@ function createRequestHandler(options = {}) {
         const library = typeof context.provider.listLibrary === "function"
           ? await context.provider.listLibrary()
           : { movies: await context.provider.listMovies(), folders: [] };
-        await sendJson(response, 200, addArtworkFallbacks(library), noStoreHeaders());
+        await sendJson(response, 200, addArtworkFallbacks(library, context.publicDir), noStoreHeaders());
         return;
       }
 
@@ -1338,10 +1346,13 @@ function createRequestHandler(options = {}) {
 
       if (request.method === "GET" && url.pathname === "/api/library") {
         await context.sessionManager.get(request, true);
-        const library = typeof context.provider.listLibrary === "function"
-          ? await context.provider.listLibrary()
+        const forceRefresh = url.searchParams.get("refresh") === "1";
+        const library = forceRefresh && typeof context.provider.refreshLibrary === "function"
+          ? await context.provider.refreshLibrary()
+          : typeof context.provider.listLibrary === "function"
+            ? await context.provider.listLibrary()
           : { movies: await context.provider.listMovies(), folders: [] };
-        await sendJson(response, 200, addArtworkFallbacks(library), noStoreHeaders());
+        await sendJson(response, 200, addArtworkFallbacks(library, context.publicDir), noStoreHeaders());
         return;
       }
 
