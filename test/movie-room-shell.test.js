@@ -31,6 +31,9 @@ test("Movie Room shell renders a native home screen with profiles and controls",
   assert.match(activity, /openNativePlayer/);
   assert.match(activity, /Settings/);
   assert.match(activity, /ACTION_SETTINGS/);
+  assert.match(activity, /ACTION_WIFI_SETTINGS/);
+  assert.match(activity, /ACTION_BLUETOOTH_SETTINGS/);
+  assert.match(activity, /ACTION_DISPLAY_SETTINGS/);
   assert.doesNotMatch(activity, /WebView/);
   assert.doesNotMatch(activity, /ACTION_VIEW|MOVIE_ROOM_BASE_URL/);
   assert.doesNotMatch(activity, /ONEDRIVE|JELLYFIN_API_KEY|VERCEL_|MOVIE_ROOM_PASSWORD/i);

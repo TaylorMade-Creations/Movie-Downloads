@@ -114,7 +114,7 @@ public final class ShellActivity extends Activity {
             activeProfile = title;
             showHome();
         } else if (title.contains("Settings") || title.contains("network") || title.equals("Bluetooth") || title.equals("Display")) {
-            openSettings();
+            openDeviceSettings(title);
         } else {
             openNativePlayer();
         }
@@ -143,8 +143,16 @@ public final class ShellActivity extends Activity {
     }
 
     private void openSettings() {
+        openDeviceSettings("Android Settings");
+    }
+
+    private void openDeviceSettings(String title) {
+        String action = Settings.ACTION_SETTINGS;
+        if (title.contains("network")) action = Settings.ACTION_WIFI_SETTINGS;
+        else if (title.equals("Bluetooth")) action = Settings.ACTION_BLUETOOTH_SETTINGS;
+        else if (title.equals("Display")) action = Settings.ACTION_DISPLAY_SETTINGS;
         try {
-            startActivity(new Intent(Settings.ACTION_SETTINGS));
+            startActivity(new Intent(action));
         } catch (RuntimeException error) {
             Toast.makeText(this, "Android settings are unavailable on this target.", Toast.LENGTH_LONG).show();
         }
