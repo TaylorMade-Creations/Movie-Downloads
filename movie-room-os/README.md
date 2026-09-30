@@ -17,6 +17,19 @@ emulator -avd movieroom-os    # after creating an x86_64 AVD
 
 The scaffold deliberately does not download AOSP automatically: that checkout is many gigabytes, Linux-specific, and should be placed where the owner wants it. The existing `firetv/` Android client remains the first launcher implementation until it is split into a dedicated AOSP-integrated module.
 
+## Android Studio development target
+
+Android Studio's installed SDK can run the shell immediately without building all of AOSP. The local development AVD is named `MovieRoomOS2`, uses the installed Android 37 x86_64 Google APIs/Play Store image, and is suitable for testing the launcher, keyboard/remote-style focus, Media3 playback, and the Movie Room service connection. The current APK can be built with the repository's `firetv` Gradle module and installed with:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+..\gradlew.bat :firetv:assembleDebug
+& "$env:ANDROID_HOME\platform-tools\adb.exe" -s emulator-5554 install -r .\firetv\build\outputs\apk\debug\firetv-debug.apk
+& "$env:ANDROID_HOME\platform-tools\adb.exe" -s emulator-5554 shell am start -n com.movieroom.firetv/.MainActivity
+```
+
+This is an emulator-installed Android shell, not a replacement system image. The full AOSP product remains the path for generating boot/recovery/system images later.
+
 ## Current contract
 
 - Product: `movieroom_x86_64`
