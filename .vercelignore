@@ -10,5 +10,6 @@ movies/
 test-results/
 tmp-runtime/
 *.apk
+!public/downloads/*.apk
 skills-lock.json
 0
