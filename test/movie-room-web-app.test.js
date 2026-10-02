@@ -78,6 +78,7 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /enterVideoFullscreen/);
   assert.match(activity, /exitVideoFullscreen/);
   assert.match(activity, /postDelayed/);
+  assert.match(activity, /MovieRoomFocusInitialHero/);
   assert.match(activity, /finish\(\)/);
   assert.match(app, /function handleNativeBack/);
   assert.match(app, /function handleNativeBack[\s\S]*?focusInitialHero\(\);\s*return false;/);

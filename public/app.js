@@ -4127,6 +4127,12 @@ function createApp({
     if (windowRef) {
       windowRef.MovieRoomBack = handleNativeBack;
       windowRef.MovieRoomHandleRemoteKey = handleRemoteCommand;
+      windowRef.MovieRoomFocusInitialHero = () => {
+        const active = documentRef && documentRef.activeElement;
+        const isHeaderFocus = active && active.closest && active.closest(".primary-nav, .profile-toggle, .search-wrap");
+        if (!active || active === documentRef.body || isHeaderFocus) return focusInitialHero();
+        return false;
+      };
       windowRef.MovieRoomMenu = () => handleRemoteCommand("Menu");
       windowRef.MovieRoomTogglePlayback = () => handleRemoteCommand("MediaPlayPause");
       windowRef.MovieRoomNativePlayerClosed = handleNativePlayerClosed;

@@ -74,6 +74,10 @@ public final class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 webViewReady = true;
                 flushPendingRemoteCommands();
+                view.postDelayed(() -> view.evaluateJavascript(
+                    "window.MovieRoomFocusInitialHero && window.MovieRoomFocusInitialHero();",
+                    null
+                ), 1500);
                 if (!storagePromptRequested) {
                     storagePromptRequested = true;
                     view.postDelayed(MainActivity.this::requestStorageAccessInternal, 250);
