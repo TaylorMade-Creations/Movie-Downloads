@@ -32,6 +32,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -48,6 +50,8 @@ public final class MainActivity extends Activity {
     private boolean networkPromptScheduled;
     private boolean updateCheckInFlight;
     private boolean nativePlayerStarted;
+    private boolean webViewReady;
+    private final Deque<String> pendingRemoteCommands = new ArrayDeque<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +72,8 @@ public final class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                webViewReady = true;
+                flushPendingRemoteCommands();
                 if (!storagePromptRequested) {
                     storagePromptRequested = true;
                     view.postDelayed(MainActivity.this::requestStorageAccessInternal, 250);
@@ -373,6 +379,8 @@ public final class MainActivity extends Activity {
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 return dispatchNativeSelect();
+            case KeyEvent.KEYCODE_BACK:
+                return dispatchNativeBack();
             case KeyEvent.KEYCODE_MENU:
                 return dispatchNativeMenu();
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
@@ -398,6 +406,7 @@ public final class MainActivity extends Activity {
             || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
             || keyCode == KeyEvent.KEYCODE_ENTER
             || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+            || keyCode == KeyEvent.KEYCODE_BACK
             || keyCode == KeyEvent.KEYCODE_MENU
             || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
             || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY
@@ -421,6 +430,10 @@ public final class MainActivity extends Activity {
         return dispatchRemoteCommand("Enter");
     }
 
+    private boolean dispatchNativeBack() {
+        return dispatchRemoteCommand("Back");
+    }
+
     private boolean dispatchNativeMenu() {
         return dispatchRemoteCommand("Menu");
     }
@@ -433,11 +446,31 @@ public final class MainActivity extends Activity {
         if (webView == null) {
             return false;
         }
+        if (!webViewReady) {
+            if (pendingRemoteCommands.size() >= 12) {
+                pendingRemoteCommands.removeFirst();
+            }
+            pendingRemoteCommands.addLast(command);
+            return true;
+        }
+        postRemoteCommand(command);
+        return true;
+    }
+
+    private void flushPendingRemoteCommands() {
+        while (!pendingRemoteCommands.isEmpty()) {
+            postRemoteCommand(pendingRemoteCommands.removeFirst());
+        }
+    }
+
+    private void postRemoteCommand(String command) {
+        if (webView == null) {
+            return;
+        }
         String script = "(function(){return window.MovieRoomHandleRemoteKey && window.MovieRoomHandleRemoteKey("
             + JSONObject.quote(command)
             + ") === true;})()";
-        webView.evaluateJavascript(script, null);
-        return true;
+        webView.post(() -> webView.evaluateJavascript(script, null));
     }
 
     private void scheduleNetworkUpdatePrompt() {
@@ -620,6 +653,8 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        webViewReady = false;
+        pendingRemoteCommands.clear();
         if (webView != null) {
             webView.stopLoading();
             webView.destroy();

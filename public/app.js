@@ -346,6 +346,10 @@ function createApp({
   folderShelf,
   categoryShelf,
   movieGrid,
+  libraryMoviesGrid,
+  librarySeriesGrid,
+  libraryMoviesSection,
+  librarySeriesSection,
   watchPlaceholder,
   watchStage,
   permissionPanel,
@@ -1927,8 +1931,7 @@ function createApp({
       renderLibrary();
       closeSettings();
       if (movieGrid && hasMethod(movieGrid, "scrollIntoView")) movieGrid.scrollIntoView({ behavior: "auto", block: "start" });
-      const firstLibraryTarget = visibleFocusableElements().find((element) => element !== searchInput);
-      if (firstLibraryTarget && hasMethod(firstLibraryTarget, "focus")) firstLibraryTarget.focus();
+      focusLibraryPrimaryTarget();
       return true;
     }
     return false;
@@ -2621,6 +2624,8 @@ function createApp({
       emptyState.className = "empty-state";
       emptyState.textContent = "No matching files here yet.";
       movieGrid.replaceChildren(emptyState);
+      if (librarySeriesGrid) librarySeriesGrid.replaceChildren();
+      if (librarySeriesSection) librarySeriesSection.hidden = true;
       return;
     }
 
@@ -2869,6 +2874,9 @@ function createApp({
           return section;
         });
       movieGrid.replaceChildren(...sections);
+      if (libraryMoviesSection) libraryMoviesSection.hidden = false;
+      if (librarySeriesSection) librarySeriesSection.hidden = true;
+      if (librarySeriesGrid) librarySeriesGrid.replaceChildren();
       return;
     }
 
@@ -2882,20 +2890,25 @@ function createApp({
       : filteredMovies.filter((movie) => (
       !episodeIds.has(movie.id) && !collectionMovieIds.has(movie.id)
     ));
-    const cards = activeLibraryView === "collections"
-      ? [
-        ...seriesGroups.map(createSeriesCard),
-        ...collectionGroups.map(createCollectionCard),
-      ]
-      : activeLibraryView === "movies" && activeFolder === "all"
-        ? [
-          ...seriesGroups.map(createSeriesCard),
-          ...collectionGroups.map(createCollectionCard),
-          ...standaloneMovies.map(createMovieCard),
-        ]
-      : standaloneMovies.map(createMovieCard);
+    const sortedMovies = standaloneMovies
+      .slice()
+      .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")));
+    const sortedSeries = seriesGroups.slice().sort((left, right) => left.title.localeCompare(right.title));
+    const sortedCollections = collectionGroups.slice().sort((left, right) => left.title.localeCompare(right.title));
+    const seriesCards = activeFolder === "all"
+      ? (activeLibraryView === "collections"
+        ? [...sortedSeries.map(createSeriesCard), ...sortedCollections.map(createCollectionCard)]
+        : sortedSeries.map(createSeriesCard))
+      : [];
+    const movieCards = sortedMovies.map(createMovieCard);
 
-    if (!cards.length) {
+    if (librarySeriesGrid) {
+      librarySeriesGrid.replaceChildren(...seriesCards);
+    }
+    if (librarySeriesSection) {
+      librarySeriesSection.hidden = !seriesCards.length;
+    }
+    if (!movieCards.length) {
       const emptyState = documentRef.createElement("p");
       emptyState.className = "empty-state";
       emptyState.textContent = activeLibraryView === "collections"
@@ -2904,7 +2917,8 @@ function createApp({
       movieGrid.replaceChildren(emptyState);
       return;
     }
-    movieGrid.replaceChildren(...cards);
+    if (libraryMoviesSection) libraryMoviesSection.hidden = false;
+    movieGrid.replaceChildren(...movieCards);
   }
 
   function viewerRecord(movieId) {
@@ -3179,10 +3193,10 @@ function createApp({
   }
 
   const tabArtworkFallbacks = {
-    home: "/posters/home-alone.jpg",
-    kids: "/posters/paw-patrol.jpg",
-    morganne: "/posters/fifty-shades-of-grey.jpg",
-    mom: "/posters/bomb-girls-facing-the-enemy.jpg",
+    home: "/profile-home.jpeg",
+    kids: "/profile-kids.jpeg",
+    morganne: "/profile-morganne.jpeg",
+    mom: "/profile-mom.jpeg",
     action: "/posters/jurassic-world.jpg",
     animation: "/posters/toy-story-5.jpg",
     family: "/posters/home-alone.jpg",
@@ -3409,6 +3423,21 @@ function createApp({
 
   function focusInitialTitle() {
     return focusInitialHero();
+  }
+
+  function focusLibraryPrimaryTarget() {
+    const preferredRoots = activeLibraryView === "collections"
+      ? [librarySeriesGrid, movieGrid]
+      : [movieGrid, librarySeriesGrid];
+    for (const root of preferredRoots) {
+      if (!root || !hasMethod(root.querySelector, "call")) continue;
+      const target = root.querySelector("button:not([disabled])");
+      if (target && focusRemoteElement(target)) return true;
+    }
+    const categoryTarget = categoryShelf && categoryShelf.querySelector
+      ? categoryShelf.querySelector("button:not([disabled])")
+      : null;
+    return focusRemoteElement(categoryTarget);
   }
 
   function renderLibrary() {
@@ -4025,6 +4054,10 @@ function createApp({
   }
 
   function initialize() {
+    const tvBridge = nativeTvBridge();
+    if (tvBridge && documentRef && documentRef.body && documentRef.body.dataset) {
+      documentRef.body.dataset.tvDevice = "true";
+    }
     if (windowRef) {
       windowRef.MovieRoomBack = handleNativeBack;
       windowRef.MovieRoomHandleRemoteKey = handleRemoteCommand;
@@ -4717,6 +4750,10 @@ if (typeof document !== "undefined") {
     folderShelf: document.getElementById("folder-shelf"),
     categoryShelf: document.getElementById("category-shelf"),
     movieGrid: document.getElementById("movie-grid"),
+    libraryMoviesGrid: document.getElementById("library-movies-grid"),
+    librarySeriesGrid: document.getElementById("library-series-grid"),
+    libraryMoviesSection: document.getElementById("library-movies-section"),
+    librarySeriesSection: document.getElementById("library-series-section"),
     watchPlaceholder: document.getElementById("watch-placeholder"),
     watchStage: document.querySelector(".watch-stage"),
     permissionPanel: document.getElementById("permission-panel"),

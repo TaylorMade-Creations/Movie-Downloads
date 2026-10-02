@@ -107,7 +107,14 @@ test("the home surface exposes image-led profile and genre tabs", () => {
   assert.match(app, /profile-image-tab/);
   assert.match(app, /genre-image-tab/);
   assert.match(app, /tabArtworkFallbacks/);
-  assert.match(app, /bomb-girls-facing-the-enemy\.jpg/);
+  assert.match(app, /home:\s*["']\/profile-home\.jpeg["']/);
+  assert.match(app, /kids:\s*["']\/profile-kids\.jpeg["']/);
+  assert.match(app, /morganne:\s*["']\/profile-morganne\.jpeg["']/);
+  assert.match(app, /mom:\s*["']\/profile-mom\.jpeg["']/);
+  assert.ok(fs.statSync(path.join(root, "public/profile-kids.jpeg")).size > 0);
+  assert.ok(fs.statSync(path.join(root, "public/profile-morganne.jpeg")).size > 0);
+  assert.ok(fs.statSync(path.join(root, "public/profile-mom.jpeg")).size > 0);
+  assert.ok(fs.statSync(path.join(root, "public/profile-home.jpeg")).size > 0);
 });
 
 test("the Android wrapper exposes storage permission and an offline movie download action", () => {
@@ -119,4 +126,44 @@ test("the Android wrapper exposes storage permission and an offline movie downlo
   assert.match(app, /enterVideoFullscreen/);
   assert.match(app, /exitVideoFullscreen/);
   assert.match(app, /fullscreenchange/);
+});
+
+test("Fire TV remote commands queue until the WebView is ready and map Back explicitly", () => {
+  const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
+  assert.match(activity, /pendingRemoteCommands/);
+  assert.match(activity, /flushPendingRemoteCommands/);
+  assert.match(activity, /KEYCODE_BACK/);
+  assert.match(activity, /dispatchNativeBack/);
+  assert.match(activity, /webView\.post/);
+});
+
+test("the library exposes separate alphabetized Movies and Series shelves", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  assert.match(html, /id="library-movies-grid"/);
+  assert.match(html, /id="library-series-grid"/);
+  assert.match(html, /id="library-movies-section"/);
+  assert.match(html, /id="library-series-section"/);
+  assert.match(app, /libraryMoviesGrid/);
+  assert.match(app, /librarySeriesGrid/);
+  assert.match(app, /localeCompare/);
+  assert.match(app, /focusLibraryPrimaryTarget/);
+});
+
+test("the home hero and selected-title page expose video background layers", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  assert.match(html, /id="hero-preview-video"/);
+  assert.match(html, /id="details-preview-video"/);
+  assert.match(app, /function startHeroPreview/);
+  assert.match(app, /function setDetailsHero/);
+  assert.match(app, /details-preview-video/);
+});
+
+test("the Fire TV theme has a crisp high-contrast 1080p presentation", () => {
+  const html = read("public/index.html");
+  assert.match(html, /body\[data-tv-device="true"\][\s\S]*?-webkit-font-smoothing:\s*antialiased/);
+  assert.match(html, /body\[data-tv-device="true"\]::before[\s\S]*?filter:\s*none/);
+  assert.match(html, /body\[data-tv-device="true"\] \.hero-preview-video[\s\S]*?opacity:\s*\.9/);
+  assert.match(html, /body\[data-tv-device="true"\] \.movie-card[\s\S]*?contain:\s*layout paint/);
 });
