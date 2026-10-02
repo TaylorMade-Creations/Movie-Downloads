@@ -137,6 +137,16 @@ test("Fire TV remote commands queue until the WebView is ready and map Back expl
   assert.match(activity, /webView\.post/);
 });
 
+test("Fire TV remote focus follows the visible home layers instead of global geometry", () => {
+  const app = read("public/app.js");
+  assert.match(app, /function remoteFocusZones/);
+  assert.match(app, /#home-profile-tabs button/);
+  assert.match(app, /#home-genre-tabs button/);
+  assert.match(app, /function focusWithinRemoteZone/);
+  assert.match(app, /heroPlay.*heroDetails/);
+  assert.doesNotMatch(app, /const fallback = direction === "left" \|\| direction === "up" \? elements\[elements\.length - 1\] : elements\[0\]/);
+});
+
 test("the library exposes separate alphabetized Movies and Series shelves", () => {
   const html = read("public/index.html");
   const app = read("public/app.js");

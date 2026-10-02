@@ -1637,6 +1637,53 @@ function createApp({
     return true;
   }
 
+  function remoteFocusZones() {
+    if (!documentRef || typeof documentRef.querySelectorAll !== "function") return [];
+    const selectors = [
+      ".primary-nav button, .profile-toggle, #search-input",
+      "#hero-play, #hero-details, #hero-prev, #hero-next",
+      "#home-profile-tabs button",
+      "#home-genre-tabs button",
+      "#continue-watching-shelf button",
+      "#recently-added-shelf button",
+      "#picks-shelf button",
+      "#home-library-shelf button",
+      "#profile-most-watched-shelf button, #profile-recently-watched-shelf button",
+      "#movie-grid button, #library-series-grid button",
+      ".search-page button, .navigation-page button, .movie-details-page button"
+    ];
+    return selectors.map((selector) => Array.from(documentRef.querySelectorAll(selector))
+      .filter((element) => visibleFocusableElements().includes(element))).filter((zone) => zone.length);
+  }
+
+  function remoteFocusZoneFor(element, zones) {
+    return zones.find((zone) => zone.includes(element)) || null;
+  }
+
+  function focusWithinRemoteZone(zone, current, direction) {
+    if (!zone || !zone.length) return false;
+    if (direction !== "left" && direction !== "right") return false;
+    const index = zone.indexOf(current);
+    if (index < 0) return false;
+    const nextIndex = direction === "right" ? index + 1 : index - 1;
+    // Do not wrap. A remote press at the edge should stay in the row.
+    return nextIndex >= 0 && nextIndex < zone.length ? focusRemoteElement(zone[nextIndex]) : true;
+  }
+
+  function focusNextRemoteZone(zones, zoneIndex, current, direction) {
+    const step = direction === "down" ? 1 : -1;
+    const nextZone = zones[zoneIndex + step];
+    if (!nextZone || !nextZone.length) return true;
+    const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
+    const currentX = currentRect ? currentRect.left + currentRect.width / 2 : 0;
+    const ranked = nextZone.map((candidate) => {
+      const rect = hasMethod(candidate, "getBoundingClientRect") ? candidate.getBoundingClientRect() : null;
+      const candidateX = rect ? rect.left + rect.width / 2 : 0;
+      return { candidate, distance: Math.abs(candidateX - currentX) };
+    }).sort((a, b) => a.distance - b.distance);
+    return focusRemoteElement(ranked[0].candidate);
+  }
+
   function moveRemoteFocus(direction) {
     const elements = visibleFocusableElements();
     if (!elements.length) return false;
@@ -1648,6 +1695,18 @@ function createApp({
       return true;
     }
 
+    const zones = remoteFocusZones();
+    const zone = remoteFocusZoneFor(current, zones);
+    const zoneIndex = zone ? zones.indexOf(zone) : -1;
+    if (zone && (direction === "left" || direction === "right")) {
+      return focusWithinRemoteZone(zone, current, direction);
+    }
+    if (zone && (direction === "up" || direction === "down")) {
+      return focusNextRemoteZone(zones, zoneIndex, current, direction);
+    }
+
+    // Detail/search/settings pages can contain controls outside the home rows.
+    // Keep their navigation spatial, but never jump to an unrelated global edge.
     const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
     if (!currentRect) return focusRemoteElement(elements[0]);
     const currentX = currentRect.left + currentRect.width / 2;
@@ -1658,30 +1717,16 @@ function createApp({
       if (candidate === current || !hasMethod(candidate, "getBoundingClientRect")) continue;
       const rect = candidate.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
-      const candidateX = rect.left + rect.width / 2;
-      const candidateY = rect.top + rect.height / 2;
-      const dx = candidateX - currentX;
-      const dy = candidateY - currentY;
+      const dx = rect.left + rect.width / 2 - currentX;
+      const dy = rect.top + rect.height / 2 - currentY;
       const primary = direction === "left" || direction === "right" ? dx : dy;
       const secondary = direction === "left" || direction === "right" ? dy : dx;
-      if (direction === "left" && primary >= -1) continue;
-      if (direction === "right" && primary <= 1) continue;
-      if (direction === "up" && primary >= -1) continue;
-      if (direction === "down" && primary <= 1) continue;
-      const primaryDistance = Math.abs(primary);
-      const secondaryDistance = Math.abs(secondary);
-      const score = primaryDistance * 1000 + secondaryDistance;
-      if (score < bestScore) {
-        best = candidate;
-        bestScore = score;
-      }
+      if ((direction === "left" && primary >= -1) || (direction === "right" && primary <= 1) ||
+          (direction === "up" && primary >= -1) || (direction === "down" && primary <= 1)) continue;
+      const score = Math.abs(primary) * 1000 + Math.abs(secondary);
+      if (score < bestScore) { best = candidate; bestScore = score; }
     }
-
-    if (!best) {
-      const fallback = direction === "left" || direction === "up" ? elements[elements.length - 1] : elements[0];
-      return focusRemoteElement(fallback);
-    }
-    return focusRemoteElement(best);
+    return best ? focusRemoteElement(best) : true;
   }
 
   function updatePlayerPlayPauseButton() {
