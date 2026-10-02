@@ -414,6 +414,8 @@ function createApp({
   detailsQueue,
   detailsFavorite,
   detailsStatus,
+  detailsLibraryChoices,
+  detailsNextMoviesShelf,
   theaterModeButton,
   miniplayerModeButton,
   upNextPanel,
@@ -2958,6 +2960,7 @@ function createApp({
     if (detailsDescription) {
       detailsDescription.textContent = movie.description || `Watch ${movie.title || movie.fileName || "this movie"} in your private Movie Room.`;
     }
+    renderDetailsBrowse(movie);
     if (detailsStatus) {
       detailsStatus.textContent = "";
     }
@@ -2972,6 +2975,22 @@ function createApp({
       void openNativeTvMovie(movie).catch((error) => updateStatus(error.message));
     }
     return true;
+  }
+
+  function renderDetailsBrowse(movie) {
+    if (!detailsNextMoviesShelf || typeof detailsNextMoviesShelf.replaceChildren !== "function") return;
+    const currentId = movie && movie.id;
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const available = allMovies
+      .filter((candidate) => candidate && candidate.id !== currentId)
+      .filter(isMoviePlayable)
+      .filter((candidate) => !isSampleMovie(candidate));
+    const profileMatches = available.filter((candidate) => !profile || !profile.pick || profile.pick(candidate));
+    const nextMovies = [...profileMatches, ...available.filter((candidate) => !profileMatches.includes(candidate))]
+      .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")))
+      .slice(0, 12);
+    renderShelf(detailsNextMoviesShelf, nextMovies, "No other playable titles are available yet.");
+    if (detailsLibraryChoices) detailsLibraryChoices.hidden = false;
   }
 
   function createShelfCard(movie, shelf, shelfType = "recent") {
@@ -4766,6 +4785,8 @@ if (typeof document !== "undefined") {
     detailsQueue: document.getElementById("details-queue"),
     detailsFavorite: document.getElementById("details-favorite"),
     detailsStatus: document.getElementById("details-status"),
+    detailsLibraryChoices: document.getElementById("details-library-choices"),
+    detailsNextMoviesShelf: document.getElementById("details-next-movies-shelf"),
     theaterModeButton: document.getElementById("theater-mode"),
     miniplayerModeButton: document.getElementById("miniplayer-mode"),
     upNextPanel: document.getElementById("up-next-panel"),

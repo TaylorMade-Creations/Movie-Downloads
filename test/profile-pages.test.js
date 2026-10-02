@@ -57,6 +57,16 @@ test("a selected movie opens its own hero page instead of a modal dialog", () =>
   assert.doesNotMatch(app, /movieDetailsDialog\.showModal/);
 });
 
+test("the selected movie page keeps its description and exposes library choices underneath", () => {
+  assert.match(html, /id="details-library-choices"/);
+  assert.match(html, /id="details-next-movies-shelf"/);
+  assert.match(html, /data-details-destination="library"/);
+  assert.match(html, /data-details-destination="search"/);
+  assert.match(app, /function renderDetailsBrowse/);
+  assert.match(app, /detailsNextMoviesShelf/);
+  assert.match(app, /detailsDescription\.textContent/);
+});
+
 test("profile navigation has separate persisted local state and profile-scoped library picks", () => {
   assert.match(app, /profileNavigationPrefix/);
   assert.match(app, /writeLocalValue\(`\$\{profileNavigationPrefix\}/);

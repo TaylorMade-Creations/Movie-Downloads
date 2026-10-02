@@ -3590,6 +3590,74 @@
           aspect-ratio: 16 / 8;
         }
       }
+
+      .details-library-choices {
+        position: relative;
+        z-index: 1;
+        width: min(1180px, 100%);
+        margin: 18px auto 48px;
+        padding: 20px clamp(18px, 3vw, 34px) 28px;
+        border: 1px solid rgba(64, 216, 192, .22);
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(6, 21, 35, .96), rgba(19, 10, 31, .9));
+        box-shadow: 0 20px 48px rgba(0, 0, 0, .3);
+      }
+
+      .details-library-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 14px;
+      }
+
+      .details-library-header h2 {
+        margin: 0;
+        color: #fff;
+        font-size: clamp(21px, 2.5vw, 30px);
+      }
+
+      .details-library-header p {
+        margin: 5px 0 0;
+        color: #b9d8e4;
+        font-size: 13px;
+      }
+
+      .details-destination-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 22px;
+      }
+
+      .details-destination-tabs button {
+        min-height: 36px;
+        border: 1px solid rgba(244, 76, 155, .46);
+        border-radius: 999px;
+        padding: 8px 13px;
+        background: rgba(17, 12, 34, .9);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .details-destination-tabs button:hover,
+      .details-destination-tabs button:focus-visible {
+        border-color: #4de1ef;
+        background: rgba(63, 33, 76, .96);
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(77, 225, 239, .24);
+      }
+
+      .details-library-choices .movie-rail {
+        grid-auto-columns: minmax(190px, 260px);
+      }
+
+      @media (max-width: 680px) {
+        .details-library-header { align-items: start; flex-direction: column; }
+        .details-destination-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+        .details-destination-tabs button { flex: 0 0 auto; }
+      }
     </style>
   </head>
   <body>
@@ -4036,6 +4104,24 @@
         </div>
         <aside class="details-art" aria-label="Selected movie poster"><img id="details-poster" src="/movie-room-hero.png" alt="" /></aside>
       </section>
+      <section id="details-library-choices" class="details-library-choices" aria-labelledby="details-library-title">
+        <div class="details-library-header">
+          <div>
+            <p class="eyebrow">Keep browsing without leaving this title</p>
+            <h2 id="details-library-title">More from your library</h2>
+            <p id="details-library-summary">Choose another Movie Room page or continue with another available title.</p>
+          </div>
+        </div>
+        <nav class="details-destination-tabs" aria-label="Movie Room library selections">
+          <button type="button" data-details-destination="home" data-browse-destination="home">Home</button>
+          <button type="button" data-details-destination="library" data-browse-destination="library">Movies</button>
+          <button type="button" data-details-destination="genres" data-browse-destination="genres">Genres</button>
+          <button type="button" data-details-destination="search" data-browse-destination="search">Search</button>
+          <button type="button" data-details-destination="menu" data-browse-destination="menu">Menu</button>
+          <button type="button" data-details-destination="saved" data-browse-destination="saved">My List</button>
+        </nav>
+        <div id="details-next-movies-shelf" class="movie-rail" aria-label="Next available movies" aria-live="polite"></div>
+      </section>
     </main>
 
     <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation">
@@ -4053,6 +4139,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20261001-reference-home-v11" defer></script>
+    <script src="/app.js?v=20261001-reference-home-v12" defer></script>
   </body>
 </html>
