@@ -303,6 +303,7 @@ function createApp({
   heroBackdrop,
   heroPreviewVideo,
   libraryBackgroundPreview,
+  siteBackgroundVideo,
   heroTitle,
   heroMeta,
   heroDescription,
@@ -406,6 +407,8 @@ function createApp({
   let heroIndex = 0;
   let heroPreviewVersion = 0;
   let heroSelectionInitialized = false;
+  let siteBackgroundVersion = 0;
+  let siteBackgroundMovieId = "";
   let searchTerm = "";
   let searchOverlayGenre = "all";
   let searchOverlayPreviousFocus = null;
@@ -791,6 +794,11 @@ function createApp({
     }
     saveProfileNavigationState();
     updateHeaderContext();
+    if (activePage === "home" || activePage === "details") {
+      stopSiteBackgroundVideo();
+    } else {
+      void startSiteBackgroundVideo();
+    }
   }
 
   function updateMediaSession(movie) {
@@ -2967,6 +2975,75 @@ function createApp({
     if (libraryPanel && libraryPanel.classList) libraryPanel.classList.remove("hero-focus-mode");
   }
 
+  function stopSiteBackgroundVideo() {
+    siteBackgroundVersion += 1;
+    siteBackgroundMovieId = "";
+    if (!siteBackgroundVideo) return;
+    if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "stopped";
+    siteBackgroundVideo.pause();
+    siteBackgroundVideo.removeAttribute("src");
+    siteBackgroundVideo.load();
+    siteBackgroundVideo.hidden = true;
+  }
+
+  async function startSiteBackgroundVideo(movie = null) {
+    if (!siteBackgroundVideo) return false;
+    if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "checking";
+    const reducedMotion = windowRef && hasMethod(windowRef, "matchMedia")
+      && windowRef.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const saveData = navigatorRef && navigatorRef.connection && navigatorRef.connection.saveData;
+    if (saveData) {
+      stopSiteBackgroundVideo();
+      if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "data-saver";
+      return false;
+    }
+    const candidate = movie || allMovies.find(isMoviePlayable) || null;
+    if (!candidate || !isMoviePlayable(candidate)) {
+      if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "no-candidate";
+      return false;
+    }
+    const candidateId = String(candidate.id || candidate.fileName || candidate.title || "");
+    if (candidateId && candidateId === siteBackgroundMovieId && !siteBackgroundVideo.hidden) {
+      return true;
+    }
+    const version = ++siteBackgroundVersion;
+    siteBackgroundMovieId = candidateId;
+    if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "loading";
+    try {
+      if (version !== siteBackgroundVersion) {
+        if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "superseded";
+        return false;
+      }
+      siteBackgroundVideo.muted = true;
+      siteBackgroundVideo.defaultMuted = true;
+      siteBackgroundVideo.playsInline = true;
+      siteBackgroundVideo.loop = true;
+      siteBackgroundVideo.preload = "metadata";
+      siteBackgroundVideo.setAttribute("aria-hidden", "true");
+      siteBackgroundVideo.setAttribute("playsinline", "");
+      siteBackgroundVideo.src = new URL(`/api/jellyfin/stream?movieId=${encodeURIComponent(candidate.id)}&transcode=1`, locationOrigin).toString();
+      siteBackgroundVideo.hidden = false;
+      siteBackgroundVideo.load();
+      if (reducedMotion) {
+        siteBackgroundVideo.pause();
+        if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "ready-static";
+        return true;
+      }
+      const playPromise = siteBackgroundVideo.play();
+      if (playPromise && hasMethod(playPromise, "catch")) await playPromise.catch(() => {});
+      if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "playing";
+      return true;
+    } catch (error) {
+      if (version === siteBackgroundVersion) {
+        siteBackgroundMovieId = "";
+        siteBackgroundVideo.hidden = true;
+        if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientState = "error";
+        if (siteBackgroundVideo.dataset) siteBackgroundVideo.dataset.ambientError = String(error && error.message || "background playback request failed").slice(0, 160);
+      }
+      return false;
+    }
+  }
+
   function setFeaturedMovie(movie, previewMovie = movie, { playAction = null, detailsAction = null } = {}) {
     if (!movie) return false;
     stopHeroPreview();
@@ -2994,7 +3071,11 @@ function createApp({
       documentRef.body.style.setProperty("--page-backdrop", `url("${safeBackdropUrl}")`);
     }
     if (previewMovie && isMoviePlayable(previewMovie)) {
-      void startHeroPreview(previewMovie);
+      if (activePage === "home") {
+        void startHeroPreview(previewMovie);
+      } else {
+        void startSiteBackgroundVideo(previewMovie);
+      }
     }
     return true;
   }
@@ -4420,6 +4501,7 @@ if (typeof document !== "undefined") {
     heroBackdrop: document.getElementById("hero-backdrop"),
     heroPreviewVideo: document.getElementById("hero-preview-video"),
     libraryBackgroundPreview: document.getElementById("library-background-preview"),
+    siteBackgroundVideo: document.getElementById("site-background-video"),
     heroTitle: document.getElementById("hero-title"),
     heroMeta: document.getElementById("hero-meta"),
     heroDescription: document.getElementById("hero-description"),

@@ -2265,9 +2265,214 @@
       @media (prefers-reduced-motion: reduce) {
         html { scroll-behavior: auto; }
       }
+      /* Approved TaylorMade Fragrances-inspired Movie Room theme: plum, purple, ivory, and gold. */
+      :root {
+        --ui-bg: #1a1008;
+        --ui-surface: #2a1a12;
+        --ui-surface-strong: #3a2a20;
+        --ui-plum: #24112f;
+        --ui-purple: #5d2a73;
+        --ui-ivory: #fff8e7;
+        --ui-gold: #d4af37;
+        --ui-gold-action: #d99a00;
+        --ui-bronze: #c8a96e;
+        --ui-line: rgba(212, 175, 55, .34);
+        --ui-accent: var(--ui-gold);
+        --ui-accent-strong: var(--ui-ivory);
+        --ui-focus: var(--ui-gold);
+      }
+
+      html {
+        background: var(--ui-bg);
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 8% 4%, rgba(93, 42, 115, .28), transparent 30rem),
+          radial-gradient(circle at 94% 44%, rgba(212, 175, 55, .16), transparent 34rem),
+          linear-gradient(135deg, #120b05 0%, var(--ui-plum) 44%, var(--ui-purple) 72%, var(--ui-bg) 100%);
+      }
+
+      body::after {
+        background:
+          linear-gradient(180deg, rgba(18, 11, 5, .08), rgba(18, 11, 5, .6) 52%, rgba(18, 11, 5, .94)),
+          linear-gradient(105deg, rgba(93, 42, 115, .3), transparent 38%, rgba(212, 175, 55, .22));
+      }
+
+      .topbar {
+        background: linear-gradient(110deg, rgba(18, 11, 5, .98), rgba(36, 17, 47, .96) 54%, rgba(93, 42, 115, .9));
+        border-bottom-color: rgba(212, 175, 55, .42);
+      }
+
+      .brand-primary,
+      .search-overlay-header h2,
+      .search-result-action {
+        color: var(--ui-gold);
+      }
+
+      .topbar-context-separator {
+        color: var(--ui-gold);
+      }
+
+      .profile-avatar {
+        background: var(--ui-gold);
+        color: #1e1308;
+      }
+
+      .primary-nav button:hover,
+      .primary-nav button.active,
+      .mobile-nav button:hover,
+      .mobile-nav button:focus-visible,
+      .mobile-nav button.active,
+      .hero-carousel-nav button:hover,
+      .hero-carousel-nav button:focus-visible {
+        background: var(--ui-gold);
+        color: #1e1308;
+        box-shadow: 0 8px 20px rgba(212, 175, 55, .34);
+      }
+
+      .hero-movie::after,
+      .details-hero-shade {
+        background:
+          linear-gradient(90deg, var(--ui-plum) 0%, rgba(36, 17, 47, .84) 36%, rgba(93, 42, 115, .32) 74%, rgba(26, 16, 8, .84) 100%),
+          linear-gradient(0deg, rgba(18, 11, 5, .96), transparent 56%);
+      }
+
+      .home-navigation,
+      .profile-page-header,
+      .search-page-panel,
+      .navigation-panel,
+      .settings-panel {
+        background: linear-gradient(145deg, rgba(93, 42, 115, .44), rgba(42, 26, 18, .97) 48%, rgba(212, 175, 55, .12));
+      }
+
+      .movie-card,
+      .movie-card.unavailable {
+        background: linear-gradient(155deg, rgba(93, 42, 115, .25), var(--ui-surface) 58%, rgba(212, 175, 55, .12));
+      }
+
+      .movie-card:hover,
+      .movie-card:focus-visible {
+        border-color: var(--ui-gold);
+        box-shadow: 0 18px 34px rgba(0, 0, 0, .46), 0 0 0 2px rgba(212, 175, 55, .58), 0 0 26px rgba(212, 175, 55, .24);
+      }
+
+      .category-chip.active,
+      .category-chip:hover,
+      .category-chip:focus-visible,
+      .folder-chip:hover,
+      .folder-chip:focus-visible,
+      .profile-shortcuts button:hover,
+      .profile-shortcuts button:focus-visible,
+      .page-shortcuts button:hover,
+      .page-shortcuts button:focus-visible,
+      .navigation-grid button:hover,
+      .navigation-grid button:focus-visible,
+      .profile-navigation-grid button:hover,
+      .profile-navigation-grid button:focus-visible {
+        border-color: var(--ui-gold);
+        background: rgba(93, 42, 115, .5);
+      }
+
+      button:not(.secondary):not(.profile-toggle):not(.movie-card),
+      .hero-actions button:not(.secondary),
+      .details-copy .hero-actions button:not(.secondary) {
+        background: var(--ui-gold-action);
+        color: #1e1308;
+        box-shadow: 0 8px 20px rgba(212, 175, 55, .22);
+      }
+
+      button:not(.secondary):not(.profile-toggle):not(.movie-card):hover,
+      .hero-actions button:not(.secondary):hover,
+      .details-copy .hero-actions button:not(.secondary):hover {
+        background: var(--ui-purple);
+        color: var(--ui-ivory);
+        box-shadow: 0 8px 22px rgba(93, 42, 115, .3);
+      }
+
+      .mobile-nav {
+        background: linear-gradient(110deg, rgba(18, 11, 5, .98), rgba(93, 42, 115, .34), rgba(212, 175, 55, .24));
+        border-top-color: rgba(212, 175, 55, .34);
+      }
+
+      .site-background-video {
+        position: fixed;
+        inset: 0;
+        z-index: -3;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        opacity: .22;
+        filter: saturate(.9) contrast(1.08) blur(1px);
+        pointer-events: none;
+        transition: opacity 320ms ease;
+      }
+
+      .site-background-video[hidden] {
+        display: block !important;
+        opacity: 0;
+      }
+
+      @media (max-width: 720px) {
+        .hero-movie::after {
+          background: linear-gradient(180deg, rgba(93, 42, 115, .08), rgba(93, 42, 115, .42) 48%, var(--ui-bg) 80%);
+        }
+      }
+
+      .auth-panel,
+      .permission-card {
+        border-color: rgba(212, 175, 55, .58);
+        background: linear-gradient(145deg, var(--ui-ivory) 0%, #f2e7f5 70%, #e8d8ee 100%);
+        color: #2a1a12;
+        box-shadow: 0 22px 58px rgba(18, 11, 5, .42), 0 0 0 1px rgba(93, 42, 115, .16);
+      }
+
+      .auth-panel h1,
+      .auth-panel h2,
+      .permission-card h2 {
+        color: #2a1a12;
+      }
+
+      .auth-panel p,
+      .auth-panel .detail,
+      .auth-panel .status,
+      .permission-card p,
+      .permission-card .status,
+      .permission-list {
+        color: #3a2a20;
+      }
+
+      .auth-panel input,
+      .permission-card input,
+      .permission-card select {
+        border-color: var(--ui-gold);
+        background: #fffbf2;
+        color: #2a1a12;
+      }
+
+      .auth-panel button:not(.secondary),
+      .permission-card button:not(.secondary) {
+        background: var(--ui-gold-action);
+        color: #1e1308;
+      }
+
+      .auth-panel button:not(.secondary):hover,
+      .permission-card button:not(.secondary):hover {
+        background: var(--ui-purple);
+        color: var(--ui-ivory);
+      }
+
+      .auth-panel button.secondary,
+      .permission-card button.secondary {
+        border-color: var(--ui-gold);
+        background: rgba(93, 42, 115, .1);
+        color: #5d2a73;
+      }
+
     </style>
   </head>
   <body>
+    <video id="site-background-video" class="site-background-video" muted loop playsinline preload="metadata" aria-hidden="true" hidden></video>
     <section id="permission-panel" class="permission-panel" hidden>
       <div class="permission-card" role="dialog" aria-modal="false" aria-labelledby="permission-title">
         <h2 id="permission-title">Allow playback permissions</h2>
@@ -2714,6 +2919,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20260930-firetv-native-v1" defer></script>
+    <script src="/app.js?v=20261001-theme-ambient-v4" defer></script>
   </body>
 </html>

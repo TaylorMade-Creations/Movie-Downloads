@@ -19,3 +19,23 @@ test("the final web UI pass keeps search separate and gives remote focus a clear
   assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?\.mobile-nav/);
   assert.match(app, /firstHeroTarget\.focus\(\{ preventScroll: true \}\)/);
 });
+
+test("the final web UI pass carries the approved purple-and-ivory theme", () => {
+  assert.match(finalPass, /--ui-plum:\s*#24112f/);
+  assert.match(finalPass, /--ui-purple:\s*#5d2a73/);
+  assert.match(finalPass, /--ui-ivory:\s*#fff8e7/);
+  assert.match(finalPass, /--ui-gold:\s*#d4af37/);
+  assert.match(finalPass, /linear-gradient\([^;]*var\(--ui-plum\)[^;]*var\(--ui-purple\)/);
+  assert.match(finalPass, /\.hero-movie::after\s*\{[\s\S]*?var\(--ui-plum\)[\s\S]*?var\(--ui-purple\)/);
+  assert.match(finalPass, /\.movie-card:hover[\s\S]*?var\(--ui-gold\)/);
+  assert.match(finalPass, /\.auth-panel,\s*\.permission-card\s*\{[\s\S]*?background:\s*linear-gradient\([^;]*var\(--ui-ivory\)/);
+});
+
+test("every page has a muted ambient video background with a graceful fallback", () => {
+  assert.match(html, /id="site-background-video"\s+class="site-background-video"[^>]*muted[^>]*loop[^>]*playsinline/);
+  assert.match(finalPass, /\.site-background-video\s*\{[\s\S]*?position:\s*fixed[\s\S]*?pointer-events:\s*none/);
+  assert.match(finalPass, /\.site-background-video\s*\{[\s\S]*?opacity:\s*\.22/);
+  assert.match(app, /siteBackgroundVideo/);
+  assert.match(app, /startSiteBackgroundVideo\(/);
+  assert.match(app, /prefers-reduced-motion/);
+});
