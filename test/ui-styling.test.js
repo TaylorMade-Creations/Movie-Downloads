@@ -20,16 +20,23 @@ test("the final web UI pass keeps search separate and gives remote focus a clear
   assert.match(app, /firstHeroTarget\.focus\(\{ preventScroll: true \}\)/);
 });
 
-test("the final web UI pass carries the approved purple-and-ivory theme", () => {
-  assert.match(finalPass, /--ui-plum:\s*#24112f/);
-  assert.match(finalPass, /--ui-purple:\s*#5d2a73/);
-  assert.match(finalPass, /--ui-ivory:\s*#fff8e7/);
-  assert.match(finalPass, /--ui-gold:\s*#d4af37/);
-  assert.match(finalPass, /linear-gradient\([^;]*var\(--ui-plum\)[^;]*var\(--ui-purple\)/);
-  assert.match(finalPass, /\.hero-movie::after\s*\{[\s\S]*?var\(--ui-plum\)[\s\S]*?var\(--ui-purple\)/);
-  assert.match(finalPass, /\.movie-card:hover[\s\S]*?var\(--ui-gold\)/);
-  assert.match(finalPass, /\.auth-panel,\s*\.permission-card\s*\{[\s\S]*?background:\s*linear-gradient\([^;]*var\(--ui-ivory\)/);
-  assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?\.auth-panel\s*\{[\s\S]*?width:\s*calc\(100vw - 24px\)/);
+test("the final web UI pass uses red and black first with ivory and purple accents", () => {
+  assert.match(finalPass, /--ui-black:\s*#070407/);
+  assert.match(finalPass, /--ui-red:\s*#e1264d/);
+  assert.match(finalPass, /--ui-red-deep:\s*#7a0b24/);
+  assert.match(finalPass, /--ui-purple:\s*#963d9e/);
+  assert.match(finalPass, /--ui-purple-deep:\s*#4d1f59/);
+  assert.match(finalPass, /--ui-ivory:\s*#fff4e5/);
+  assert.match(finalPass, /--ui-font-display:\s*"Bodoni MT"/);
+  assert.match(finalPass, /--ui-font-body:\s*"Avenir Next"/);
+  assert.match(finalPass, /--ui-font-meta:\s*"Franklin Gothic Medium"/);
+  assert.match(finalPass, /\.movie-card::before\s*\{[\s\S]*?border:[^;]*var\(--ui-purple\)/);
+  assert.match(finalPass, /\.movie-card \.movie-title\s*\{[\s\S]*?font-family:\s*var\(--ui-font-display\)/);
+  assert.match(finalPass, /\.movie-card \.movie-meta\s*\{[\s\S]*?color:\s*#d79be2/);
+  assert.match(finalPass, /linear-gradient\([^;]*var\(--ui-black\)[^;]*var\(--ui-red-deep\)/);
+  assert.match(finalPass, /\.hero-movie::after\s*\{[\s\S]*?var\(--ui-red-deep\)[\s\S]*?var\(--ui-purple\)/);
+  assert.match(finalPass, /\.movie-grid,[\s\S]*?minmax\(108px, 124px\)/);
+  assert.match(finalPass, /\.movie-card,[\s\S]*?border-color:\s*transparent/);
   assert.match(finalPass, /\.permission-panel\s*\{[\s\S]*?left:\s*12px/);
 });
 
@@ -40,4 +47,14 @@ test("every page has a muted ambient video background with a graceful fallback",
   assert.match(app, /siteBackgroundVideo/);
   assert.match(app, /startSiteBackgroundVideo\(/);
   assert.match(app, /prefers-reduced-motion/);
+});
+
+test("generated poster fallbacks stay inside the red-black theme", () => {
+  assert.match(app, /function generatedPosterUrl/);
+  assert.match(app, /stop-color="#650918"/);
+  assert.match(app, /stop-color="#070407"/);
+  assert.match(app, /fill="#6f2f7e"/);
+  assert.match(app, /fill="#c1122f"/);
+  assert.match(app, /fill="#fff4e5"/);
+  assert.doesNotMatch(app, /#32769d|#62e3db|#102b4a|#061a31/);
 });

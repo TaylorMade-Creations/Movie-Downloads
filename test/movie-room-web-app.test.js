@@ -87,16 +87,13 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(nativePlayer, /video\/x-matroska/);
 });
 
-test("Movie Room public mode starts without a login screen", () => {
+test("Movie Room ships a public interface with organized search and no login controls", () => {
   const html = read("public/index.html");
-  const app = read("public/app.js");
-  const server = read("server.js");
 
-  assert.match(html, /id="auth-panel"[^>]*hidden/);
-  assert.match(app, /publicAccess = Boolean\(session\.publicAccess\)/);
-  assert.match(app, /logoutButton\.hidden = publicAccess/);
-  assert.match(server, /MOVIE_ROOM_PUBLIC/);
-  assert.match(server, /publicAccess: true/);
+  assert.doesNotMatch(html, /id="auth-panel"|id="password-form"|Enter shared password|id="logout"/);
+  assert.match(html, /id="search-scope"/);
+  assert.match(html, /id="search-year"/);
+  assert.match(html, /id="search-sort"/);
 });
 
 test("the Android wrapper exposes storage permission and an offline movie download action", () => {

@@ -52,6 +52,7 @@ test("a selected movie opens its own hero page instead of a modal dialog", () =>
   assert.match(html, /id="details-backdrop"/);
   assert.match(html, /id="details-preview-video"/);
   assert.match(app, /activePage === "details"/);
+  assert.match(app, /activePage === "details"\s*\n\s*\?\s*`Title details`/);
   assert.match(app, /function setDetailsHero/);
   assert.doesNotMatch(app, /movieDetailsDialog\.showModal/);
 });

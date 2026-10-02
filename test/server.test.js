@@ -47,6 +47,7 @@ function createAuthOptions(overrides = {}) {
     auth: {
       password: "lowercase",
       sessionSecret: "0123456789abcdef0123456789abcdef",
+      publicAccess: false,
       sessionTtlMs: 60_000,
       rateLimitMaxAttempts: 2,
       rateLimitWindowMs: 60_000,
@@ -1412,6 +1413,45 @@ test("public access mode serves the catalog without a browser login", async (t) 
   const libraryResponse = await fetch(`http://127.0.0.1:${port}/api/library`);
   assert.equal(libraryResponse.status, 200);
   assert.equal((await libraryResponse.json()).movies.length, 1);
+});
+
+test("defaults browser access to public and never serves a password gate when legacy auth variables remain", async (t) => {
+  const { root, moviesDir } = createTempLibrary();
+  fs.writeFileSync(path.join(moviesDir, "Family-Night.mp4"), "abcdef");
+  const server = await startServer({
+    moviesDir,
+    publicDir: path.resolve(__dirname, "..", "public"),
+    env: {
+      MOVIE_PROVIDER: "local",
+      MOVIE_PASSWORD: "retired-password",
+      MOVIE_ROOM_PUBLIC: "false",
+      SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+    },
+  });
+
+  t.after(() => {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const { port } = server.address();
+  const sessionResponse = await fetch(`http://127.0.0.1:${port}/api/session`);
+  assert.equal(sessionResponse.status, 200);
+  assert.deepEqual(await sessionResponse.json(), {
+    authenticated: true,
+    authConfigured: false,
+    publicAccess: true,
+    expiresAt: null,
+    provider: "local",
+  });
+
+  const pageResponse = await fetch(`http://127.0.0.1:${port}/`);
+  assert.equal(pageResponse.status, 200);
+  const page = await pageResponse.text();
+  assert.doesNotMatch(page, /Enter shared password|id="password-form"|id="auth-panel"/);
+
+  const libraryResponse = await fetch(`http://127.0.0.1:${port}/api/library`);
+  assert.equal(libraryResponse.status, 200);
 });
 
 test("accepts Vercel Marketplace Upstash credentials as durable session storage", async (t) => {

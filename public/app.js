@@ -22,23 +22,84 @@ function movieSearchableText(movie) {
   return `${source.title || ""} ${source.fileName || ""} ${source.folder || ""} ${genres} ${tags}`;
 }
 
-function searchMovies(movies, { term = "", genre = "all" } = {}) {
+function movieSearchScope(movie) {
+  if (movie && (movie.contentType === "episode" || movie.seriesName || movie.seriesPath)) {
+    return "series";
+  }
+  if (isCollectionFolder(String((movie && movie.folder) || ""))) {
+    return "collections";
+  }
+  return "movies";
+}
+
+function movieMatchesSearchYear(movie, yearFilter) {
+  const normalizedFilter = String(yearFilter || "all").trim().toLowerCase() || "all";
+  if (normalizedFilter === "all") return true;
+
+  const year = Number(movie && movie.year);
+  if (normalizedFilter === "unknown") return !Number.isFinite(year) || year <= 0;
+  if (!Number.isFinite(year) || year <= 0) return false;
+  if (normalizedFilter === "before-1990") return year < 1990;
+
+  const decade = normalizedFilter.match(/^(\d{4})s$/);
+  if (decade) {
+    const start = Number(decade[1]);
+    return year >= start && year <= start + 9;
+  }
+
+  return year === Number(normalizedFilter);
+}
+
+function compareSearchMovies(left, right, sort) {
+  const titleDifference = String(left.title || left.fileName || "")
+    .localeCompare(String(right.title || right.fileName || ""));
+  if (sort === "title-desc") return -titleDifference;
+
+  if (sort === "year-desc" || sort === "year-asc") {
+    const leftYear = Number(left.year);
+    const rightYear = Number(right.year);
+    const leftKnown = Number.isFinite(leftYear) && leftYear > 0;
+    const rightKnown = Number.isFinite(rightYear) && rightYear > 0;
+    if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
+    if (leftKnown && leftYear !== rightYear) {
+      return sort === "year-desc" ? rightYear - leftYear : leftYear - rightYear;
+    }
+  }
+
+  if (sort === "recent") {
+    const timestampDifference = movieAddedTimestamp(right) - movieAddedTimestamp(left);
+    if (timestampDifference) return timestampDifference;
+  }
+
+  return titleDifference;
+}
+
+function searchMovies(movies, {
+  term = "",
+  genre = "all",
+  scope = "all",
+  year = "all",
+  sort = "title-asc",
+} = {}) {
   const normalizedTerm = String(term || "").trim().toLowerCase();
   const normalizedGenre = String(genre || "all").trim().toLowerCase() || "all";
+  const normalizedScope = String(scope || "all").trim().toLowerCase() || "all";
+  const normalizedSort = String(sort || "title-asc").trim().toLowerCase() || "title-asc";
   return (Array.isArray(movies) ? movies : [])
     .filter((movie) => !isSampleMovie(movie))
     .filter((movie) => {
       const searchable = movieSearchableText(movie).toLowerCase();
       const matchesTerm = !normalizedTerm || searchable.includes(normalizedTerm);
+      const matchesScope = normalizedScope === "all" || movieSearchScope(movie) === normalizedScope;
       const matchesGenre = normalizedGenre === "all"
         ? true
         : normalizedGenre.startsWith("alpha-")
           ? movieAlphaCategory(movie) === normalizedGenre
           : movieInAudience(movie, normalizedGenre)
             || genresForMovie(movie).some((value) => value.toLowerCase() === normalizedGenre);
-      return matchesTerm && matchesGenre;
+      return matchesTerm && matchesScope && matchesGenre && movieMatchesSearchYear(movie, year);
     })
-    .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")));
+    .sort((left, right) => compareSearchMovies(left, right, normalizedSort));
 }
 
 function browseGenreOptions(movies) {
@@ -237,6 +298,15 @@ function filterMovieFolders(folders) {
     .sort((left, right) => left.path.localeCompare(right.path));
 }
 
+function resetPageScroll(windowRef, page) {
+  const fullPageDestinations = new Set(["home", "library", "profile", "search", "menu", "details", "settings"]);
+  if (!fullPageDestinations.has(page) || !windowRef || typeof windowRef.scrollTo !== "function") {
+    return false;
+  }
+  windowRef.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  return true;
+}
+
 function createApp({
   movieSelect,
   reloadButton,
@@ -247,6 +317,9 @@ function createApp({
   searchOverlayResults,
   searchOverlayGenres,
   searchOverlaySummary,
+  searchScopeSelect,
+  searchYearSelect,
+  searchSortSelect,
   navigationPage,
   menuTabButtons = [],
   menuTabPanels = [],
@@ -411,6 +484,9 @@ function createApp({
   let siteBackgroundMovieId = "";
   let searchTerm = "";
   let searchOverlayGenre = "all";
+  let searchScope = "all";
+  let searchYear = "all";
+  let searchSort = "title-asc";
   let searchOverlayPreviousFocus = null;
   let playerVisible = false;
   let nativePlayerMovie = null;
@@ -490,6 +566,8 @@ function createApp({
               : activePage === "search" ? "Search"
                 : activePage === "menu" ? "Movie Room menu"
                   : activePage === "settings" ? "Settings"
+            : activePage === "details"
+              ? `Title details`
             : "Home / Trending";
       pageHeaderLabel.textContent = pageLabel;
     }
@@ -739,6 +817,7 @@ function createApp({
   }
 
   function setActivePage(page) {
+    const previousPage = activePage;
     activePage = ["home", "library", "profile", "user", "search", "menu", "details", "settings"].includes(page) ? page : "home";
     const homeVisible = activePage === "home";
     const libraryVisible = activePage === "library";
@@ -794,6 +873,9 @@ function createApp({
     }
     saveProfileNavigationState();
     updateHeaderContext();
+    if (activePage !== previousPage) {
+      resetPageScroll(windowRef, activePage);
+    }
     if (activePage === "home" || activePage === "details") {
       stopSiteBackgroundVideo();
     } else {
@@ -1254,7 +1336,9 @@ function createApp({
   }
 
   function updateLoginStatus(message) {
-    loginStatus.textContent = message;
+    if (loginStatus) {
+      loginStatus.textContent = message;
+    }
   }
 
   function updatePermissionStatus(message) {
@@ -1376,7 +1460,7 @@ function createApp({
   }
 
   function setPasswordErrorState(hasError) {
-    if (typeof passwordInput.setAttribute !== "function" || typeof passwordInput.removeAttribute !== "function") {
+    if (!passwordInput || typeof passwordInput.setAttribute !== "function" || typeof passwordInput.removeAttribute !== "function") {
       return;
     }
 
@@ -1391,8 +1475,8 @@ function createApp({
   function setAuthenticated(isAuthenticated) {
     if (!isAuthenticated && activePreviewCancel) activePreviewCancel();
     authenticated = Boolean(isAuthenticated);
-    authPanel.hidden = authenticated;
-    libraryPanel.hidden = !authenticated;
+    if (authPanel) authPanel.hidden = authenticated;
+    if (libraryPanel) libraryPanel.hidden = !authenticated;
     if (!authenticated) {
       activePage = "home";
       if (searchOverlay) searchOverlay.hidden = true;
@@ -1428,7 +1512,9 @@ function createApp({
   }
 
   function setAuthUnavailable(unavailable) {
-    passwordInput.disabled = unavailable;
+    if (passwordInput) {
+      passwordInput.disabled = unavailable;
+    }
     if (submitButton) {
       submitButton.disabled = unavailable;
     }
@@ -1437,7 +1523,7 @@ function createApp({
   function announceLoginError(message) {
     updateLoginStatus(message);
     setPasswordErrorState(true);
-    if (typeof loginStatus.focus === "function") {
+    if (loginStatus && typeof loginStatus.focus === "function") {
       loginStatus.focus();
     }
   }
@@ -1959,7 +2045,7 @@ function createApp({
   function generatedPosterUrl(movie) {
     const title = String(movie.title || movie.fileName || "Movie").trim().slice(0, 80);
     const initials = movieInitials(movie);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" role="img" aria-label="${title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#32769d"/><stop offset="1" stop-color="#102b4a"/></linearGradient></defs><rect width="600" height="900" fill="url(#g)"/><circle cx="480" cy="130" r="160" fill="#62e3db" opacity=".22"/><path d="M0 670 600 370v530H0z" fill="#061a31" opacity=".42"/><text x="48" y="75" fill="#a8fff0" font-family="Arial,sans-serif" font-size="25" font-weight="700" letter-spacing="4">TAYLORMADE MOVIES</text><text x="48" y="460" fill="white" font-family="Arial,sans-serif" font-size="176" font-weight="800">${initials}</text><foreignObject x="48" y="605" width="504" height="210"><div xmlns="http://www.w3.org/1999/xhtml" style="color:white;font:700 45px Arial,sans-serif;line-height:1.12;overflow:hidden">${title.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div></foreignObject></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" role="img" aria-label="${title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#650918"/><stop offset="1" stop-color="#070407"/></linearGradient></defs><rect width="600" height="900" fill="url(#g)"/><circle cx="480" cy="130" r="160" fill="#6f2f7e" opacity=".42"/><path d="M0 670 600 370v530H0z" fill="#c1122f" opacity=".42"/><text x="48" y="75" fill="#fff4e5" font-family="Georgia,serif" font-size="25" font-weight="700" letter-spacing="4">TAYLORMADE MOVIES</text><text x="48" y="460" fill="#fff4e5" font-family="Georgia,serif" font-size="176" font-weight="800">${initials}</text><foreignObject x="48" y="605" width="504" height="210"><div xmlns="http://www.w3.org/1999/xhtml" style="color:#fff4e5;font:700 45px Georgia,serif;line-height:1.12;overflow:hidden">${title.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div></foreignObject></svg>`;
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
@@ -2169,7 +2255,13 @@ function createApp({
     const ownerDocument = searchOverlay.ownerDocument || documentRef;
     if (!ownerDocument) return;
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
-    let results = searchMovies(allMovies, { term: searchTerm, genre: searchOverlayGenre })
+    let results = searchMovies(allMovies, {
+      term: searchTerm,
+      genre: searchOverlayGenre,
+      scope: searchScope,
+      year: searchYear,
+      sort: searchSort,
+    })
       .filter(profile.pick);
     const savedOptions = [
       { id: "favorites", label: "Favorites", count: allMovies.filter((movie) => profile.pick(movie) && (() => { const record = viewerRecord(movie.id); return Boolean(record && record.favorite); })()).length },
@@ -2192,9 +2284,20 @@ function createApp({
       return button;
     }));
     if (searchOverlaySummary) {
+      const scopeLabels = { all: "all titles", movies: "movies", series: "series", collections: "collections" };
+      const yearLabels = {
+        all: "all years",
+        "2020s": "the 2020s",
+        "2010s": "the 2010s",
+        "2000s": "the 2000s",
+        "1990s": "the 1990s",
+        "before-1990": "before 1990",
+        unknown: "unknown years",
+      };
+      const context = `${scopeLabels[searchScope] || "all titles"}, ${yearLabels[searchYear] || searchYear}`;
       searchOverlaySummary.textContent = searchTerm
-        ? `${results.length} result${results.length === 1 ? "" : "s"} for “${searchTerm}”`
-        : `${results.length} movie${results.length === 1 ? "" : "s"} in ${(viewerProfiles[activeProfile] && viewerProfiles[activeProfile].label) || "your"} library`;
+        ? `${results.length} result${results.length === 1 ? "" : "s"} for “${searchTerm}” · ${context}`
+        : `${results.length} title${results.length === 1 ? "" : "s"} · ${context} · ${(viewerProfiles[activeProfile] && viewerProfiles[activeProfile].label) || "your"} library`;
     }
     if (!results.length) {
       const empty = ownerDocument.createElement("p");
@@ -4022,17 +4125,21 @@ function createApp({
       }
     });
 
-    logoutButton.addEventListener("click", () => {
-      handleLogout().catch((error) => {
-        updateStatus(error.message);
+    if (logoutButton) {
+      logoutButton.addEventListener("click", () => {
+        handleLogout().catch((error) => {
+          updateStatus(error.message);
+        });
       });
-    });
+    }
 
-    passwordForm.addEventListener("submit", (event) => {
-      handleLogin(event).catch((error) => {
-        announceLoginError(error.message);
+    if (passwordForm) {
+      passwordForm.addEventListener("submit", (event) => {
+        handleLogin(event).catch((error) => {
+          announceLoginError(error.message);
+        });
       });
-    });
+    }
 
     if (searchInput) {
       const nativeAndroidApp = Boolean(windowRef && windowRef.MovieRoomAndroid);
@@ -4052,6 +4159,24 @@ function createApp({
           setSearchOverlayVisible(true);
           renderSearchOverlay();
         }
+      });
+    }
+    if (searchScopeSelect) {
+      searchScopeSelect.addEventListener("change", () => {
+        searchScope = searchScopeSelect.value || "all";
+        renderSearchOverlay();
+      });
+    }
+    if (searchYearSelect) {
+      searchYearSelect.addEventListener("change", () => {
+        searchYear = searchYearSelect.value || "all";
+        renderSearchOverlay();
+      });
+    }
+    if (searchSortSelect) {
+      searchSortSelect.addEventListener("change", () => {
+        searchSort = searchSortSelect.value || "title-asc";
+        renderSearchOverlay();
       });
     }
     if (detailsFavorite) {
@@ -4445,6 +4570,9 @@ if (typeof document !== "undefined") {
     searchOverlayResults: document.getElementById("search-page-results"),
     searchOverlayGenres: document.getElementById("search-page-genres"),
     searchOverlaySummary: document.getElementById("search-page-summary"),
+    searchScopeSelect: document.getElementById("search-scope"),
+    searchYearSelect: document.getElementById("search-year"),
+    searchSortSelect: document.getElementById("search-sort"),
     navigationPage: document.getElementById("navigation-page"),
     menuTabButtons: Array.from(document.querySelectorAll("[data-menu-tab]")),
     menuTabPanels: Array.from(document.querySelectorAll("[data-menu-panel]")),
@@ -4568,5 +4696,5 @@ if (typeof document !== "undefined") {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { browseGenreOptions, classifyMovie, createApp, filterMovieFolders, searchMovies };
+  module.exports = { browseGenreOptions, classifyMovie, createApp, filterMovieFolders, resetPageScroll, searchMovies };
 }

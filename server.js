@@ -126,12 +126,6 @@ function parseNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function parseBoolean(value, fallback = false) {
-  if (typeof value === "boolean") return value;
-  if (typeof value !== "string") return fallback;
-  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
-}
-
 function parseCookies(header = "") {
   const cookies = {};
   for (const part of header.split(";")) {
@@ -456,7 +450,10 @@ function buildAuthConfig(options = {}) {
   return {
     password: options.password ?? env.MOVIE_PASSWORD ?? "",
     sessionSecret: options.sessionSecret ?? env.SESSION_SECRET ?? "",
-    publicAccess: options.publicAccess ?? parseBoolean(env.MOVIE_ROOM_PUBLIC),
+    // Movie Room is a private personal deployment, but its browser and APK
+    // surfaces no longer use a shared-password gate. Keep an explicit false
+    // override for isolated authentication tests and legacy integrations only.
+    publicAccess: options.publicAccess ?? true,
     sessionTtlMs: options.sessionTtlMs ?? parseNumber(env.SESSION_TTL_MS, DEFAULT_SESSION_TTL_MS),
     bodyLimit: options.bodyLimit ?? parseNumber(env.AUTH_BODY_LIMIT_BYTES, DEFAULT_BODY_LIMIT),
     rateLimitWindowMs: options.rateLimitWindowMs
