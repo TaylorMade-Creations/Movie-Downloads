@@ -2469,6 +2469,49 @@
         color: #5d2a73;
       }
 
+      @media (max-width: 720px) {
+        html,
+        body,
+        .topbar,
+        .topbar-main,
+        .search-row {
+          max-width: 100vw;
+        }
+
+        .topbar,
+        .topbar-main,
+        .primary-nav,
+        .topbar-actions,
+        .brand,
+        .brand-copy {
+          min-width: 0;
+        }
+
+        .primary-nav button {
+          min-width: 0;
+          padding-inline: 4px;
+        }
+
+        .auth-panel {
+          width: calc(100vw - 24px);
+          margin-inline: 12px;
+          padding: 22px 18px;
+        }
+
+        .permission-panel {
+          right: 12px;
+          left: 12px;
+          width: auto;
+          max-width: none;
+        }
+
+        .permission-card {
+          width: 100%;
+          max-width: none;
+          padding: 18px;
+        }
+      }
+
     </style>
   </head>
   <body>

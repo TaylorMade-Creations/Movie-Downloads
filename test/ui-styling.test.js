@@ -29,6 +29,8 @@ test("the final web UI pass carries the approved purple-and-ivory theme", () => 
   assert.match(finalPass, /\.hero-movie::after\s*\{[\s\S]*?var\(--ui-plum\)[\s\S]*?var\(--ui-purple\)/);
   assert.match(finalPass, /\.movie-card:hover[\s\S]*?var\(--ui-gold\)/);
   assert.match(finalPass, /\.auth-panel,\s*\.permission-card\s*\{[\s\S]*?background:\s*linear-gradient\([^;]*var\(--ui-ivory\)/);
+  assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?\.auth-panel\s*\{[\s\S]*?width:\s*calc\(100vw - 24px\)/);
+  assert.match(finalPass, /\.permission-panel\s*\{[\s\S]*?left:\s*12px/);
 });
 
 test("every page has a muted ambient video background with a graceful fallback", () => {
