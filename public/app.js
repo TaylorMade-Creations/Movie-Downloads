@@ -1662,6 +1662,14 @@ function createApp({
     return zones.find((zone) => zone.includes(element)) || null;
   }
 
+  function remoteMovieCardRowFor(element) {
+    if (!element || !hasMethod(element, "closest") || !documentRef) return [];
+    const row = element.closest(".movie-grid, .movie-rail, .shelf");
+    if (!row || !hasMethod(row, "querySelectorAll")) return [];
+    return Array.from(row.querySelectorAll("button.movie-card, button.series-card, button.collection-card"))
+      .filter((candidate) => visibleFocusableElements().includes(candidate));
+  }
+
   function focusWithinRemoteZone(zone, current, direction) {
     if (!zone || !zone.length) return false;
     if (direction !== "left" && direction !== "right") return false;
@@ -1708,6 +1716,10 @@ function createApp({
     }
 
     const zones = remoteFocusZones();
+    const cardRow = remoteMovieCardRowFor(current);
+    if (cardRow.length && (direction === "left" || direction === "right")) {
+      return focusWithinRemoteZone(cardRow, current, direction);
+    }
     const zone = remoteFocusZoneFor(current, zones);
     const zoneIndex = zone ? zones.indexOf(zone) : -1;
     if (zone && (direction === "left" || direction === "right")) {
