@@ -167,3 +167,17 @@ test("the Fire TV theme has a crisp high-contrast 1080p presentation", () => {
   assert.match(html, /body\[data-tv-device="true"\] \.hero-preview-video[\s\S]*?opacity:\s*\.9/);
   assert.match(html, /body\[data-tv-device="true"\] \.movie-card[\s\S]*?contain:\s*layout paint/);
 });
+
+test("uploaded profile artwork is not replaced by catalog movie posters", () => {
+  const app = read("public/app.js");
+  assert.match(app, /className\.includes\(["']profile-image-tab["']\)/);
+  assert.match(app, /usesUploadedProfileArtwork/);
+  assert.match(app, /!usesUploadedProfileArtwork/);
+});
+
+test("the visible web and PWA palette is gold-first instead of purple-first", () => {
+  const html = read("public/index.html");
+  assert.match(html, /Gold-first cinema palette for both the web\/PWA and Fire TV/);
+  assert.match(html, /--pop-pink:\s*#d9a92f/);
+  assert.match(html, /\.profile-image-tab[\s\S]*?border-color:\s*rgba\(217, 169, 47/);
+});

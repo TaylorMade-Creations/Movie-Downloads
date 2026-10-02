@@ -3221,7 +3221,8 @@ function createApp({
     image.decoding = "async";
     const fallback = fallbackArtwork || generatedPosterUrl({ title: label });
     image.src = fallback;
-    if (movie && movie.posterUrl) {
+    const usesUploadedProfileArtwork = className.includes("profile-image-tab") && Boolean(fallbackArtwork);
+    if (movie && movie.posterUrl && !usesUploadedProfileArtwork) {
       attachArtworkImage(image, movie.posterUrl, () => { image.src = fallback; }, fallbackArtwork || movie.posterFallbackUrl);
     }
     const shade = documentRef.createElement("span");
