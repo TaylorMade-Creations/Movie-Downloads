@@ -1689,7 +1689,11 @@ function createApp({
     if (!elements.length) return false;
     const active = documentRef && documentRef.activeElement;
     const startupTarget = activePage === "home" ? (heroPlay || heroDetails || elements[0]) : elements[0];
-    const current = elements.includes(active) ? active : (elements.includes(startupTarget) ? startupTarget : elements[0]);
+    const headerZone = remoteFocusZones()[0] || [];
+    const launchHeaderDownTarget = activePage === "home" && direction === "down" && headerZone.includes(active)
+      ? startupTarget
+      : null;
+    const current = launchHeaderDownTarget || (elements.includes(active) ? active : (elements.includes(startupTarget) ? startupTarget : elements[0]));
     if (!current) return false;
     if (current === player && (direction === "left" || direction === "right")) {
       seekPlayerBy(direction === "left" ? -10 : 30);
