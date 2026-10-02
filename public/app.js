@@ -1688,7 +1688,8 @@ function createApp({
     const elements = visibleFocusableElements();
     if (!elements.length) return false;
     const active = documentRef && documentRef.activeElement;
-    const current = elements.includes(active) ? active : elements[0];
+    const startupTarget = activePage === "home" ? (heroPlay || heroDetails || elements[0]) : elements[0];
+    const current = elements.includes(active) ? active : (elements.includes(startupTarget) ? startupTarget : elements[0]);
     if (!current) return false;
     if (current === player && (direction === "left" || direction === "right")) {
       seekPlayerBy(direction === "left" ? -10 : 30);
