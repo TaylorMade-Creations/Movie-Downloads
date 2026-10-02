@@ -488,6 +488,8 @@ function createApp({
   let heroIndex = 0;
   let heroPreviewVersion = 0;
   let heroSelectionInitialized = false;
+  let remoteUiReady = false;
+  const pendingRemoteUiCommands = [];
   let siteBackgroundVersion = 0;
   let siteBackgroundMovieId = "";
   let searchTerm = "";
@@ -1684,6 +1686,11 @@ function createApp({
     return focusRemoteElement(ranked[0].candidate);
   }
 
+  function markRemoteUiReady() {
+    remoteUiReady = true;
+    while (pendingRemoteUiCommands.length) handleRemoteCommand(pendingRemoteUiCommands.shift());
+  }
+
   function moveRemoteFocus(direction) {
     const elements = visibleFocusableElements();
     if (!elements.length) return false;
@@ -1774,7 +1781,12 @@ function createApp({
   }
 
   function handleRemoteCommand(command) {
-    switch (String(command || "")) {
+    const normalizedCommand = String(command || "");
+    if (!remoteUiReady && ["ArrowUp", "ArrowLeft", "ArrowRight", "ArrowDown", "Enter", "Select", " ", "Spacebar"].includes(normalizedCommand)) {
+      if (pendingRemoteUiCommands.length < 12) pendingRemoteUiCommands.push(normalizedCommand);
+      return true;
+    }
+    switch (normalizedCommand) {
       case "ArrowUp": return moveRemoteFocus("up");
       case "ArrowLeft": return moveRemoteFocus("left");
       case "ArrowRight": return moveRemoteFocus("right");
@@ -3693,6 +3705,7 @@ function createApp({
       player.load();
       updateNowPlaying(null);
       if (!quiet) updateStatus("No movie files found yet. When the files finish showing up in the Downloads folder, they will appear here.");
+      markRemoteUiReady();
       return [];
     }
 
@@ -3716,6 +3729,7 @@ function createApp({
       player.load();
       updateNowPlaying(null);
       if (!quiet) updateStatus("Movie files are listed, but they are still uploading to OneDrive.");
+      markRemoteUiReady();
       return [];
     }
 
@@ -3747,6 +3761,7 @@ function createApp({
     }
     renderLibrary();
     if (!playerVisible && !quiet && activePage === "home") focusInitialHero();
+    markRemoteUiReady();
     return playableMovies;
   }
 
