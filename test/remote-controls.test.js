@@ -117,11 +117,12 @@ test("selecting a movie starts the player immediately and previews the focused t
   assert.match(app, /hero-preview-active/);
 });
 
-test("thumbnail previews start after the opening credits and remain while focused", () => {
-  assert.match(app, /const previewStartSeconds = 180/);
-  assert.match(app, /const previewDurationMs = 40000/);
+test("thumbnail previews start at the title frame and stop after one minute", () => {
+  assert.match(app, /const previewStartSeconds = 0/);
+  assert.match(app, /const previewDurationMs = 60000/);
   assert.match(app, /currentTime = previewStartSeconds/);
   assert.match(app, /setTimeoutImpl\(.*previewDurationMs/s);
+  assert.match(app, /Return to the best available title artwork/);
 });
 
 test("the initial TV focus keeps the trending hero at the top until the user moves down", () => {

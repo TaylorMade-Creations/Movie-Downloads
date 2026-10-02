@@ -2497,8 +2497,8 @@ function createApp({
     if (!ready || !card || !poster || !hasMethod(card, "addEventListener") || !hasMethod(poster, "append")) return;
     const documentRef = poster.ownerDocument || card.ownerDocument;
     if (!documentRef || !hasMethod(documentRef, "createElement")) return;
-    const previewStartSeconds = 180;
-    const previewDurationMs = 40000;
+    const previewStartSeconds = 0;
+    const previewDurationMs = 60000;
     let hoverTimer = null;
     let stopTimer = null;
     let preview = null;
@@ -2541,20 +2541,15 @@ function createApp({
         preview.muted = true;
         preview.defaultMuted = true;
         preview.playsInline = true;
-        // Skip the opening credits when the source is long enough, then keep
-        // the focused title's 40-second preview alive until hover/focus ends.
+        // Start from the title's opening frame so the idle poster and preview
+        // feel like one continuous title card, then stop after one minute.
         preview.preload = "auto";
         preview.setAttribute("aria-hidden", "true");
         preview.setAttribute("playsinline", "");
         let started = false;
         video.addEventListener("loadedmetadata", () => {
           if (preview !== video) return;
-          const duration = Number(video.duration) || 0;
-          if (duration > previewStartSeconds + (previewDurationMs / 1000)) {
-            try { video.currentTime = previewStartSeconds; } catch { /* start at the nearest available frame */ }
-          } else {
-            try { video.currentTime = Math.max(0, duration - (previewDurationMs / 1000)); } catch { /* keep the browser's current frame */ }
-          }
+          try { video.currentTime = previewStartSeconds; } catch { /* keep the browser's current frame */ }
         }, { once: true });
         video.addEventListener("playing", () => {
           if (preview !== video || started) return;
@@ -2564,11 +2559,9 @@ function createApp({
           if (stopTimer !== null) clearTimeoutImpl(stopTimer);
           stopTimer = setTimeoutImpl(() => {
             if (preview !== video) return;
-            video.pause();
-            stopTimer = null;
-            // Keep the paused video in the poster so the selected preview frame
-            // remains visible instead of snapping back to the cover art.
-            card.classList.add("previewing", "preview-paused");
+            // Return to the best available title artwork after the preview;
+            // the poster is the stable idle state for remote navigation.
+            cancelPreview();
           }, previewDurationMs);
         });
         video.addEventListener("error", () => { if (preview === video) cancelPreview(); });
