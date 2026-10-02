@@ -94,6 +94,20 @@ test("Movie Room ships a public interface with organized search and no login con
   assert.match(html, /id="search-scope"/);
   assert.match(html, /id="search-year"/);
   assert.match(html, /id="search-sort"/);
+  assert.match(html, /id="home-profile-tabs"/);
+  assert.match(html, /id="home-genre-tabs"/);
+});
+
+test("the home surface exposes image-led profile and genre tabs", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  assert.match(html, /class="image-tab-rail profile-image-tabs"/);
+  assert.match(html, /class="image-tab-rail genre-image-tabs"/);
+  assert.match(app, /function renderHomeImageTabs/);
+  assert.match(app, /profile-image-tab/);
+  assert.match(app, /genre-image-tab/);
+  assert.match(app, /tabArtworkFallbacks/);
+  assert.match(app, /bomb-girls-facing-the-enemy\.jpg/);
 });
 
 test("the Android wrapper exposes storage permission and an offline movie download action", () => {

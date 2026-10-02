@@ -58,3 +58,25 @@ test("generated poster fallbacks stay inside the red-black theme", () => {
   assert.match(app, /fill="#fff4e5"/);
   assert.doesNotMatch(app, /#32769d|#62e3db|#102b4a|#061a31/);
 });
+
+test("Pop Cinema concept keeps the cursive brand, landscape cards, and concept tab layout", () => {
+  assert.match(html, /data-browse-destination="home"[^>]*>Home<\/button>/);
+  assert.match(html, /data-browse-destination="library"[^>]*>Movies<\/button>/);
+  assert.match(html, /data-browse-destination="collections"[^>]*>Series<\/button>/);
+  assert.match(html, /data-browse-destination="saved"[^>]*>My List<\/button>/);
+  assert.match(html, /data-browse-destination="saved"[^>]*>Downloads<\/button>/);
+  assert.match(finalPass, /--pop-font-script:\s*"Segoe Script"/);
+  assert.match(finalPass, /\.brand-primary\s*\{[\s\S]*?font-family:\s*var\(--pop-font-script\)/);
+  assert.match(finalPass, /\.poster\s*\{[\s\S]*?aspect-ratio:\s*16\s*\/\s*9/);
+  assert.match(finalPass, /\.movie-rail[\s\S]*?grid-auto-columns:\s*minmax\(220px,\s*300px\)/);
+  assert.match(finalPass, /\.hero-preview-video\s*\{[\s\S]*?inset:\s*0/);
+  assert.match(finalPass, /\.image-tab-rail\s*\{[\s\S]*?display:\s*grid/);
+  assert.match(finalPass, /\.image-tab\s*\{[\s\S]*?aspect-ratio:\s*1\s*\/\s*\.8/);
+  assert.match(finalPass, /\.image-tab \.tab-image\s*\{[\s\S]*?object-fit:\s*cover/);
+});
+
+test("movie previews can start when a landscape card becomes meaningfully visible", () => {
+  assert.match(app, /IntersectionObserver/);
+  assert.match(app, /threshold:\s*0\.6/);
+  assert.match(app, /visibilityObserver\.observe\(card\)/);
+});

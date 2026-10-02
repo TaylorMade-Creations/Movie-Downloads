@@ -325,6 +325,8 @@ function createApp({
   menuTabPanels = [],
   menuSettingButtons = [],
   homeNavigation,
+  homeProfileTabs,
+  homeGenreTabs,
   passwordForm,
   passwordInput,
   submitButton,
@@ -870,6 +872,9 @@ function createApp({
     }
     if (searchInput && typeof searchInput.setAttribute === "function") {
       searchInput.setAttribute("tabindex", searchVisible ? "0" : "-1");
+    }
+    if (libraryPanel && libraryPanel.classList && typeof libraryPanel.classList.toggle === "function") {
+      libraryPanel.classList.toggle("home-surface", activePage === "home");
     }
     saveProfileNavigationState();
     updateHeaderContext();
@@ -2498,6 +2503,7 @@ function createApp({
     let stopTimer = null;
     let preview = null;
     let hoverRun = 0;
+    let visibilityObserver = null;
 
     function clearPreview() {
       if (stopTimer !== null) clearTimeoutImpl(stopTimer);
@@ -2585,6 +2591,19 @@ function createApp({
         hoverTimer = null;
         void startPreview(runId);
       }, 650);
+    }
+
+    const IntersectionObserverCtor = windowRef && windowRef.IntersectionObserver;
+    if (typeof IntersectionObserverCtor === "function") {
+      visibilityObserver = new IntersectionObserverCtor((entries) => {
+        for (const entry of entries) {
+          if (!entry || entry.target !== card) continue;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6
+            && (!activePreviewCancel || activePreviewCancel === cancelPreview)) schedulePreview();
+          else if (!entry.isIntersecting && activePreviewCancel === cancelPreview) cancelPreview();
+        }
+      }, { threshold: 0.6 });
+      visibilityObserver.observe(card);
     }
 
     card.addEventListener("mouseenter", schedulePreview);
@@ -3147,6 +3166,92 @@ function createApp({
     }
   }
 
+  const tabArtworkFallbacks = {
+    home: "/posters/home-alone.jpg",
+    kids: "/posters/paw-patrol.jpg",
+    morganne: "/posters/fifty-shades-of-grey.jpg",
+    mom: "/posters/bomb-girls-facing-the-enemy.jpg",
+    action: "/posters/jurassic-world.jpg",
+    animation: "/posters/toy-story-5.jpg",
+    family: "/posters/home-alone.jpg",
+    fantasy: "/posters/the-magic-faraway-tree.jpg",
+    "sci-fi": "/posters/tranquility-base.jpg",
+    romance: "/posters/the-love-hypothesis.jpg",
+    all: "/movie-room-hero.png",
+  };
+
+  function createImageTab(label, movie, className, onSelect, fallbackArtwork = "") {
+    const tabRoot = homeProfileTabs || homeGenreTabs || categoryShelf;
+    const documentRef = tabRoot && tabRoot.ownerDocument;
+    if (!documentRef || typeof documentRef.createElement !== "function") return null;
+    const button = documentRef.createElement("button");
+    button.type = "button";
+    button.className = `image-tab ${className}`;
+    button.setAttribute("aria-label", label);
+    const image = documentRef.createElement("img");
+    image.className = "tab-image";
+    image.alt = "";
+    image.loading = "lazy";
+    image.decoding = "async";
+    const fallback = fallbackArtwork || generatedPosterUrl({ title: label });
+    image.src = fallback;
+    if (movie && movie.posterUrl) {
+      attachArtworkImage(image, movie.posterUrl, () => { image.src = fallback; }, fallbackArtwork || movie.posterFallbackUrl);
+    }
+    const shade = documentRef.createElement("span");
+    shade.className = "tab-image-shade";
+    const text = documentRef.createElement("span");
+    text.className = "tab-label";
+    text.textContent = label;
+    button.append(image, shade, text);
+    button.addEventListener("click", onSelect);
+    return button;
+  }
+
+  function renderHomeImageTabs() {
+    if (!homeProfileTabs && !homeGenreTabs) return;
+    const profileEntries = [
+      ["home", "Home"],
+      ["kids", "Kids"],
+      ["morganne", "Morganne"],
+      ["mom", "Mom"],
+    ];
+    const profileButtons = profileEntries.map(([profileId, label]) => {
+      const profile = viewerProfiles[profileId] || viewerProfiles.home;
+      const movie = allMovies.find((candidate) => !isSampleMovie(candidate) && profile.pick(candidate))
+        || allMovies.find((candidate) => !isSampleMovie(candidate));
+      return createImageTab(label, movie, `profile-image-tab profile-${profileId}`, () => openProfilePage(profileId), tabArtworkFallbacks[profileId]);
+    }).filter(Boolean);
+    if (homeProfileTabs && typeof homeProfileTabs.replaceChildren === "function") {
+      homeProfileTabs.replaceChildren(...profileButtons);
+    }
+
+    const genreEntries = [
+      ["action", "Action & Adventure"],
+      ["animation", "Animated Worlds"],
+      ["family", "Family Favorites"],
+      ["fantasy", "Fantasy & Magic"],
+      ["sci-fi", "Sci-Fi & Beyond"],
+      ["romance", "Feel Good Movies"],
+      ["all", "All Genres"],
+    ];
+    const genreButtons = genreEntries.map(([genreId, label]) => {
+      const movie = allMovies.find((candidate) => !isSampleMovie(candidate)
+        && (genreId === "all" || movieInAudience(candidate, genreId)))
+        || allMovies.find((candidate) => !isSampleMovie(candidate));
+      return createImageTab(label, movie, `genre-image-tab genre-${genreId.replace(/[^a-z0-9]+/gi, "-")}`, () => {
+        activeLibraryView = "movies";
+        activeFolder = "all";
+        activeCategory = genreId;
+        renderLibrary();
+        setActivePage("library");
+      }, tabArtworkFallbacks[genreId]);
+    }).filter(Boolean);
+    if (homeGenreTabs && typeof homeGenreTabs.replaceChildren === "function") {
+      homeGenreTabs.replaceChildren(...genreButtons);
+    }
+  }
+
   function setFeaturedMovie(movie, previewMovie = movie, { playAction = null, detailsAction = null } = {}) {
     if (!movie) return false;
     stopHeroPreview();
@@ -3226,6 +3331,7 @@ function createApp({
   function renderDiscovery() {
     stopHeroPreview();
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    renderHomeImageTabs();
     const playable = allMovies.filter(isMoviePlayable).filter(profile.pick);
     const continueMovies = playable
       .filter((movie) => {
@@ -4578,6 +4684,8 @@ if (typeof document !== "undefined") {
     menuTabPanels: Array.from(document.querySelectorAll("[data-menu-panel]")),
     menuSettingButtons: Array.from(document.querySelectorAll("[data-menu-setting]")),
     homeNavigation: document.getElementById("home-navigation"),
+    homeProfileTabs: document.getElementById("home-profile-tabs"),
+    homeGenreTabs: document.getElementById("home-genre-tabs"),
     passwordForm: document.getElementById("password-form"),
     passwordInput: document.getElementById("password"),
     submitButton: document.getElementById("login-submit"),
