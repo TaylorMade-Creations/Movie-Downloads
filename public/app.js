@@ -490,6 +490,7 @@ function createApp({
   let heroSelectionInitialized = false;
   let remoteUiReady = false;
   const pendingRemoteUiCommands = [];
+  let lastRemoteFocusedElement = null;
   let siteBackgroundVersion = 0;
   let siteBackgroundMovieId = "";
   let searchTerm = "";
@@ -1624,6 +1625,7 @@ function createApp({
 
   function focusRemoteElement(element) {
     if (!element || element.disabled || !hasMethod(element, "focus")) return false;
+    lastRemoteFocusedElement = element;
     try {
       element.focus({ preventScroll: true });
     } catch {
@@ -1703,12 +1705,14 @@ function createApp({
     const elements = visibleFocusableElements();
     if (!elements.length) return false;
     const active = documentRef && documentRef.activeElement;
+    const remembered = lastRemoteFocusedElement && lastRemoteFocusedElement.isConnected !== false
+      && elements.includes(lastRemoteFocusedElement) ? lastRemoteFocusedElement : null;
     const startupTarget = activePage === "home" ? (heroPlay || heroDetails || elements[0]) : elements[0];
     const headerZone = remoteFocusZones()[0] || [];
     const launchHeaderDownTarget = activePage === "home" && direction === "down" && headerZone.includes(active)
       ? startupTarget
       : null;
-    const current = launchHeaderDownTarget || (elements.includes(active) ? active : (elements.includes(startupTarget) ? startupTarget : elements[0]));
+    const current = launchHeaderDownTarget || (elements.includes(active) ? active : (remembered || (elements.includes(startupTarget) ? startupTarget : elements[0])));
     if (!current) return false;
     if (current === player && (direction === "left" || direction === "right")) {
       seekPlayerBy(direction === "left" ? -10 : 30);

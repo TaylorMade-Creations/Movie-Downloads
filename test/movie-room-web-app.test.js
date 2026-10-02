@@ -146,6 +146,7 @@ test("Fire TV remote focus follows the visible home layers instead of global geo
   assert.match(app, /function focusWithinRemoteZone/);
   assert.match(app, /function remoteMovieCardRowFor/);
   assert.match(app, /button\.movie-card, button\.series-card, button\.collection-card/);
+  assert.match(app, /lastRemoteFocusedElement/);
   assert.match(app, /heroPlay.*heroDetails/);
   assert.match(app, /startupTarget = activePage === "home"/);
   assert.match(app, /launchHeaderDownTarget = activePage === "home"/);
