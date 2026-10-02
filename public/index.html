@@ -360,21 +360,6 @@
         padding: 24px 32px 56px;
       }
 
-      .auth-panel {
-        width: min(560px, calc(100% - 32px));
-        margin: 12vh auto 0;
-        padding: 28px;
-        border: 1px solid #2f2f2f;
-        border-radius: 8px;
-        background: #181818;
-      }
-
-      .auth-panel h1,
-      .auth-panel h2 {
-        margin: 0 0 10px;
-      }
-
-      .auth-panel p,
       .detail,
       .status {
         color: #b8b8b8;
@@ -1266,7 +1251,7 @@
       .primary-nav button.active::after { content: ""; display: block; width: 22px; height: 3px; margin: 4px auto -4px; border-radius: 4px; background: #40d8c0; }
       .search-wrap input, input, select { border-color: #35647c; background: rgba(10,31,47,.94); color: #fff; }
       input::placeholder { color: #9b9b9b; }
-      button.secondary, .profile-toggle, .profile-menu, .auth-panel, .movie-details-dialog, .mobile-nav { border-color: #28536b; background: #0e2435; }
+      button.secondary, .profile-toggle, .profile-menu, .movie-details-dialog, .mobile-nav { border-color: #28536b; background: #0e2435; }
       button { border-radius: 4px; }
       button:not(.secondary):not(.profile-toggle) { background: #e50914; color: #fff; }
       button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
@@ -2419,7 +2404,6 @@
         }
       }
 
-      .auth-panel,
       .permission-card {
         border-color: rgba(212, 175, 55, .58);
         background: linear-gradient(145deg, var(--ui-ivory) 0%, #f2e7f5 70%, #e8d8ee 100%);
@@ -2427,22 +2411,16 @@
         box-shadow: 0 22px 58px rgba(18, 11, 5, .42), 0 0 0 1px rgba(93, 42, 115, .16);
       }
 
-      .auth-panel h1,
-      .auth-panel h2,
       .permission-card h2 {
         color: #2a1a12;
       }
 
-      .auth-panel p,
-      .auth-panel .detail,
-      .auth-panel .status,
       .permission-card p,
       .permission-card .status,
       .permission-list {
         color: #3a2a20;
       }
 
-      .auth-panel input,
       .permission-card input,
       .permission-card select {
         border-color: var(--ui-gold);
@@ -2450,19 +2428,16 @@
         color: #2a1a12;
       }
 
-      .auth-panel button:not(.secondary),
       .permission-card button:not(.secondary) {
         background: var(--ui-gold-action);
         color: #1e1308;
       }
 
-      .auth-panel button:not(.secondary):hover,
       .permission-card button:not(.secondary):hover {
         background: var(--ui-purple);
         color: var(--ui-ivory);
       }
 
-      .auth-panel button.secondary,
       .permission-card button.secondary {
         border-color: var(--ui-gold);
         background: rgba(93, 42, 115, .1);
@@ -2490,12 +2465,6 @@
         .primary-nav button {
           min-width: 0;
           padding-inline: 4px;
-        }
-
-        .auth-panel {
-          width: calc(100vw - 24px);
-          margin-inline: 12px;
-          padding: 22px 18px;
         }
 
         .permission-panel {
