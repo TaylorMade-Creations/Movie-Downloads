@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Movie Room (Optional)</string>
+    <string name="preview_one">Home Alone</string>
+    <string name="preview_two">Paddington 2</string>
+    <string name="preview_three">Snoopy</string>
+    <string name="preview_four">Fifty Shades</string>
 </resources>
