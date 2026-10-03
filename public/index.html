@@ -83,6 +83,42 @@
         display: none !important;
       }
 
+      .profile-access-panel {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(5, 4, 8, .82);
+        backdrop-filter: blur(18px) saturate(1.1);
+      }
+
+      .profile-access-card {
+        display: grid;
+        gap: 18px;
+        width: min(720px, 100%);
+        border: 1px solid rgba(240, 196, 91, .46);
+        border-radius: 28px;
+        padding: clamp(24px, 5vw, 46px);
+        background: linear-gradient(145deg, rgba(19, 7, 14, .98), rgba(36, 12, 28, .96));
+        box-shadow: 0 30px 110px rgba(0, 0, 0, .66), 0 0 48px rgba(240, 196, 91, .14);
+      }
+
+      .profile-access-card h1,
+      .profile-access-card h2 { margin: 0; color: var(--gold-soft); }
+      .profile-access-card p { margin: 0; color: #d9d2d6; line-height: 1.5; }
+      .profile-access-form { display: grid; gap: 14px; }
+      .profile-access-form label { display: grid; gap: 7px; color: #fff; font-weight: 700; }
+      .profile-access-form input { border: 1px solid rgba(240, 196, 91, .42); border-radius: 12px; padding: 12px 14px; background: rgba(9, 7, 12, .78); color: #fff; }
+      .profile-access-form input:focus { border-color: var(--gold-soft); outline: 2px solid rgba(240, 196, 91, .22); }
+      .profile-avatar-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+      .profile-avatar-choice { display: grid; gap: 7px; justify-items: center; border: 1px solid rgba(255, 255, 255, .18); border-radius: 16px; padding: 8px; background: rgba(255, 255, 255, .06); color: #fff; }
+      .profile-avatar-choice[aria-pressed="true"], .profile-avatar-choice:focus-visible { border-color: var(--gold-soft); box-shadow: 0 0 0 2px rgba(240, 196, 91, .28); }
+      .profile-avatar-choice img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; }
+      .profile-access-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+      .profile-access-status { min-height: 1.4em; color: var(--gold-soft) !important; }
+
       .topbar {
         position: sticky;
         top: 0;
@@ -320,6 +356,43 @@
       .search-result-info span { color: #aaa; font-size: 12px; line-height: 1.3; }
       .search-result-action { color: var(--gold-soft) !important; font-weight: 700; }
       .search-empty-state { grid-column: 1 / -1; margin: 24px 0; color: #bbb; text-align: center; }
+
+      .movie-catalog-page {
+        display: grid;
+        align-content: start;
+        gap: 18px;
+        padding-top: 22px;
+        padding-bottom: 56px;
+      }
+
+      .movie-catalog-header {
+        display: grid;
+        gap: 8px;
+        border-bottom: 1px solid rgba(64, 216, 192, .25);
+        padding-bottom: 18px;
+      }
+
+      .movie-catalog-header h1,
+      .movie-catalog-header p { margin: 0; }
+      .movie-catalog-header h1 { color: #fff; font-size: clamp(32px, 5vw, 60px); letter-spacing: -.05em; }
+      .movie-catalog-summary { color: #c5e1ed; }
+
+      .page-footer {
+        display: flex;
+        justify-content: center;
+        padding: 18px 16px 34px;
+        color: #8fb5c7;
+        font-size: 11px;
+      }
+
+      .page-footer a {
+        color: #a6f1e7;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .page-footer a:hover,
+      .page-footer a:focus-visible { color: #fff; }
 
       .menu-tabs {
         display: flex;
@@ -1291,7 +1364,7 @@
         .profile-toggle { width: 100%; justify-content: flex-start; }
         .search-wrap { order: 4; }
       }
-      .search-page, .navigation-page, .movie-details-page { min-height: calc(100vh - 84px); }
+      .search-page, .navigation-page, .movie-details-page, .movie-catalog-page { min-height: calc(100vh - 84px); }
       .settings-page { display: grid; align-content: start; gap: 18px; min-height: calc(100vh - 84px); padding-top: 24px; padding-bottom: 64px; }
       .settings-page h1 { margin: 0; color: #fff; font-size: clamp(32px, 5vw, 60px); letter-spacing: -.05em; }
       .settings-page > p { max-width: 780px; margin: 0; color: #c5e1ed; line-height: 1.55; }
@@ -3923,10 +3996,123 @@
       body[data-tv-device="true"] .details-hero-shade {
         background: linear-gradient(90deg, rgba(5, 6, 7, .92) 0%, rgba(5, 6, 7, .72) 38%, rgba(5, 6, 7, .24) 72%, rgba(5, 6, 7, .68) 100%), linear-gradient(0deg, rgba(5, 6, 7, .9), transparent 58%);
       }
+
+      /* Compact cloud-pills and sharper landscape shelf artwork. */
+      #library-panel.home-surface .profile-image-tabs {
+        display: none;
+      }
+
+      #library-panel.home-surface .home-navigation {
+        display: block;
+        margin-bottom: 14px;
+      }
+
+      #library-panel.home-surface .genre-image-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        overflow: visible;
+      }
+
+      #library-panel.home-surface .genre-image-tab {
+        flex: 1 1 142px;
+        min-width: 132px;
+        height: 52px;
+        aspect-ratio: auto;
+        border-radius: 999px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .14);
+      }
+
+      #library-panel.home-surface .genre-image-tab .tab-image {
+        filter: none;
+        object-position: center;
+      }
+
+      #library-panel.home-surface .movie-rail {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-auto-flow: row;
+        grid-auto-columns: minmax(0, 1fr);
+        overflow: visible;
+        gap: 8px;
+        padding: 3px 2px 10px;
+      }
+
+      #library-panel.home-surface .movie-card .poster {
+        aspect-ratio: 16 / 8;
+      }
+
+      #library-panel.home-surface .movie-card .poster > img {
+        image-rendering: auto;
+        object-fit: cover;
+        object-position: center;
+        filter: none;
+      }
+
+      @media (max-width: 1050px) {
+        #library-panel.home-surface .movie-rail {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 720px) {
+        #library-panel.home-surface .genre-image-tabs {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          padding: 2px 2px 8px;
+        }
+
+        #library-panel.home-surface .genre-image-tab {
+          flex: 0 0 142px;
+          min-width: 142px;
+          height: 48px;
+        }
+
+        #library-panel.home-surface .movie-rail {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+      }
     </style>
   </head>
   <body>
     <video id="site-background-video" class="site-background-video" muted loop playsinline preload="metadata" aria-hidden="true" hidden></video>
+    <section id="profile-setup-panel" class="profile-access-panel" hidden aria-labelledby="profile-setup-title">
+      <div class="profile-access-card">
+        <p class="eyebrow">TaylorMade Movies · first setup</p>
+        <h1 id="profile-setup-title">Set up your Movie Room</h1>
+        <p>Choose the Home profile for this device. Home opens without a PIN after setup; other profiles can be protected later from Profile Settings.</p>
+        <form id="profile-setup-form" class="profile-access-form">
+          <label for="profile-setup-name">Home profile name
+            <input id="profile-setup-name" name="displayName" type="text" maxlength="32" value="Home" autocomplete="nickname" />
+          </label>
+          <div>
+            <p class="profile-menu-heading">Choose Home artwork</p>
+            <div class="profile-avatar-choices" role="group" aria-label="Choose profile artwork">
+              <button type="button" class="profile-avatar-choice" data-profile-avatar="home-family" aria-pressed="true"><img src="/profile-home.jpeg" alt="Home family artwork" /><span>Home</span></button>
+              <button type="button" class="profile-avatar-choice" data-profile-avatar="mom" aria-pressed="false"><img src="/profile-mom.jpeg" alt="Mom artwork" /><span>Mom</span></button>
+              <button type="button" class="profile-avatar-choice" data-profile-avatar="morganne" aria-pressed="false"><img src="/profile-morganne.jpeg" alt="Morganne artwork" /><span>Morganne</span></button>
+              <button type="button" class="profile-avatar-choice" data-profile-avatar="kids" aria-pressed="false"><img src="/profile-kids.jpeg" alt="Kids artwork" /><span>Kids</span></button>
+            </div>
+          </div>
+          <div class="profile-access-actions"><button type="submit">Continue to Home</button></div>
+          <p id="profile-setup-status" class="profile-access-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+    <section id="profile-pin-panel" class="profile-access-panel" hidden aria-labelledby="profile-pin-title">
+      <div class="profile-access-card">
+        <p class="eyebrow">Profile locked</p>
+        <h2 id="profile-pin-title">Unlock this profile</h2>
+        <p id="profile-pin-summary">Enter the profile PIN to open its library and saved settings.</p>
+        <form id="profile-pin-form" class="profile-access-form">
+          <label for="profile-pin-input">Profile PIN
+            <input id="profile-pin-input" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="one-time-code" />
+          </label>
+          <div class="profile-access-actions"><button type="submit">Unlock profile</button><button id="profile-pin-cancel" type="button" class="secondary">Back</button></div>
+          <p id="profile-pin-status" class="profile-access-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
     <section id="permission-panel" class="permission-panel" hidden>
       <div class="permission-card" role="dialog" aria-modal="false" aria-labelledby="permission-title">
         <h2 id="permission-title">Allow playback permissions</h2>
@@ -3967,8 +4153,10 @@
         <button type="button" data-browse-destination="home" class="active">Home</button>
         <button type="button" data-browse-destination="library">Movies</button>
         <button type="button" data-browse-destination="collections">Series</button>
+        <button type="button" data-browse-destination="genres">Genres</button>
         <button type="button" data-browse-destination="saved">My List</button>
         <button type="button" data-browse-destination="saved">Downloads</button>
+        <button type="button" data-browse-destination="menu">Menu</button>
       </nav>
       <div class="topbar-actions">
         <div class="profile-switcher">
@@ -4061,6 +4249,15 @@
       </div>
     </main>
 
+    <main id="movie-catalog-page" class="page movie-catalog-page" aria-labelledby="movie-catalog-title" hidden>
+      <header class="movie-catalog-header">
+        <p class="eyebrow">Private Movie Room index</p>
+        <h1 id="movie-catalog-title">Movies Index Catalog</h1>
+        <p id="movie-catalog-summary" class="movie-catalog-summary">Every available movie title in one place.</p>
+      </header>
+      <div id="movie-catalog-grid" class="movie-grid" aria-live="polite"></div>
+    </main>
+
     <main id="navigation-page" class="page navigation-page" aria-labelledby="navigation-page-title" hidden>
       <section class="navigation-page-header">
         <p class="eyebrow">Movie Room menu</p>
@@ -4129,6 +4326,7 @@
         <button id="settings-system" type="button">Android settings</button>
         <button id="settings-updates" type="button">Check for app updates</button>
         <button id="settings-reload" type="button">Refresh movie library</button>
+        <button id="settings-reset-profile" type="button" class="secondary">Reset Movie Room profile</button>
       </div>
       <p class="settings-download-help">Chrome’s “Install app” installs the portrait PWA. The TaylorMade Movies APK is a normal app for phones and TV; the device system keeps control of Home, settings, and startup.</p>
       <a class="settings-download" href="/downloads/TaylorMade-Movies-Android-v1.0.16.apk" download>Download TaylorMade Movies APK</a>
@@ -4404,6 +4602,10 @@
       </section>
     </main>
 
+    <footer id="page-footer" class="page-footer" hidden>
+      <a href="#movies-index-catalog" data-browse-destination="catalog">Movies Index Catalog</a>
+    </footer>
+
     <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation">
       <button type="button" data-mobile-action="home">⌂<span>Home</span></button>
       <button type="button" data-mobile-action="search">⌕<span>Search</span></button>
@@ -4419,6 +4621,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-    <script src="/app.js?v=20261001-reference-home-v12" defer></script>
+  <script src="/app.js?v=20261002-navigation-catalog-v14" defer></script>
   </body>
 </html>

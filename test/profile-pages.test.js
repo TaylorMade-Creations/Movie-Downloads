@@ -20,6 +20,25 @@ test("profile selection navigates to a dedicated page with watched rails", () =>
   assert.match(app, /playCount/);
 });
 
+test("web startup uses an online profile setup gate instead of a shared password", () => {
+  assert.match(html, /id="profile-setup-panel"/);
+  assert.match(html, /id="profile-setup-form"/);
+  assert.match(html, /id="profile-setup-name"/);
+  assert.match(html, /data-profile-avatar="home-family"/);
+  assert.match(html, /data-profile-avatar="mom"/);
+  assert.match(html, /data-profile-avatar="morganne"/);
+  assert.match(html, /data-profile-avatar="kids"/);
+  assert.match(html, /id="profile-pin-panel"/);
+  assert.match(html, /id="profile-pin-form"/);
+  assert.match(html, /id="profile-pin-input"/);
+  assert.match(app, /function loadAccessState/);
+  assert.match(app, /\/api\/access-state/);
+  assert.match(app, /\/api\/account\/setup/);
+  assert.match(app, /\/api\/profiles\//);
+  assert.match(app, /function handleProfileSetup/);
+  assert.match(app, /function handleProfilePin/);
+});
+
 test("profile themes use home black and gold, kids orange, mom emerald, and Morganne pink", () => {
   assert.match(html, /body\[data-viewer-profile="home"\][^}]*--gold:\s*#f0c45b/i);
   assert.match(html, /body\[data-viewer-profile="kids"\][^}]*--gold:\s*#f59e0b/i);
@@ -103,4 +122,24 @@ test("the library exposes common genre selectors including soap", () => {
   assert.match(app, /\["soap", "Soap"\]/);
   assert.match(app, /\["comedy", "Comedy"\]/);
   assert.match(app, /\["action", "Action"\]/);
+});
+
+test("the Movies Index Catalog is a footer-only destination", () => {
+  const primaryNav = html.match(/<nav class="primary-nav"[\s\S]*?<\/nav>/)?.[0] || "";
+  assert.match(html, /id="movie-catalog-page"[^>]*class="page movie-catalog-page"[^>]*hidden/);
+  assert.match(html, /id="movie-catalog-grid"/);
+  assert.match(html, /class="page-footer"[\s\S]*data-browse-destination="catalog"[\s\S]*>Movies Index Catalog<\/a>/);
+  assert.doesNotMatch(primaryNav, /data-browse-destination="catalog"/);
+  assert.match(app, /activePage = \["home", "library", "profile", "user", "search", "menu", "details", "settings", "catalog"\]/);
+  assert.match(app, /function renderMovieCatalog/);
+  assert.match(app, /target === "catalog"/);
+});
+
+test("folder selection opens a title hero and search has an explicit submit path", () => {
+  assert.match(app, /function openMovieDetails/);
+  assert.match(app, /folderMovies/);
+  assert.match(app, /searchInput\.addEventListener\("keydown"/);
+  assert.match(app, /event\.key !== "Enter"/);
+  assert.match(app, /event\.stopPropagation\(\)/);
+  assert.match(app, /loadLibrary\([\s\S]*?quiet: true/);
 });

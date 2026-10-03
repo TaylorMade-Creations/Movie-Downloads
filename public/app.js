@@ -299,7 +299,7 @@ function filterMovieFolders(folders) {
 }
 
 function resetPageScroll(windowRef, page) {
-  const fullPageDestinations = new Set(["home", "library", "profile", "search", "menu", "details", "settings"]);
+  const fullPageDestinations = new Set(["home", "library", "profile", "search", "menu", "details", "settings", "catalog"]);
   if (!fullPageDestinations.has(page) || !windowRef || typeof windowRef.scrollTo !== "function") {
     return false;
   }
@@ -320,6 +320,10 @@ function createApp({
   searchScopeSelect,
   searchYearSelect,
   searchSortSelect,
+  movieCatalogPage,
+  movieCatalogGrid,
+  movieCatalogSummary,
+  pageFooter,
   navigationPage,
   menuTabButtons = [],
   menuTabPanels = [],
@@ -375,6 +379,17 @@ function createApp({
   profileMenu,
   profileLabel,
   profileAvatar,
+  profileSetupPanel,
+  profileSetupForm,
+  profileSetupName,
+  profileSetupStatus,
+  profileAvatarChoices = [],
+  profilePinPanel,
+  profilePinForm,
+  profilePinInput,
+  profilePinStatus,
+  profilePinCancel,
+  profilePinSummary,
   viewerHeaderLabel,
   pageHeaderLabel,
   profileButtons = [],
@@ -433,6 +448,7 @@ function createApp({
   settingsSystemButton,
   settingsUpdatesButton,
   settingsReloadButton,
+  settingsResetProfileButton,
   settingsCloseButton,
   menuHomeButton,
   menuLibraryButton,
@@ -484,6 +500,7 @@ function createApp({
   let activeCategory = "all";
   let activeLibraryView = "movies";
   let activePage = "home";
+  let searchLoadInFlight = null;
   let heroMovies = [];
   let heroIndex = 0;
   let heroPreviewVersion = 0;
@@ -508,6 +525,11 @@ function createApp({
   let googleCastReady = false;
   let authenticated = false;
   let publicAccess = false;
+  let profileAccessEnabled = false;
+  let profileAccessState = "needs_setup";
+  let serverProfiles = [];
+  let pendingProfileId = "";
+  let selectedSetupAvatar = "home-family";
   let authTransitionVersion = 0;
   let activeProfile = "home";
   let pendingFireTvCode = "";
@@ -567,16 +589,19 @@ function createApp({
 
   function updateHeaderContext() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
-    if (viewerHeaderLabel) viewerHeaderLabel.textContent = profile.label;
+    const serverProfile = serverProfiles.find((candidate) => candidate.id === activeProfile);
+    const profileLabelText = (serverProfile && serverProfile.displayName) || profile.label;
+    if (viewerHeaderLabel) viewerHeaderLabel.textContent = profileLabelText;
     if (pageHeaderLabel) {
       const pageLabel = activePage === "library"
         ? (activeLibraryView === "collections" ? "Collections & series"
           : activeLibraryView === "genres" ? "Genres" : "General library")
-        : activePage === "profile" ? `${profile.label} profile`
-          : activePage === "user" ? "Profile"
+        : activePage === "profile" ? `${profileLabelText} profile`
+        : activePage === "user" ? "Profile"
               : activePage === "search" ? "Search"
                 : activePage === "menu" ? "Movie Room menu"
                   : activePage === "settings" ? "Settings"
+                    : activePage === "catalog" ? "Movies Index Catalog"
             : activePage === "details"
               ? `Title details`
             : "Home / Trending";
@@ -586,15 +611,22 @@ function createApp({
 
   function updateProfileUi() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const serverProfile = serverProfiles.find((candidate) => candidate.id === activeProfile);
+    const profileLabelText = (serverProfile && serverProfile.displayName) || profile.label;
     if (documentRef && documentRef.body && documentRef.body.dataset) {
       documentRef.body.dataset.viewerProfile = profile.palette;
     }
-    if (profileLabel) profileLabel.textContent = "Profile";
+    if (profileLabel) profileLabel.textContent = profileLabelText;
     if (profileToggle && typeof profileToggle.setAttribute === "function") {
-      profileToggle.setAttribute("aria-label", `Profile selector. Current profile: ${profile.label}`);
+      profileToggle.setAttribute("aria-label", `Profile selector. Current profile: ${profileLabelText}`);
     }
     if (profileAvatar) {
-      profileAvatar.textContent = profile.initial;
+      profileAvatar.textContent = profileLabelText.slice(0, 1).toUpperCase() || profile.initial;
+      if (profileAvatar.style) {
+        profileAvatar.style.backgroundImage = `url("/profile-${activeProfile}.jpeg")`;
+        profileAvatar.style.backgroundSize = "cover";
+        profileAvatar.style.backgroundPosition = "center";
+      }
     }
     for (const button of profileButtons) {
       const selected = button.dataset && button.dataset.viewerProfile === activeProfile;
@@ -829,7 +861,7 @@ function createApp({
 
   function setActivePage(page) {
     const previousPage = activePage;
-    activePage = ["home", "library", "profile", "user", "search", "menu", "details", "settings"].includes(page) ? page : "home";
+    activePage = ["home", "library", "profile", "user", "search", "menu", "details", "settings", "catalog"].includes(page) ? page : "home";
     const homeVisible = activePage === "home";
     const libraryVisible = activePage === "library";
     const profileVisible = activePage === "profile";
@@ -838,6 +870,7 @@ function createApp({
     const menuVisible = activePage === "menu";
     const detailsVisible = activePage === "details";
     const settingsVisible = activePage === "settings";
+    const catalogVisible = activePage === "catalog";
     if (heroMovie) heroMovie.hidden = !homeVisible;
     if (homeNavigation) homeNavigation.hidden = !homeVisible;
     if (homeLibrarySection) homeLibrarySection.hidden = !homeVisible;
@@ -857,6 +890,8 @@ function createApp({
     if (navigationPage) navigationPage.hidden = !menuVisible;
     if (movieDetailsDialog) movieDetailsDialog.hidden = !detailsVisible;
     if (settingsDialog) settingsDialog.hidden = !settingsVisible;
+    if (movieCatalogPage) movieCatalogPage.hidden = !catalogVisible;
+    if (pageFooter) pageFooter.hidden = Boolean(authPanel && !authenticated);
     if (categoryShelf && categoryShelf.parentElement) categoryShelf.parentElement.hidden = !libraryVisible;
     if (folderShelf && folderShelf.parentElement) folderShelf.parentElement.hidden = !libraryVisible;
     if (profileMenu) {
@@ -1486,11 +1521,146 @@ function createApp({
     passwordInput.removeAttribute("aria-invalid");
   }
 
+  function updateProfileAccessUi() {
+    const needsSetup = profileAccessEnabled && profileAccessState === "needs_setup";
+    const needsPin = profileAccessEnabled && profileAccessState === "profile_locked";
+    if (profileSetupPanel) profileSetupPanel.hidden = !needsSetup;
+    if (profilePinPanel) profilePinPanel.hidden = !needsPin;
+    if (needsSetup && profileSetupName && typeof profileSetupName.focus === "function") {
+      profileSetupName.focus();
+    }
+    if (needsPin && profilePinInput && typeof profilePinInput.focus === "function") {
+      profilePinInput.focus();
+    }
+  }
+
+  function applyProfileAccessState(payload) {
+    profileAccessEnabled = Boolean(payload && payload.configured === true);
+    profileAccessState = (payload && payload.state) || "needs_setup";
+    serverProfiles = Array.isArray(payload && payload.profiles) ? payload.profiles : [];
+    if (payload && payload.profile && payload.profile.id && Object.prototype.hasOwnProperty.call(viewerProfiles, payload.profile.id)) {
+      setViewerProfile(payload.profile.id);
+    }
+    updateProfileUi();
+    updateProfileAccessUi();
+  }
+
+  async function loadAccessState() {
+    let response;
+    try {
+      response = await fetchImpl("/api/access-state", { credentials: "same-origin" });
+    } catch {
+      // Older deployments may not have the profile endpoint yet; retain the
+      // legacy session path until the server is updated.
+      return null;
+    }
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error((payload && payload.error) || "Unable to verify Movie Room setup.");
+    }
+    const payload = await response.json();
+    if (payload && payload.configured === true) {
+      applyProfileAccessState(payload);
+      return payload;
+    }
+    profileAccessEnabled = false;
+    profileAccessState = "home_unlocked";
+    serverProfiles = [];
+    updateProfileAccessUi();
+    return null;
+  }
+
+  async function handleProfileSetup(event) {
+    event.preventDefault();
+    if (profileSetupStatus) profileSetupStatus.textContent = "Saving your Home profile…";
+    const response = await fetchImpl("/api/account/setup", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: profileSetupName && profileSetupName.value ? profileSetupName.value.trim() : "Home",
+        avatarId: selectedSetupAvatar,
+        accentColor: selectedSetupAvatar === "mom"
+          ? "#28c48f"
+          : selectedSetupAvatar === "morganne"
+            ? "#ff74ad"
+            : selectedSetupAvatar === "kids"
+              ? "#f59e0b"
+              : "#f0c45b",
+      }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      if (profileSetupStatus) profileSetupStatus.textContent = (payload && payload.error) || "Movie Room setup could not be saved.";
+      return false;
+    }
+    const payload = await response.json();
+    applyProfileAccessState({ ...payload, configured: true });
+    setAuthenticated(true);
+    if (profileSetupStatus) profileSetupStatus.textContent = "Home is ready. Loading your library…";
+    await loadLibrary();
+    return true;
+  }
+
+  async function unlockServerProfile(profileId, pin = "") {
+    const response = await fetchImpl(`/api/profiles/${encodeURIComponent(profileId)}/unlock`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error((payload && payload.error) || "This profile could not be unlocked.");
+    }
+    const stateResponse = await fetchImpl("/api/access-state", { credentials: "same-origin" });
+    const state = await stateResponse.json();
+    applyProfileAccessState({ ...state, configured: true });
+    setAuthenticated(true);
+    await loadLibrary();
+    return true;
+  }
+
+  async function handleProfilePin(event) {
+    event.preventDefault();
+    if (profilePinStatus) profilePinStatus.textContent = "Checking PIN…";
+    try {
+      await unlockServerProfile(pendingProfileId, profilePinInput && profilePinInput.value || "");
+      if (profilePinInput) profilePinInput.value = "";
+      if (profilePinStatus) profilePinStatus.textContent = "Profile unlocked.";
+      return true;
+    } catch (error) {
+      if (profilePinStatus) profilePinStatus.textContent = error.message;
+      if (profilePinInput && typeof profilePinInput.select === "function") profilePinInput.select();
+      return false;
+    }
+  }
+
+  function selectServerProfile(profileId) {
+    const selected = serverProfiles.find((profile) => profile.id === profileId);
+    if (!selected) {
+      openProfilePage(profileId);
+      return;
+    }
+    pendingProfileId = profileId;
+    if (selected.pinRequired) {
+      profileAccessState = "profile_locked";
+      if (profilePinSummary) profilePinSummary.textContent = `Enter the PIN for ${selected.displayName}.`;
+      updateProfileAccessUi();
+      setAuthenticated(false);
+      return;
+    }
+    unlockServerProfile(profileId).catch((error) => updateStatus(error.message));
+  }
+
   function setAuthenticated(isAuthenticated) {
     if (!isAuthenticated && activePreviewCancel) activePreviewCancel();
     authenticated = Boolean(isAuthenticated);
     if (authPanel) authPanel.hidden = authenticated;
     if (libraryPanel) libraryPanel.hidden = !authenticated;
+    if (movieCatalogPage) movieCatalogPage.hidden = !authenticated;
+    if (pageFooter) pageFooter.hidden = !authenticated;
     if (!authenticated) {
       activePage = "home";
       if (searchOverlay) searchOverlay.hidden = true;
@@ -1523,6 +1693,7 @@ function createApp({
     if (profileToggle) {
       profileToggle.disabled = !authenticated;
     }
+    updateProfileAccessUi();
   }
 
   function setAuthUnavailable(unavailable) {
@@ -1987,6 +2158,16 @@ function createApp({
     if (target === "settings") {
       return openSettings();
     }
+    if (target === "catalog") {
+      setActivePage("catalog");
+      renderMovieCatalog();
+      closeSettings();
+      const firstCatalogMovie = movieCatalogGrid && movieCatalogGrid.querySelector
+        ? movieCatalogGrid.querySelector("button:not([disabled])")
+        : null;
+      focusRemoteElement(firstCatalogMovie);
+      return true;
+    }
     if (target === "menu") {
       return openNavigationPage();
     }
@@ -2137,17 +2318,23 @@ function createApp({
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
-  function appendPosterImage(poster, movie, alt = posterAltText(movie)) {
+  function appendPosterImage(poster, movie, alt = posterAltText(movie), options = {}) {
     const documentRef = poster && poster.ownerDocument;
     if (!documentRef || !hasMethod(documentRef, "createElement")) return;
     const image = documentRef.createElement("img");
     const fallbackUrl = generatedPosterUrl(movie);
+    const primaryUrl = options.preferBackdrop
+      ? (movie.backdropUrl || movie.posterUrl || "")
+      : (movie.posterUrl || "");
+    const artworkFallbackUrl = options.preferBackdrop
+      ? (movie.posterUrl || movie.posterFallbackUrl || fallbackUrl)
+      : (movie.posterFallbackUrl || fallbackUrl);
     image.alt = alt;
     image.loading = "lazy";
     image.decoding = "async";
     image.src = fallbackUrl;
-    if (movie.posterUrl) {
-      attachArtworkImage(image, movie.posterUrl, () => { image.src = fallbackUrl; }, movie.posterFallbackUrl);
+    if (primaryUrl) {
+      attachArtworkImage(image, primaryUrl, () => { image.src = artworkFallbackUrl; }, artworkFallbackUrl);
     }
     poster.prepend(image);
   }
@@ -2312,6 +2499,19 @@ function createApp({
       searchOverlayPreviousFocus = documentRef && documentRef.activeElement;
       setActivePage("search");
       renderSearchOverlay();
+      if (authenticated && !allMovies.length && !searchLoadInFlight) {
+        if (searchOverlaySummary) searchOverlaySummary.textContent = "Loading your movie index…";
+        searchLoadInFlight = loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "", { quiet: true })
+          .then(() => {
+            if (activePage === "search") renderSearchOverlay();
+          })
+          .catch((error) => {
+            if (searchOverlaySummary) searchOverlaySummary.textContent = error.message || "Unable to load your movie index.";
+          })
+          .finally(() => {
+            searchLoadInFlight = null;
+          });
+      }
       if (searchInput && hasMethod(searchInput, "focus")) searchInput.focus();
     } else if (searchOverlayPreviousFocus && hasMethod(searchOverlayPreviousFocus, "focus")) {
       if (activePage === "search") setActivePage("home");
@@ -2466,6 +2666,16 @@ function createApp({
       countLabel.textContent = String(count);
       button.append(icon, text, countLabel);
       button.addEventListener("click", () => {
+        const folderMovies = allMovies
+          .filter((movie) => movie && folderPath !== "all"
+            && (folderPath === "" ? !movie.folder : movie.folder === folderPath || String(movie.folder || "").startsWith(`${folderPath}/`)))
+          .filter((movie) => !isSampleMovie(movie))
+          .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")));
+        const firstPlayableMovie = folderMovies.find(isMoviePlayable);
+        if (firstPlayableMovie) {
+          openMovieDetails(firstPlayableMovie);
+          return;
+        }
         activeLibraryView = "movies";
         activeFolder = folderPath;
         renderLibrary();
@@ -3104,7 +3314,7 @@ function createApp({
     fallbackTitle.textContent = movie.title || movie.fileName || "Movie";
     fallback.append(initials, fallbackTitle);
     poster.append(fallback);
-    appendPosterImage(poster, movie);
+    appendPosterImage(poster, movie, posterAltText(movie), { preferBackdrop: true });
     installHoverPreview(card, poster, movie, ready);
     const info = documentRef.createElement("span");
     info.className = "movie-info";
@@ -3146,6 +3356,17 @@ function createApp({
     }
     const shelfType = shelf === continueWatchingShelf ? "continue" : "recent";
     shelf.replaceChildren(...movies.map((movie) => createShelfCard(movie, shelf, shelfType)));
+  }
+
+  function renderMovieCatalog() {
+    if (!movieCatalogGrid) return;
+    const catalogMovies = allMovies
+      .filter((movie) => !isSampleMovie(movie))
+      .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")));
+    if (movieCatalogSummary) {
+      movieCatalogSummary.textContent = `${catalogMovies.length} movie title${catalogMovies.length === 1 ? "" : "s"} in the private catalog.`;
+    }
+    renderShelf(movieCatalogGrid, catalogMovies, "No movie titles are available yet.");
   }
 
   function renderProfilePage() {
@@ -3325,7 +3546,10 @@ function createApp({
       const profile = viewerProfiles[profileId] || viewerProfiles.home;
       const movie = allMovies.find((candidate) => !isSampleMovie(candidate) && profile.pick(candidate))
         || allMovies.find((candidate) => !isSampleMovie(candidate));
-      return createImageTab(label, movie, `profile-image-tab profile-${profileId}`, () => openProfilePage(profileId), tabArtworkFallbacks[profileId]);
+      return createImageTab(label, movie, `profile-image-tab profile-${profileId}`, () => {
+        if (profileAccessEnabled) selectServerProfile(profileId);
+        else openProfilePage(profileId);
+      }, tabArtworkFallbacks[profileId]);
     }).filter(Boolean);
     if (homeProfileTabs && typeof homeProfileTabs.replaceChildren === "function") {
       homeProfileTabs.replaceChildren(...profileButtons);
@@ -3922,6 +4146,18 @@ function createApp({
 
   async function loadSession() {
     const requestVersion = authTransitionVersion;
+    const accessState = await loadAccessState();
+    if (accessState) {
+      if (requestVersion !== authTransitionVersion) return authenticated;
+      const unlocked = accessState.state === "home_unlocked" || accessState.state === "profile_unlocked";
+      setAuthenticated(unlocked);
+      if (!unlocked) {
+        updateStatus(accessState.state === "profile_locked"
+          ? "Choose the profile PIN to continue."
+          : "Complete Movie Room setup to browse the library.");
+      }
+      return unlocked;
+    }
     const response = await fetchImpl("/api/session", { credentials: "same-origin" });
     if (requestVersion !== authTransitionVersion) {
       return authenticated;
@@ -4197,7 +4433,8 @@ function createApp({
         });
       }
       for (const button of documentRef.querySelectorAll("[data-browse-destination]")) {
-        button.addEventListener("click", () => {
+        button.addEventListener("click", (event) => {
+          if (button.tagName === "A" && event && hasMethod(event, "preventDefault")) event.preventDefault();
           const destination = button.dataset ? button.dataset.browseDestination : "home";
           selectBrowseDestination(destination);
         });
@@ -4205,7 +4442,11 @@ function createApp({
       for (const button of documentRef.querySelectorAll("[data-profile-navigation]")) {
         button.addEventListener("click", () => {
           const profileId = button.dataset ? button.dataset.profileNavigation : "home";
-          openProfilePage(profileId);
+          if (profileAccessEnabled) {
+            selectServerProfile(profileId);
+          } else {
+            openProfilePage(profileId);
+          }
         });
       }
     }
@@ -4337,6 +4578,31 @@ function createApp({
         reloadButton.click();
       });
     }
+    if (settingsResetProfileButton) {
+      settingsResetProfileButton.addEventListener("click", async () => {
+        const response = await fetchImpl("/api/account/reset", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (!response.ok) {
+          updateStatus("Movie Room profile reset could not be completed.");
+          return;
+        }
+        try {
+          if (localStorageRef && hasMethod(localStorageRef, "removeItem")) localStorageRef.removeItem(profileStorageKey);
+          if (localStorageRef && hasMethod(localStorageRef, "removeItem")) localStorageRef.removeItem(libraryStorageKey);
+        } catch {
+          // Local storage may be unavailable; the server session is still reset.
+        }
+        serverProfiles = [];
+        profileAccessState = "needs_setup";
+        profileAccessEnabled = true;
+        setAuthenticated(false);
+        updateStatus("Movie Room reset. Complete setup to continue.");
+      });
+    }
     if (playerSettingsButton) {
       playerSettingsButton.addEventListener("click", openSettings);
     }
@@ -4398,6 +4664,15 @@ function createApp({
           setSearchOverlayVisible(true);
           renderSearchOverlay();
         }
+      });
+      searchInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        if (hasMethod(event, "stopPropagation")) event.stopPropagation();
+        searchTerm = searchInput.value.trim().toLowerCase();
+        rememberSearchForProfile(searchInput.value);
+        setSearchOverlayVisible(true);
+        renderSearchOverlay();
       });
     }
     if (searchScopeSelect) {
@@ -4477,10 +4752,51 @@ function createApp({
       });
     }
 
+    for (const button of profileAvatarChoices) {
+      if (!button || !hasMethod(button, "addEventListener")) continue;
+      button.addEventListener("click", () => {
+        selectedSetupAvatar = (button.dataset && button.dataset.profileAvatar) || "home-family";
+        for (const candidate of profileAvatarChoices) {
+          if (candidate && typeof candidate.setAttribute === "function") {
+            candidate.setAttribute("aria-pressed", candidate === button ? "true" : "false");
+          }
+        }
+      });
+    }
+
+    if (profileSetupForm) {
+      profileSetupForm.addEventListener("submit", (event) => {
+        handleProfileSetup(event).catch((error) => {
+          if (profileSetupStatus) profileSetupStatus.textContent = error.message;
+        });
+      });
+    }
+    if (profilePinForm) {
+      profilePinForm.addEventListener("submit", (event) => {
+        handleProfilePin(event).catch((error) => {
+          if (profilePinStatus) profilePinStatus.textContent = error.message;
+        });
+      });
+    }
+    if (profilePinCancel) {
+      profilePinCancel.addEventListener("click", () => {
+        pendingProfileId = "";
+        loadAccessState().then((state) => {
+          const unlocked = state && (state.state === "home_unlocked" || state.state === "profile_unlocked");
+          setAuthenticated(Boolean(unlocked));
+        }).catch(() => {});
+      });
+    }
+
     for (const button of profileButtons) {
       button.addEventListener("click", () => {
         const profileId = button.dataset ? button.dataset.viewerProfile : "home";
-        openProfilePage(profileId);
+        if (profileAccessEnabled) {
+          if (profileMenu) profileMenu.hidden = true;
+          selectServerProfile(profileId);
+        } else {
+          openProfilePage(profileId);
+        }
       });
     }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
@@ -4812,6 +5128,10 @@ if (typeof document !== "undefined") {
     searchScopeSelect: document.getElementById("search-scope"),
     searchYearSelect: document.getElementById("search-year"),
     searchSortSelect: document.getElementById("search-sort"),
+    movieCatalogPage: document.getElementById("movie-catalog-page"),
+    movieCatalogGrid: document.getElementById("movie-catalog-grid"),
+    movieCatalogSummary: document.getElementById("movie-catalog-summary"),
+    pageFooter: document.getElementById("page-footer"),
     navigationPage: document.getElementById("navigation-page"),
     menuTabButtons: Array.from(document.querySelectorAll("[data-menu-tab]")),
     menuTabPanels: Array.from(document.querySelectorAll("[data-menu-panel]")),
@@ -4867,6 +5187,17 @@ if (typeof document !== "undefined") {
     profileMenu: document.getElementById("profile-menu"),
     profileLabel: document.getElementById("profile-label"),
     profileAvatar: document.getElementById("profile-avatar"),
+    profileSetupPanel: document.getElementById("profile-setup-panel"),
+    profileSetupForm: document.getElementById("profile-setup-form"),
+    profileSetupName: document.getElementById("profile-setup-name"),
+    profileSetupStatus: document.getElementById("profile-setup-status"),
+    profileAvatarChoices: Array.from(document.querySelectorAll("[data-profile-avatar]")),
+    profilePinPanel: document.getElementById("profile-pin-panel"),
+    profilePinForm: document.getElementById("profile-pin-form"),
+    profilePinInput: document.getElementById("profile-pin-input"),
+    profilePinStatus: document.getElementById("profile-pin-status"),
+    profilePinCancel: document.getElementById("profile-pin-cancel"),
+    profilePinSummary: document.getElementById("profile-pin-summary"),
     viewerHeaderLabel: document.getElementById("viewer-header-label"),
     pageHeaderLabel: document.getElementById("page-header-label"),
     profileButtons: Array.from(document.querySelectorAll("[data-viewer-profile]")),
@@ -4925,6 +5256,7 @@ if (typeof document !== "undefined") {
     settingsSystemButton: document.getElementById("settings-system"),
     settingsUpdatesButton: document.getElementById("settings-updates"),
     settingsReloadButton: document.getElementById("settings-reload"),
+    settingsResetProfileButton: document.getElementById("settings-reset-profile"),
     settingsCloseButton: document.getElementById("settings-close"),
     menuHomeButton: document.getElementById("menu-home"),
     menuLibraryButton: document.getElementById("menu-library"),
