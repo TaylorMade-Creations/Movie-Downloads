@@ -4072,6 +4072,281 @@
           gap: 8px;
         }
       }
+
+      /* Neon Theater home menu pass: grouped routes, high-contrast states, and remote-ready focus. */
+      :root {
+        --neon-red: #c91f4b;
+        --neon-black: #070407;
+        --neon-teal: #5eead4;
+        --neon-teal-bright: #97fff1;
+        --neon-gold: #ffd166;
+        --neon-magenta: #ff5bbd;
+        --neon-ink: #12070b;
+        --neon-panel: #160b13;
+        --neon-panel-raised: #24101a;
+        --neon-line: rgba(255, 209, 102, .30);
+        --neon-muted: #d7c8cc;
+      }
+
+      .navigation-page {
+        gap: 28px;
+      }
+
+      .menu-recently-watched-panel {
+        display: grid;
+        gap: 18px;
+      }
+
+      .menu-recently-watched-heading {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid rgba(255, 209, 102, .24);
+        padding-bottom: 16px;
+      }
+
+      .menu-recently-watched-heading h2 {
+        margin: 0;
+        color: #fff4d6;
+        font-size: clamp(24px, 3vw, 38px);
+      }
+
+      .menu-recently-watched-heading .eyebrow {
+        color: var(--neon-gold);
+      }
+
+      .menu-recently-watched-profile {
+        border: 1px solid rgba(255, 91, 189, .42);
+        border-radius: 999px;
+        padding: 8px 13px;
+        background: rgba(255, 91, 189, .12);
+        color: var(--neon-magenta);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .menu-recently-watched-rail {
+        grid-auto-columns: minmax(240px, 300px);
+        gap: 18px;
+        padding: 4px 4px 16px;
+        scrollbar-color: var(--neon-gold) transparent;
+      }
+
+      .menu-recently-watched-rail .movie-card {
+        border-color: rgba(255, 209, 102, .30) !important;
+        border-radius: 16px;
+        background: linear-gradient(145deg, rgba(36, 16, 26, .98), rgba(7, 4, 7, .98)) !important;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, .34);
+      }
+
+      .menu-recently-watched-rail .movie-card:hover,
+      .menu-recently-watched-rail .movie-card:focus-visible {
+        border-color: var(--neon-gold) !important;
+        box-shadow: 0 18px 36px rgba(0, 0, 0, .48), 0 0 0 2px rgba(255, 209, 102, .42), 0 0 24px rgba(94, 234, 212, .18);
+      }
+
+      .menu-recently-watched-rail .poster {
+        aspect-ratio: 16 / 9;
+        border-radius: 15px 15px 0 0;
+      }
+
+      .menu-recently-watched-rail .video-aware-badge {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        z-index: 4;
+        border: 1px solid rgba(255, 209, 102, .66);
+        border-radius: 999px;
+        padding: 5px 8px;
+        background: rgba(7, 4, 7, .78);
+        color: var(--neon-gold);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .menu-recently-watched-rail .movie-card.previewing .video-aware-badge {
+        border-color: var(--neon-teal);
+        background: rgba(6, 19, 27, .84);
+        color: var(--neon-teal-bright);
+      }
+
+      .menu-recently-watched-rail .movie-info {
+        min-height: 74px;
+        padding: 12px 13px 14px;
+      }
+
+      .menu-recently-watched-rail .movie-title {
+        color: #fff4d6;
+        font-size: 15px;
+      }
+
+      .menu-recently-watched-rail .movie-meta {
+        color: var(--neon-muted);
+        font-size: 12px;
+      }
+
+      .navigation-page-header {
+        border: 1px solid rgba(255, 209, 102, .38);
+        border-radius: 18px;
+        padding: 22px;
+        background: linear-gradient(135deg, color-mix(in srgb, var(--neon-red) 18%, var(--neon-panel)), var(--neon-black));
+        box-shadow: 0 18px 42px rgba(0, 0, 0, .42), 0 0 32px rgba(201, 31, 75, .13);
+      }
+
+      .navigation-page-header h1 {
+        color: #fff4d6;
+      }
+
+      .navigation-page-header p:last-child {
+        color: var(--neon-muted);
+      }
+
+      .menu-tabs {
+        border-bottom-color: var(--neon-line);
+      }
+
+      .menu-tabs button[role="tab"] {
+        border-color: var(--neon-line);
+        background: rgba(22, 11, 19, .92) !important;
+        color: var(--neon-muted) !important;
+      }
+
+      .menu-tabs button[role="tab"][aria-selected="true"],
+      .menu-tabs button[role="tab"]:hover,
+      .menu-tabs button[role="tab"]:focus-visible {
+        border-color: var(--neon-gold);
+        background: var(--neon-gold) !important;
+        color: var(--neon-ink) !important;
+        box-shadow: 0 0 24px rgba(255, 209, 102, .24);
+      }
+
+      .menu-group-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .menu-group {
+        display: grid;
+        align-content: start;
+        gap: 10px;
+        border: 1px solid var(--neon-line);
+        border-radius: 16px;
+        padding: 14px;
+        background: linear-gradient(160deg, color-mix(in srgb, var(--neon-red) 18%, var(--neon-panel-raised)), var(--neon-black));
+        box-shadow: 0 14px 30px rgba(0, 0, 0, .24);
+      }
+
+      .menu-group h3 {
+        margin: 0;
+        color: var(--neon-gold);
+        font-size: 13px;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .menu-group[data-menu-group="my-room"] h3 {
+        color: var(--neon-magenta);
+      }
+
+      .menu-group[data-menu-group="devices"] h3 {
+        color: var(--neon-teal-bright);
+      }
+
+      .menu-group .navigation-grid {
+        grid-template-columns: 1fr;
+        gap: 9px;
+      }
+
+      .menu-group .navigation-grid button {
+        min-height: 58px;
+        border-color: var(--neon-line) !important;
+        background: linear-gradient(135deg, rgba(201, 31, 75, .78), rgba(54, 11, 24, .88)) !important;
+        color: #f3fbfd !important;
+      }
+
+      .menu-group .navigation-grid button:hover,
+      .menu-group .navigation-grid button:focus-visible {
+        border-color: var(--neon-gold) !important;
+        background: linear-gradient(135deg, rgba(255, 209, 102, .30), rgba(94, 234, 212, .22)) !important;
+        color: #fff8e5 !important;
+        transform: translateY(-2px);
+        outline: 3px solid var(--neon-gold);
+        outline-offset: 3px;
+        box-shadow: 0 0 0 1px rgba(255, 209, 102, .24), 0 12px 24px rgba(0, 0, 0, .34);
+      }
+
+      .primary-nav button.active {
+        background: var(--neon-gold) !important;
+        color: var(--neon-ink) !important;
+        box-shadow: 0 0 0 1px rgba(255, 244, 214, .42), 0 0 22px rgba(255, 209, 102, .30);
+      }
+
+      .primary-nav button:hover,
+      .primary-nav button:focus-visible {
+        border-color: var(--neon-gold);
+        color: #fff;
+      }
+
+      .home-navigation {
+        border-color: rgba(255, 209, 102, .28);
+        background: linear-gradient(135deg, rgba(22, 11, 19, .96), rgba(7, 4, 7, .94));
+        box-shadow: 0 20px 50px rgba(0, 0, 0, .42), 0 0 32px rgba(201, 31, 75, .12);
+      }
+
+      .home-navigation .page-shortcuts button {
+        border-color: var(--neon-line);
+        background: linear-gradient(135deg, rgba(201, 31, 75, .70), rgba(54, 11, 24, .86)) !important;
+        color: #f3fbfd !important;
+      }
+
+      .home-navigation .page-shortcuts button:hover,
+      .home-navigation .page-shortcuts button:focus-visible {
+        border-color: var(--neon-gold);
+        background: linear-gradient(135deg, rgba(255, 209, 102, .28), rgba(94, 234, 212, .20)) !important;
+        color: #fff !important;
+      }
+
+      .home-navigation .profile-shortcuts button {
+        border-color: rgba(255, 91, 189, .35);
+        background: rgba(255, 91, 189, .08);
+      }
+
+      .home-navigation .profile-shortcuts button:hover,
+      .home-navigation .profile-shortcuts button:focus-visible {
+        border-color: var(--neon-magenta);
+        background: rgba(255, 91, 189, .18);
+      }
+
+      @media (max-width: 1050px) {
+        .menu-group-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 600px) {
+        .menu-recently-watched-heading {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .menu-recently-watched-rail {
+          grid-auto-columns: minmax(220px, 78vw);
+        }
+
+        .menu-group-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .menu-group {
+          padding: 12px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -4265,21 +4540,20 @@
         <p>Choose a menu tab, then select a destination. Every destination opens as its own page.</p>
       </section>
       <div class="menu-tabs" role="tablist" aria-label="Movie Room menu sections">
-        <button id="menu-tab-browse" type="button" role="tab" data-menu-tab="browse" aria-controls="menu-panel-browse" aria-selected="true">Browse</button>
+        <button id="menu-tab-recent" type="button" role="tab" data-menu-tab="recent" aria-controls="menu-panel-recent" aria-selected="true">Recently Watched</button>
         <button id="menu-tab-profiles" type="button" role="tab" data-menu-tab="profiles" aria-controls="menu-panel-profiles" aria-selected="false">Profiles</button>
         <button id="menu-tab-settings" type="button" role="tab" data-menu-tab="settings" aria-controls="menu-panel-settings" aria-selected="false">Settings</button>
       </div>
-      <section id="menu-panel-browse" class="menu-tabpanel" data-menu-panel="browse" role="tabpanel" aria-labelledby="menu-tab-browse">
-        <h2>Browse</h2>
-        <div class="navigation-grid" aria-label="Movie Room browse pages">
-          <button type="button" data-browse-destination="home">Home / Trending</button>
-          <button type="button" data-browse-destination="search">Search</button>
-          <button type="button" data-browse-destination="library">General library</button>
-          <button type="button" data-browse-destination="collections">Collections &amp; series</button>
-          <button type="button" data-browse-destination="genres">Genres</button>
-          <button type="button" data-browse-destination="saved">Saved / downloaded</button>
-          <button type="button" data-browse-destination="settings">Movie Room settings</button>
+      <section id="menu-panel-recent" class="menu-tabpanel menu-recently-watched-panel" data-menu-panel="recent" role="tabpanel" aria-labelledby="menu-tab-recent">
+        <div class="menu-recently-watched-heading">
+          <div>
+            <p class="eyebrow">Your profile history</p>
+            <h2>Recently Watched</h2>
+            <p id="menu-recently-watched-summary" class="shelf-summary">Your latest watched titles appear here.</p>
+          </div>
+          <span class="menu-recently-watched-profile" id="menu-recently-watched-profile">Home</span>
         </div>
+        <div id="menu-recently-watched-shelf" class="movie-rail menu-recently-watched-rail" aria-label="Recently watched videos" aria-live="polite"></div>
       </section>
       <section id="menu-panel-profiles" class="menu-tabpanel" data-menu-panel="profiles" role="tabpanel" aria-labelledby="menu-tab-profiles" hidden>
         <h2>Profiles</h2>
@@ -4621,6 +4895,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-  <script src="/app.js?v=20261002-navigation-catalog-v14" defer></script>
+  <script src="/app.js?v=20261003-profile-recently-watched-v1" defer></script>
   </body>
 </html>

@@ -419,6 +419,9 @@ function createApp({
   profilePageSummary,
   profileMostWatchedShelf,
   profileRecentlyWatchedShelf,
+  menuRecentlyWatchedShelf,
+  menuRecentlyWatchedSummary,
+  menuRecentlyWatchedProfile,
   movieDetailsDialog,
   detailsClose,
   detailsBackdrop,
@@ -680,6 +683,7 @@ function createApp({
       profileToggle.setAttribute("aria-expanded", "false");
     }
     updateProfileUi();
+    if (activePage === "menu") renderRecentlyWatchedMenu();
   }
 
   function saveProfileNavigationState() {
@@ -2098,12 +2102,12 @@ function createApp({
     return true;
   }
 
-  function openSavedView() {
+  function openSavedView(filter = "favorites") {
     activeLibraryView = "movies";
     activeFolder = "all";
     activeCategory = "all";
     searchTerm = "";
-    searchOverlayGenre = "favorites";
+    searchOverlayGenre = filter === "watch-later" ? "watch-later" : "favorites";
     if (searchInput) searchInput.value = "";
     setSearchOverlayVisible(true);
     renderSearchOverlay();
@@ -2113,13 +2117,14 @@ function createApp({
   function openNavigationPage() {
     closeSettings();
     setActivePage("menu");
-    setMenuTab("browse");
+    setMenuTab("recent");
+    renderRecentlyWatchedMenu();
     return true;
   }
 
   function setMenuTab(tabId, focusFirst = true) {
-    const allowedTabs = ["browse", "profiles", "settings"];
-    const activeTab = allowedTabs.includes(String(tabId || "")) ? String(tabId) : "browse";
+    const allowedTabs = ["recent", "profiles", "settings"];
+    const activeTab = allowedTabs.includes(String(tabId || "")) ? String(tabId) : "recent";
     for (const button of menuTabButtons) {
       const selected = button && button.dataset && button.dataset.menuTab === activeTab;
       if (button && typeof button.setAttribute === "function") {
@@ -2142,13 +2147,45 @@ function createApp({
     return true;
   }
 
-  function selectBrowseDestination(destination) {
+  function scrollHomeDestination(target) {
+    const key = String(target || "").toLowerCase();
+    const shelves = {
+      continue: continueWatchingShelf,
+      recent: recentlyAddedShelf,
+      history: profileRecentlyWatchedShelf,
+      "tv-guide": documentRef && typeof documentRef.querySelector === "function"
+        ? documentRef.querySelector(".tv-guide")
+        : null,
+    };
+    const shelf = shelves[key];
+    if (!shelf) return false;
+    const section = shelf.closest && (shelf.closest(".shelf-section") || shelf.closest(".tv-guide"));
+    const destination = section || shelf;
+    if (hasMethod(destination, "scrollIntoView")) {
+      destination.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    const firstTarget = shelf.querySelector
+      ? shelf.querySelector("button:not([disabled]), [tabindex]")
+      : null;
+    if (firstTarget && hasMethod(firstTarget, "focus")) {
+      firstTarget.focus({ preventScroll: true });
+    }
+    return true;
+  }
+
+  function selectBrowseDestination(destination, options = {}) {
     const target = String(destination || "").toLowerCase();
+    const homeTarget = String(options.homeTarget || "").toLowerCase();
+    const savedFilter = String(options.savedFilter || "").toLowerCase();
     if (target === "profile") {
-      return openProfilePage(activeProfile);
+      const opened = openProfilePage(activeProfile);
+      if (homeTarget === "history") {
+        setTimeoutImpl(() => scrollHomeDestination("history"), 0);
+      }
+      return opened;
     }
     if (target === "saved") {
-      return openSavedView();
+      return openSavedView(savedFilter);
     }
     if (target === "search") {
       searchOverlayGenre = "all";
@@ -2178,6 +2215,9 @@ function createApp({
       setActivePage("home");
       closeSettings();
       focusInitialHero();
+      if (homeTarget) {
+        setTimeoutImpl(() => scrollHomeDestination(homeTarget), 0);
+      }
       return true;
     }
     if (["library", "collections", "genres"].includes(target)) {
@@ -2191,6 +2231,9 @@ function createApp({
       closeSettings();
       if (movieGrid && hasMethod(movieGrid, "scrollIntoView")) movieGrid.scrollIntoView({ behavior: "auto", block: "start" });
       focusLibraryPrimaryTarget();
+      if (homeTarget === "tv-guide") {
+        setTimeoutImpl(() => scrollHomeDestination("tv-guide"), 0);
+      }
       return true;
     }
     return false;
@@ -3301,6 +3344,9 @@ function createApp({
     const ready = isMoviePlayable(movie);
     card.type = "button";
     card.className = ready ? "movie-card" : "movie-card unavailable";
+    if (shelfType === "recently-watched") {
+      card.setAttribute("data-video-aware", "true");
+    }
     card.disabled = !ready;
     card.dataset.movieId = movie.id;
     bindFeaturedSelection(card, movie);
@@ -3315,6 +3361,12 @@ function createApp({
     fallback.append(initials, fallbackTitle);
     poster.append(fallback);
     appendPosterImage(poster, movie, posterAltText(movie), { preferBackdrop: true });
+    if (shelfType === "recently-watched") {
+      const videoBadge = documentRef.createElement("span");
+      videoBadge.className = "video-aware-badge";
+      videoBadge.textContent = "Video preview";
+      poster.append(videoBadge);
+    }
     installHoverPreview(card, poster, movie, ready);
     const info = documentRef.createElement("span");
     info.className = "movie-info";
@@ -3354,7 +3406,11 @@ function createApp({
       shelf.replaceChildren(empty);
       return;
     }
-    const shelfType = shelf === continueWatchingShelf ? "continue" : "recent";
+    const shelfType = shelf === continueWatchingShelf
+      ? "continue"
+      : shelf === menuRecentlyWatchedShelf
+        ? "recently-watched"
+        : "recent";
     shelf.replaceChildren(...movies.map((movie) => createShelfCard(movie, shelf, shelfType)));
   }
 
@@ -3369,9 +3425,9 @@ function createApp({
     renderShelf(movieCatalogGrid, catalogMovies, "No movie titles are available yet.");
   }
 
-  function renderProfilePage() {
+  function watchedMoviesForActiveProfile() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
-    const watched = allMovies
+    return allMovies
       .filter(isMoviePlayable)
       .filter(profile.pick)
       .filter((movie) => {
@@ -3382,6 +3438,35 @@ function createApp({
           || Number(record.lastWatchedAt) > 0
         );
       });
+  }
+
+  function recentlyWatchedMoviesForActiveProfile() {
+    return watchedMoviesForActiveProfile()
+      .sort((left, right) => {
+        const rightRecord = viewerRecord(right.id) || {};
+        const leftRecord = viewerRecord(left.id) || {};
+        return (Number(rightRecord.lastWatchedAt) || 0) - (Number(leftRecord.lastWatchedAt) || 0)
+          || String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || ""));
+      })
+      .slice(0, 12);
+  }
+
+  function renderRecentlyWatchedMenu() {
+    if (!menuRecentlyWatchedShelf) return;
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const recentlyWatched = recentlyWatchedMoviesForActiveProfile();
+    if (menuRecentlyWatchedProfile) menuRecentlyWatchedProfile.textContent = profile.label;
+    if (menuRecentlyWatchedSummary) {
+      menuRecentlyWatchedSummary.textContent = recentlyWatched.length
+        ? `${recentlyWatched.length} recent title${recentlyWatched.length === 1 ? "" : "s"} for ${profile.label}.`
+        : `Start a title to build ${profile.label}'s watch history.`;
+    }
+    renderShelf(menuRecentlyWatchedShelf, recentlyWatched, `No watched titles yet for ${profile.label}.`);
+  }
+
+  function renderProfilePage() {
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const watched = watchedMoviesForActiveProfile();
     const recordFor = (movie) => viewerRecord(movie.id) || {};
     const mostWatched = [...watched]
       .sort((left, right) => (
@@ -3406,6 +3491,7 @@ function createApp({
     }
     renderShelf(profileMostWatchedShelf, mostWatched, "No watched titles yet.");
     renderShelf(profileRecentlyWatchedShelf, recentlyWatched, "Start a title and it will appear here.");
+    renderRecentlyWatchedMenu();
     setActivePage("profile");
   }
 
@@ -3750,6 +3836,7 @@ function createApp({
     renderFolderShelf();
     renderMovieGrid();
     renderDiscovery();
+    renderRecentlyWatchedMenu();
     setActivePage(activePage);
   }
 
@@ -4435,8 +4522,11 @@ function createApp({
       for (const button of documentRef.querySelectorAll("[data-browse-destination]")) {
         button.addEventListener("click", (event) => {
           if (button.tagName === "A" && event && hasMethod(event, "preventDefault")) event.preventDefault();
-          const destination = button.dataset ? button.dataset.browseDestination : "home";
-          selectBrowseDestination(destination);
+          const data = button.dataset || {};
+          selectBrowseDestination(data.browseDestination, {
+            homeTarget: data.homeTarget,
+            savedFilter: data.savedFilter,
+          });
         });
       }
       for (const button of documentRef.querySelectorAll("[data-profile-navigation]")) {
@@ -4469,7 +4559,7 @@ function createApp({
         if (action) invokeAndroidSetting(action[0], action[1]);
       });
     }
-    setMenuTab("browse", false);
+    setMenuTab("recent", false);
     if (closePlayerPage) {
       closePlayerPage.addEventListener("click", () => {
         savePlaybackProgress("pause").catch(() => {});
@@ -5227,6 +5317,9 @@ if (typeof document !== "undefined") {
     profilePageSummary: document.getElementById("profile-page-summary"),
     profileMostWatchedShelf: document.getElementById("profile-most-watched-shelf"),
     profileRecentlyWatchedShelf: document.getElementById("profile-recently-watched-shelf"),
+    menuRecentlyWatchedShelf: document.getElementById("menu-recently-watched-shelf"),
+    menuRecentlyWatchedSummary: document.getElementById("menu-recently-watched-summary"),
+    menuRecentlyWatchedProfile: document.getElementById("menu-recently-watched-profile"),
     movieDetailsDialog: document.getElementById("movie-details-page"),
     detailsClose: document.getElementById("details-close"),
     detailsBackdrop: document.getElementById("details-backdrop"),

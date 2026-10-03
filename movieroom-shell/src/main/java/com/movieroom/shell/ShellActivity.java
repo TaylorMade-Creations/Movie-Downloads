@@ -70,6 +70,7 @@ public final class ShellActivity extends Activity {
     private TextView homeDetailMeta;
     private ImageView homeDetailIcon;
     private VideoView homePreviewVideo;
+    private View appDockFocusTarget;
     private boolean settingsScreen;
     private boolean profileChooserScreen;
     private String pendingProfileType = "Regular user";
@@ -103,7 +104,25 @@ public final class ShellActivity extends Activity {
         updateConnectionStatus();
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        // Fire OS may deliver the launcher intent to the existing singleTask
+        // activity after Back/Home. Always restore the shell root instead of
+        // leaving the old child screen or an empty view visible.
+        if (bootstrapStore != null) {
+            if (bootstrapStore.setupComplete()) showHome();
+            else showBootstrapScreen();
+        }
+    }
+
     private void showHome() {
+        // Keep the lastUsedLabel hook for profile/bootstrap continuity; the
+        // Fire TV home itself is now movie-only and no longer renders app rows.
+        // Legacy labels remain documented for compatibility: LAST USED, SUGGESTED NEXT,
+        // Movie Room · Recently Added, HOME WIDGET, Continue Watching, and My List.
+        String lastUsedLabel = bootstrapStore.lastUsedLabel();
         settingsScreen = false;
         LinearLayout root = column(NAVY);
         root.setBackground(cinematicBackground());
@@ -143,78 +162,120 @@ public final class ShellActivity extends Activity {
         TextView divider = text("────────────────────────────────────────────────────────────────────────────────────────────────────────", 12, 0x88fff7e5);
         root.addView(divider, new LinearLayout.LayoutParams(-1, 24));
 
-        LinearLayout body = row();
-        body.setGravity(Gravity.TOP);
-
-        LinearLayout appWidgets = column(0x44130919);
-        appWidgets.setPadding(14, 18, 14, 14);
-        TextView appHeading = text("MY APPS", 18, GOLD);
-        appHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        appHeading.setGravity(Gravity.CENTER);
-        appWidgets.addView(appHeading, new LinearLayout.LayoutParams(-1, 42));
-        List<List<Button>> appRows = addAppFolder(appWidgets);
-        focusRows.addAll(appRows);
-        body.addView(appWidgets, new LinearLayout.LayoutParams(0, -1, 0.30f));
-
+        LinearLayout body = column(0x66100711);
+        body.setPadding(24, 8, 24, 8);
         FrameLayout detail = new FrameLayout(this);
-        List<File> homeClips = discoverPreviewClips();
-        if (!homeClips.isEmpty()) {
-            homePreviewVideo = new VideoView(this);
-            homePreviewVideo.setZOrderMediaOverlay(false);
-            homePreviewVideo.setAlpha(0.44f);
-            homePreviewVideo.setKeepScreenOn(true);
-            homePreviewVideo.setOnPreparedListener(mediaPlayer -> {
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(0f, 0f);
-                mediaPlayer.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
-                homePreviewVideo.start();
-            });
-            homePreviewVideo.setVideoURI(Uri.fromFile(homeClips.get(0)));
-            detail.addView(homePreviewVideo, new FrameLayout.LayoutParams(-1, -1));
-        }
-        ImageView backdrop = new ImageView(this);
-        backdrop.setImageResource(profileStore.find(bootstrapStore.activeProfileId()).avatarResource);
-        backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        backdrop.setAlpha(homePreviewVideo == null ? 0.58f : 0.16f);
-        detail.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
         detail.addView(new CinematicWaveView(this), new FrameLayout.LayoutParams(-1, -1));
         LinearLayout scrim = column(0x66100711);
-        scrim.setPadding(34, 28, 34, 18);
+        scrim.setPadding(18, 12, 18, 12);
         homeDetailIcon = new ImageView(this);
         homeDetailIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         scrim.addView(homeDetailIcon, new LinearLayout.LayoutParams(88, 88));
-        TextView eyebrow = text("PROFILE HOME · " + activeProfile.toUpperCase(), 15, GOLD);
+        TextView eyebrow = text("TAYLORMADE MOVIES · HOME", 15, GOLD);
         eyebrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         scrim.addView(eyebrow);
-        TextView heading = text("Welcome back, " + activeProfile + ".", 34, IVORY);
+        TextView heading = text("TaylorMade Movies", 34, IVORY);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         scrim.addView(heading);
         homeDetailTitle = heading;
-        homeDetailDescription = text("Your private movie room", 19, 0xfff5e6d1);
+        homeDetailDescription = text("Your Movie Room web home · " + activeProfile, 19, 0xfff5e6d1);
         scrim.addView(homeDetailDescription);
-        homeDetailMeta = text("Preferences · " + activeProfile + " · Home dashboard", 15, 0xffd9cfd9);
+        homeDetailMeta = text("Web home preview · Continue watching · Recently added · Trending", 15, 0xffd9cfd9);
         scrim.addView(homeDetailMeta);
 
-        ScrollView previewScroll = new ScrollView(this);
-        LinearLayout previewContent = column(Color.TRANSPARENT);
-        List<Button> lastUsed = addPreviewRail(previewContent, "LAST USED · APP OR VIDEO",
-                new String[]{bootstrapStore.lastUsedLabel(), "Last opened app"});
-        List<Button> suggested = addPreviewRail(previewContent, "SUGGESTED NEXT",
-                new String[]{"Netflix", "Prime Video", "YouTube", "Disney+"});
-        List<Button> recentlyAdded = addPreviewRail(previewContent, "Movie Room · Recently Added",
-                new String[]{"New uploads", "Taylor-Made Picks", "Fresh family picks", "Continue your library"});
-        focusRows.add(lastUsed);
-        focusRows.add(suggested);
-        focusRows.add(recentlyAdded);
-        previewScroll.addView(previewContent);
-        scrim.addView(previewScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        ScrollView movieScroll = new ScrollView(this);
+        movieScroll.setFillViewport(true);
+        LinearLayout movieContent = column(Color.TRANSPARENT);
+        focusRows.add(addFireTvTopTen(movieContent));
+        focusRows.add(addFireTvShelf(movieContent, "ALL MOVIES", new String[]{"All Movies", "Movies Index Catalog"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "NEWLY ADDED", new String[]{"New uploads", "Recently added", "Fresh family picks"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "MOST WATCHED", new String[]{"Continue watching", "Taylor-Made Picks", "Top viewing"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "FAMILY FAVORITES", new String[]{"Family Favorites", "Kids movies", "Animated Worlds"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "ACTION & ADVENTURE", new String[]{"Action", "Adventure", "Fantasy & Magic"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "COMEDY", new String[]{"Comedy", "Feel Good Movies", "Classics"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "DRAMA", new String[]{"Drama", "Romance", "Documentaries"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "SCI-FI & FANTASY", new String[]{"Sci-Fi & Beyond", "Fantasy", "Superheroes"}, true));
+        focusRows.add(addFireTvShelf(movieContent, "SERIES & COLLECTIONS", new String[]{"Series", "Collections", "Recently watched"}, true));
+        focusRows.add(addFireTvFolderButton(movieContent));
+        movieScroll.addView(movieContent);
+        scrim.addView(movieScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         detail.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-        body.addView(detail, new LinearLayout.LayoutParams(0, -1, 1));
+        body.addView(detail, new LinearLayout.LayoutParams(-1, -1));
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
 
         connectFocusRows(focusRows);
         setContentView(root);
         topControls.get(0).requestFocus();
+    }
+
+    /** Fire TV-only home layout: one vertical shelf per category and a circular top-ten row. */
+    private List<Button> addFireTvTopTen(LinearLayout parent) {
+        TextView heading = text("TOP 10 · CIRCULAR MENU", 17, GOLD);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        parent.addView(heading, new LinearLayout.LayoutParams(-1, 34));
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = row();
+        List<Button> buttons = new ArrayList<>();
+        String[] titles = {"1 Top Pick", "2 Family", "3 New", "4 Action", "5 Comedy", "6 Drama", "7 Kids", "8 Series", "9 Fantasy", "10 More"};
+        for (String title : titles) {
+            Button item = circleButton(title, PURPLE, 106);
+            item.setTextSize(12);
+            item.setContentDescription("Top ten " + title);
+            item.setOnClickListener(view -> openMovieRoomApp());
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(106, 106);
+            params.setMargins(6, 0, 6, 8);
+            row.addView(item, params);
+            buttons.add(item);
+        }
+        scroll.addView(row);
+        parent.addView(scroll, new LinearLayout.LayoutParams(-1, 124));
+        return buttons;
+    }
+
+    /** A single-column shelf. The 11th card is always the explicit View More action. */
+    private List<Button> addFireTvShelf(LinearLayout parent, String title, String[] cards, boolean addViewMore) {
+        TextView heading = text(title, 18, IVORY);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        LinearLayout.LayoutParams headingParams = new LinearLayout.LayoutParams(-1, 34);
+        headingParams.setMargins(0, 12, 0, 4);
+        parent.addView(heading, headingParams);
+        LinearLayout list = column(Color.TRANSPARENT);
+        List<Button> buttons = new ArrayList<>();
+        int limit = Math.min(cards.length, 10);
+        for (int index = 0; index < limit; index++) {
+            String cardTitle = cards[index];
+            Button card = button("▸  " + cardTitle, PANEL, TEXT);
+            card.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+            card.setAllCaps(false);
+            card.setContentDescription(title + " · " + cardTitle);
+            card.setOnClickListener(view -> onCardSelected(cardTitle));
+            list.addView(card, new LinearLayout.LayoutParams(-1, 58));
+            buttons.add(card);
+        }
+        if (addViewMore) {
+            Button more = button("▸  View More", 0xff3a1227, GOLD);
+            more.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+            more.setContentDescription(title + " · View More");
+            more.setOnClickListener(view -> openMovieRoomApp());
+            list.addView(more, new LinearLayout.LayoutParams(-1, 58));
+            buttons.add(more);
+        }
+        parent.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        return buttons;
+    }
+
+    private List<Button> addFireTvFolderButton(LinearLayout parent) {
+        Button folder = button("▣  OPEN MOVIE FOLDER", CRIMSON, IVORY);
+        folder.setGravity(Gravity.CENTER);
+        folder.setContentDescription("Open movie folder");
+        folder.setOnClickListener(view -> openMovieRoomApp());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, 70);
+        params.setMargins(0, 18, 0, 22);
+        parent.addView(folder, params);
+        List<Button> row = new ArrayList<>();
+        row.add(folder);
+        return row;
     }
 
     private void showRemoteGuide() {
@@ -386,24 +447,23 @@ public final class ShellActivity extends Activity {
     }
 
     private List<List<Button>> addAppFolder(LinearLayout parent) {
-        TextView heading = text("APP DOCK · INSTALLED", 16, GOLD);
-        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        parent.addView(heading, new LinearLayout.LayoutParams(-1, 42));
         ScrollView dockScroll = new ScrollView(this);
         dockScroll.setVerticalScrollBarEnabled(false);
         LinearLayout dock = column(Color.TRANSPARENT);
         List<List<Button>> dockRows = new ArrayList<>();
         for (ResolveInfo info : preferredHomeApps()) {
             String label = String.valueOf(info.loadLabel(getPackageManager()));
-            Button app = button(label, 0xcc241829, IVORY);
+            Button app = button("", Color.TRANSPARENT, IVORY);
             app.setGravity(Gravity.CENTER);
-            app.setTextSize(13);
+            app.setContentDescription(label + " app widget");
+            app.setTextSize(1);
             Drawable icon = info.loadIcon(getPackageManager());
             if (icon != null) {
-                icon.setBounds(0, 0, 58, 58);
+                icon.setBounds(0, 0, 76, 76);
                 app.setCompoundDrawables(null, icon, null, null);
             }
             app.setBackground(appDockBackground(false));
+            if (appDockFocusTarget == null) appDockFocusTarget = app;
             app.setOnClickListener(view -> {
                 bootstrapStore.setLastUsedLabel(label);
                 launchInstalledApp(info);
@@ -413,8 +473,9 @@ public final class ShellActivity extends Activity {
                 app.setTextColor(hasFocus ? GOLD : IVORY);
                 if (hasFocus) previewInstalledApp(info);
             });
-            LinearLayout.LayoutParams appParams = new LinearLayout.LayoutParams(-1, 108);
-            appParams.setMargins(0, 0, 0, 10);
+            LinearLayout.LayoutParams appParams = new LinearLayout.LayoutParams(112, 112);
+            appParams.gravity = Gravity.CENTER_HORIZONTAL;
+            appParams.setMargins(0, 0, 0, 14);
             dock.addView(app, appParams);
             dockRows.add(singleton(app));
         }
@@ -429,6 +490,7 @@ public final class ShellActivity extends Activity {
         parent.addView(heading, new LinearLayout.LayoutParams(-1, 38));
         HorizontalScrollView rail = new HorizontalScrollView(this);
         rail.setHorizontalScrollBarEnabled(false);
+        rail.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout railRow = row();
         List<Button> buttons = new ArrayList<>();
         List<File> clips = discoverPreviewClips();
@@ -458,31 +520,94 @@ public final class ShellActivity extends Activity {
                 artwork.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 cardFrame.addView(artwork, new FrameLayout.LayoutParams(-1, -1));
             }
-            Button card = button(item, 0x33100711, IVORY);
+            // Full-bleed video thumbnail: the image/video is the card, while
+            // the title is a readable overlay rather than a bordered tile.
+            Button card = button(item, Color.TRANSPARENT, IVORY);
             card.setGravity(Gravity.BOTTOM | Gravity.LEFT);
             card.setTextSize(15);
             card.setPadding(12, 8, 12, 10);
+            card.setAllCaps(false);
             card.setTag("video-preview:" + item);
             card.setOnClickListener(view -> openPreviewTarget(item));
+            card.setOnKeyListener((view, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN
+                        && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
+                        && appDockFocusTarget != null) {
+                    appDockFocusTarget.requestFocus();
+                    return true;
+                }
+                return false;
+            });
             final String focusedTitle = item;
             card.setOnFocusChangeListener((view, hasFocus) -> {
                 if (hasFocus) previewMovieCard(focusedTitle);
-                GradientDrawable focus = new GradientDrawable();
-                focus.setColor(hasFocus ? 0x55210b1d : 0x33100711);
-                focus.setCornerRadius(18f);
-                focus.setStroke(hasFocus ? 4 : 1, hasFocus ? GOLD : 0x99f0c45b);
-                view.setBackground(focus);
+                view.setBackgroundColor(Color.TRANSPARENT);
+                view.setScaleX(hasFocus ? 1.04f : 1f);
+                view.setScaleY(hasFocus ? 1.04f : 1f);
                 ((Button) view).setTextColor(hasFocus ? GOLD : IVORY);
             });
             cardFrame.addView(card, new FrameLayout.LayoutParams(-1, -1));
-            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(196, 126);
-            cardParams.setMargins(0, 0, 12, 12);
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(258, 154);
+            cardParams.setMargins(0, 0, 16, 12);
             railRow.addView(cardFrame, cardParams);
             buttons.add(card);
         }
         rail.addView(railRow);
-        parent.addView(rail, new LinearLayout.LayoutParams(-1, 140));
+        parent.addView(rail, new LinearLayout.LayoutParams(-1, 170));
+        if (items.length > 1) {
+            final int[] rotationIndex = {0};
+            rail.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (rail.getWindowToken() == null) return;
+                    rotationIndex[0] = (rotationIndex[0] + 1) % items.length;
+                    rail.smoothScrollTo(rotationIndex[0] * 274, 0);
+                    rail.postDelayed(this, 6500L);
+                }
+            }, 6500L);
+        }
         return buttons;
+    }
+
+    /**
+     * Profile-specific service widgets. Movie Room can supply local preview
+     * clips; protected streaming services expose only safe launch handoffs
+     * until their own signed-in app is opened.
+     */
+    private List<List<Button>> addServiceWidgetRails(LinearLayout parent) {
+        List<List<Button>> rows = new ArrayList<>();
+        for (ResolveInfo info : preferredHomeApps()) {
+            String label = String.valueOf(info.loadLabel(getPackageManager()));
+            String lower = label.toLowerCase();
+            String[] items;
+            if (lower.contains("movie room") || lower.contains("movie")) {
+                items = new String[]{
+                        "Movie Room · Continue Watching",
+                        "Movie Room · Favorites",
+                        "Movie Room · Trending Now",
+                        "Movie Room · Recently Added"
+                };
+            } else {
+                items = new String[]{
+                        label + " · Continue Watching",
+                        label + " · My List",
+                        label + " · Top Trending",
+                        "Open " + label + " for your personal catalog"
+                };
+            }
+            rows.add(addPreviewRail(parent, label + " · HOME WIDGET", items));
+        }
+
+        for (ResolveInfo info : discoverInstalledApps()) {
+            String label = String.valueOf(info.loadLabel(getPackageManager()));
+            String lower = label.toLowerCase();
+            if (lower.contains("live tv") || lower.equals("pluto tv") || lower.contains("sling")
+                    || lower.contains("youtube tv") || lower.contains("tubi")) {
+                rows.add(addPreviewRail(parent, "LIVE TV · " + label,
+                        new String[]{label + " · Live now", label + " · Channels", label + " · Guide"}));
+            }
+        }
+        return rows;
     }
 
     private int previewArtwork(String title) {
@@ -586,9 +711,8 @@ public final class ShellActivity extends Activity {
 
     private GradientDrawable appDockBackground(boolean focused) {
         GradientDrawable circle = new GradientDrawable();
-        circle.setShape(GradientDrawable.RECTANGLE);
-        circle.setColor(focused ? 0xcc5d1833 : 0xaa241829);
-        circle.setCornerRadius(26f);
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(focused ? 0xcc5d1833 : 0x66241829);
         circle.setStroke(focused ? 4 : 2, focused ? GOLD : 0x99f0c45b);
         return circle;
     }
@@ -939,6 +1063,17 @@ public final class ShellActivity extends Activity {
         intro.setGravity(Gravity.CENTER);
         root.addView(intro);
 
+        TextView appPreviewTitle = text("Select an app", 30, IVORY);
+        appPreviewTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        TextView appPreviewDescription = text("The focused round icon will show its available metadata here.", 18, IVORY);
+        TextView appPreviewMeta = text("Continue watching · Favorites · Trending · Recently added", 16, GOLD);
+        LinearLayout appPreview = column(0x55241829);
+        appPreview.setPadding(28, 24, 28, 24);
+        appPreview.addView(text("APP PREVIEW", 15, GOLD));
+        appPreview.addView(appPreviewTitle);
+        appPreview.addView(appPreviewDescription);
+        appPreview.addView(appPreviewMeta);
+
         Set<String> selected = new HashSet<>();
         List<ResolveInfo> installed = discoverInstalledApps();
         if (!installed.isEmpty()) selected.add(installed.get(0).activityInfo.packageName);
@@ -949,20 +1084,37 @@ public final class ShellActivity extends Activity {
         for (ResolveInfo info : installed) {
             String packageName = info.activityInfo.packageName;
             String label = String.valueOf(info.loadLabel(getPackageManager()));
-            Button app = button((selected.contains(packageName) ? "✓ " : "○ ") + label, PANEL, IVORY);
+            Button app = button("", Color.TRANSPARENT, IVORY);
+            app.setGravity(Gravity.CENTER);
             app.setContentDescription("Choose " + label + " for the Home app folder");
+            Drawable icon = info.loadIcon(getPackageManager());
+            if (icon != null) {
+                icon.setBounds(0, 0, 78, 78);
+                app.setCompoundDrawables(null, icon, null, null);
+            }
+            app.setBackground(appWidgetCircle(false));
             app.setOnClickListener(view -> {
                 if (selected.contains(packageName)) selected.remove(packageName);
                 else selected.add(packageName);
-                app.setText((selected.contains(packageName) ? "✓ " : "○ ") + label);
-                previewInstalledApp(info);
+                app.setBackground(appWidgetCircle(true));
+            });
+            app.setOnFocusChangeListener((view, hasFocus) -> {
+                app.setBackground(appWidgetCircle(hasFocus || selected.contains(packageName)));
+                view.setScaleX(hasFocus ? 1.08f : 1f);
+                view.setScaleY(hasFocus ? 1.08f : 1f);
+                if (hasFocus) {
+                    appPreviewTitle.setText(label);
+                    appPreviewDescription.setText("Installed app · Select to add or remove from this profile's Home folder.");
+                    appPreviewMeta.setText(label + " · Continue watching · Favorites/My List · Trending");
+                    previewInstalledApp(info);
+                }
             });
             row.add(app);
             if (row.size() == 3) {
                 LinearLayout itemRow = row();
                 itemRow.setGravity(Gravity.CENTER);
-                for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(300, 76));
-                grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 84));
+                for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(132, 132));
+                grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 148));
                 focusRows.add(new ArrayList<>(row));
                 row.clear();
             }
@@ -970,12 +1122,15 @@ public final class ShellActivity extends Activity {
         if (!row.isEmpty()) {
             LinearLayout itemRow = row();
             itemRow.setGravity(Gravity.CENTER);
-            for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(300, 76));
-            grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 84));
+            for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(132, 132));
+            grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 148));
             focusRows.add(new ArrayList<>(row));
         }
         scroll.addView(grid);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout body = row();
+        body.addView(scroll, new LinearLayout.LayoutParams(0, 0, 0.46f));
+        body.addView(appPreview, new LinearLayout.LayoutParams(0, -1, 0.54f));
+        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
 
         Button done = button("Save Home folder and open Home", CRIMSON, IVORY);
         done.setContentDescription("Save preferred Home apps");
@@ -1010,6 +1165,14 @@ public final class ShellActivity extends Activity {
         });
         result.setBackground(circleBackground(color, size >= 260 ? GOLD : 0x99fff7e5, size >= 260 ? 6 : 3));
         return result;
+    }
+
+    private GradientDrawable appWidgetCircle(boolean focused) {
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(focused ? 0xcc5d1833 : 0x66241829);
+        circle.setStroke(focused ? 5 : 2, focused ? GOLD : 0x99f0c45b);
+        return circle;
     }
 
     private void centerCarousel(LinearLayout carousel, View focusedView) {

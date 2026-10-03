@@ -70,10 +70,11 @@ test("the web app gives search its own row and exposes Menu tabs", () => {
   assert.ok(searchRowStart >= 0 && searchInput > searchRowStart);
   assert.ok(primaryNav >= 0 && searchRowStart > primaryNav);
   assert.match(html, /role="tablist"/);
-  for (const tab of ["browse", "profiles", "settings"]) {
+  for (const tab of ["recent", "profiles", "settings"]) {
     assert.match(html, new RegExp(`data-menu-tab="${tab}"`));
     assert.match(html, new RegExp(`data-menu-panel="${tab}"`));
   }
+  assert.doesNotMatch(html, /data-menu-tab="browse"/);
   assert.match(app, /function setMenuTab/);
 });
 

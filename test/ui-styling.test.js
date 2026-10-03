@@ -75,6 +75,17 @@ test("Pop Cinema concept keeps the cursive brand, landscape cards, and concept t
   assert.match(finalPass, /\.image-tab \.tab-image\s*\{[\s\S]*?object-fit:\s*cover/);
 });
 
+test("home shelves use crisp landscape artwork, compact cards, and profile-menu-only selection", () => {
+  assert.match(app, /preferBackdrop/);
+  assert.match(finalPass, /#library-panel\.home-surface \.profile-image-tabs\s*\{[\s\S]*?display:\s*none/);
+  assert.match(finalPass, /#library-panel\.home-surface \.genre-image-tabs\s*\{[\s\S]*?display:\s*flex/);
+  assert.match(finalPass, /\.genre-image-tab\s*\{[\s\S]*?border-radius:\s*999px/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-auto-flow:\s*row/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?gap:\s*8px/);
+  assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2/);
+});
+
 test("movie previews can start when a landscape card becomes meaningfully visible", () => {
   assert.match(app, /IntersectionObserver/);
   assert.match(app, /threshold:\s*0\.6/);
