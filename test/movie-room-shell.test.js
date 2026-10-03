@@ -99,6 +99,20 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /centerCarousel/);
   assert.match(activity, /setOnFocusChangeListener/);
   assert.match(activity, /previewInstalledApp/);
+  assert.match(activity, /preferredHomeApps/);
+  assert.match(activity, /discoverMediaApps/);
+  assert.match(activity, /app store/);
+  assert.match(activity, /setCornerRadius\(26f\)/);
+  assert.match(activity, /setBounds\(0, 0, 58, 58\)/);
+  assert.match(activity, /Choose your Home apps/);
+  assert.match(activity, /homePreviewVideo/);
+  assert.match(activity, /VideoView thumbnail/);
+  assert.match(activity, /Autoplay preview/);
+  assert.match(activity, /Recently watched · Top viewing/);
+  assert.match(activity, /video-preview:/);
+  assert.match(activity, /openPreviewTarget/);
+  assert.match(activity, /focused\.performClick/);
+  assert.match(activity, /KEYCODE_HOME/);
   assert.match(activity, /homeDetailIcon/);
   assert.match(activity, /LAST USED/);
   assert.match(activity, /SUGGESTED NEXT/);
@@ -217,11 +231,10 @@ test("Movie Room shell provides an explicit Fire TV focus path across library sh
 test("the published OS launcher artifact matches the shell version", () => {
   const build = read("build.gradle");
   const update = JSON.parse(readPublic("apk/os-update.json"));
-  assert.match(build, /versionCode\s+8/);
-  assert.match(build, /versionName\s+"0\.7\.0"/);
+  assert.match(build, /versionCode\s+9/);
+  assert.match(build, /versionName\s+"0\.8\.0"/);
   assert.equal(update.packageName, "com.movieroom.shell");
-  assert.equal(update.versionCode, 8);
-  assert.equal(update.versionName, "0.7.0");
-  assert.match(update.downloadUrl, /MovieRoom-Optional-TV-v0\.7\.0\.apk$/);
-  assert.equal(fs.existsSync(path.join(root, "public", "downloads", "MovieRoom-Optional-TV-v0.7.0.apk")), true);
+  assert.equal(update.versionCode, 9);
+  assert.equal(update.versionName, "0.8.0");
+  assert.match(update.downloadUrl, /MovieRoom-Optional-TV-v0\.8\.0\.apk$/);
 });

@@ -19,6 +19,7 @@ public final class RemoteMap {
         PAGE_UP,
         PAGE_DOWN,
         INFO,
+        HOME,
         RESET
     }
 
@@ -47,6 +48,7 @@ public final class RemoteMap {
             case KeyEvent.KEYCODE_PAGE_UP: return Action.PAGE_UP;
             case KeyEvent.KEYCODE_PAGE_DOWN: return Action.PAGE_DOWN;
             case KeyEvent.KEYCODE_INFO: return Action.INFO;
+            case KeyEvent.KEYCODE_HOME: return Action.HOME;
             default: return Action.NONE;
         }
     }

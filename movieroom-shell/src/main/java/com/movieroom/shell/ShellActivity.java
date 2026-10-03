@@ -69,6 +69,7 @@ public final class ShellActivity extends Activity {
     private TextView homeDetailDescription;
     private TextView homeDetailMeta;
     private ImageView homeDetailIcon;
+    private VideoView homePreviewVideo;
     private boolean settingsScreen;
     private boolean profileChooserScreen;
     private String pendingProfileType = "Regular user";
@@ -86,7 +87,9 @@ public final class ShellActivity extends Activity {
         bootstrapStore = new BootstrapStore(this);
         profileStore = new ProfileStore(this);
         activeProfile = profileStore.find(bootstrapStore.activeProfileId()).displayName;
-        if (bootstrapStore.setupComplete()) showHome();
+        if (bootstrapStore.setupComplete() && !bootstrapStore.appPreferencesConfigured(bootstrapStore.activeProfileId())) {
+            showPreferredAppsScreen(bootstrapStore.activeProfileId());
+        } else if (bootstrapStore.setupComplete()) showHome();
         else showBootstrapScreen();
         getWindow().getDecorView().post(() -> {
             if (!bootstrapStore.remoteGuideSeen()) showRemoteGuide();
@@ -143,14 +146,39 @@ public final class ShellActivity extends Activity {
         LinearLayout body = row();
         body.setGravity(Gravity.TOP);
 
+        LinearLayout appWidgets = column(0x44130919);
+        appWidgets.setPadding(14, 18, 14, 14);
+        TextView appHeading = text("MY APPS", 18, GOLD);
+        appHeading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        appHeading.setGravity(Gravity.CENTER);
+        appWidgets.addView(appHeading, new LinearLayout.LayoutParams(-1, 42));
+        List<List<Button>> appRows = addAppFolder(appWidgets);
+        focusRows.addAll(appRows);
+        body.addView(appWidgets, new LinearLayout.LayoutParams(0, -1, 0.30f));
+
         FrameLayout detail = new FrameLayout(this);
+        List<File> homeClips = discoverPreviewClips();
+        if (!homeClips.isEmpty()) {
+            homePreviewVideo = new VideoView(this);
+            homePreviewVideo.setZOrderMediaOverlay(false);
+            homePreviewVideo.setAlpha(0.44f);
+            homePreviewVideo.setKeepScreenOn(true);
+            homePreviewVideo.setOnPreparedListener(mediaPlayer -> {
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(0f, 0f);
+                mediaPlayer.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+                homePreviewVideo.start();
+            });
+            homePreviewVideo.setVideoURI(Uri.fromFile(homeClips.get(0)));
+            detail.addView(homePreviewVideo, new FrameLayout.LayoutParams(-1, -1));
+        }
         ImageView backdrop = new ImageView(this);
         backdrop.setImageResource(profileStore.find(bootstrapStore.activeProfileId()).avatarResource);
         backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        backdrop.setAlpha(0.58f);
+        backdrop.setAlpha(homePreviewVideo == null ? 0.58f : 0.16f);
         detail.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
         detail.addView(new CinematicWaveView(this), new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout scrim = column(0x88100711);
+        LinearLayout scrim = column(0x66100711);
         scrim.setPadding(34, 28, 34, 18);
         homeDetailIcon = new ImageView(this);
         homeDetailIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -178,7 +206,6 @@ public final class ShellActivity extends Activity {
         focusRows.add(lastUsed);
         focusRows.add(suggested);
         focusRows.add(recentlyAdded);
-        focusRows.addAll(addAppFolder(previewContent));
         previewScroll.addView(previewContent);
         scrim.addView(previewScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         detail.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
@@ -362,18 +389,18 @@ public final class ShellActivity extends Activity {
         TextView heading = text("APP DOCK · INSTALLED", 16, GOLD);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         parent.addView(heading, new LinearLayout.LayoutParams(-1, 42));
-        HorizontalScrollView dockScroll = new HorizontalScrollView(this);
-        dockScroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout dock = row();
-        List<Button> dockButtons = new ArrayList<>();
-        for (ResolveInfo info : discoverInstalledApps()) {
+        ScrollView dockScroll = new ScrollView(this);
+        dockScroll.setVerticalScrollBarEnabled(false);
+        LinearLayout dock = column(Color.TRANSPARENT);
+        List<List<Button>> dockRows = new ArrayList<>();
+        for (ResolveInfo info : preferredHomeApps()) {
             String label = String.valueOf(info.loadLabel(getPackageManager()));
             Button app = button(label, 0xcc241829, IVORY);
             app.setGravity(Gravity.CENTER);
             app.setTextSize(13);
             Drawable icon = info.loadIcon(getPackageManager());
             if (icon != null) {
-                icon.setBounds(0, 0, 72, 72);
+                icon.setBounds(0, 0, 58, 58);
                 app.setCompoundDrawables(null, icon, null, null);
             }
             app.setBackground(appDockBackground(false));
@@ -386,14 +413,14 @@ public final class ShellActivity extends Activity {
                 app.setTextColor(hasFocus ? GOLD : IVORY);
                 if (hasFocus) previewInstalledApp(info);
             });
-            dock.addView(app, new LinearLayout.LayoutParams(166, 142));
-            dockButtons.add(app);
+            LinearLayout.LayoutParams appParams = new LinearLayout.LayoutParams(-1, 108);
+            appParams.setMargins(0, 0, 0, 10);
+            dock.addView(app, appParams);
+            dockRows.add(singleton(app));
         }
         dockScroll.addView(dock);
-        parent.addView(dockScroll, new LinearLayout.LayoutParams(-1, 154));
-        List<List<Button>> rows = new ArrayList<>();
-        if (!dockButtons.isEmpty()) rows.add(dockButtons);
-        return rows;
+        parent.addView(dockScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        return dockRows;
     }
 
     private List<Button> addPreviewRail(LinearLayout parent, String title, String[] items) {
@@ -404,21 +431,116 @@ public final class ShellActivity extends Activity {
         rail.setHorizontalScrollBarEnabled(false);
         LinearLayout railRow = row();
         List<Button> buttons = new ArrayList<>();
-        for (String item : items) {
-            Button card = button(item, 0xcc241829, IVORY);
+        List<File> clips = discoverPreviewClips();
+        for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+            String item = items[itemIndex];
+            FrameLayout cardFrame = new FrameLayout(this);
+            VideoView thumbnail = null;
+            if (!clips.isEmpty()) {
+                VideoView playerView = new VideoView(this);
+                thumbnail = playerView;
+                thumbnail.setFocusable(false);
+                thumbnail.setClickable(false);
+                thumbnail.setKeepScreenOn(false);
+                thumbnail.setAlpha(0.98f);
+                thumbnail.setOnPreparedListener(player -> {
+                    player.setLooping(true);
+                    player.setVolume(0f, 0f);
+                    player.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+                    playerView.start();
+                });
+                thumbnail.setOnErrorListener((player, what, extra) -> true);
+                playerView.setVideoURI(Uri.fromFile(clips.get(itemIndex % clips.size())));
+                cardFrame.addView(playerView, new FrameLayout.LayoutParams(-1, -1));
+            } else {
+                ImageView artwork = new ImageView(this);
+                artwork.setImageResource(previewArtwork(item));
+                artwork.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                cardFrame.addView(artwork, new FrameLayout.LayoutParams(-1, -1));
+            }
+            Button card = button(item, 0x33100711, IVORY);
             card.setGravity(Gravity.BOTTOM | Gravity.LEFT);
             card.setTextSize(15);
-            card.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.taylormade_movies_cover, 0, 0);
-            card.setCompoundDrawablePadding(6);
-            card.setOnClickListener(view -> openMovieRoomApp());
-            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(168, 104);
+            card.setPadding(12, 8, 12, 10);
+            card.setTag("video-preview:" + item);
+            card.setOnClickListener(view -> openPreviewTarget(item));
+            final String focusedTitle = item;
+            card.setOnFocusChangeListener((view, hasFocus) -> {
+                if (hasFocus) previewMovieCard(focusedTitle);
+                GradientDrawable focus = new GradientDrawable();
+                focus.setColor(hasFocus ? 0x55210b1d : 0x33100711);
+                focus.setCornerRadius(18f);
+                focus.setStroke(hasFocus ? 4 : 1, hasFocus ? GOLD : 0x99f0c45b);
+                view.setBackground(focus);
+                ((Button) view).setTextColor(hasFocus ? GOLD : IVORY);
+            });
+            cardFrame.addView(card, new FrameLayout.LayoutParams(-1, -1));
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(196, 126);
             cardParams.setMargins(0, 0, 12, 12);
-            railRow.addView(card, cardParams);
+            railRow.addView(cardFrame, cardParams);
             buttons.add(card);
         }
         rail.addView(railRow);
-        parent.addView(rail, new LinearLayout.LayoutParams(-1, 116));
+        parent.addView(rail, new LinearLayout.LayoutParams(-1, 140));
         return buttons;
+    }
+
+    private int previewArtwork(String title) {
+        String lower = title == null ? "" : title.toLowerCase();
+        if (lower.contains("snoopy")) return R.drawable.backdrop_snoopy;
+        if (lower.contains("paddington")) return R.drawable.backdrop_paddington_2;
+        if (lower.contains("fifty")) return R.drawable.backdrop_fifty_shades;
+        if (lower.contains("home")) return R.drawable.backdrop_home_alone;
+        return R.drawable.taylormade_movies_cover;
+    }
+
+    private void previewMovieCard(String title) {
+        if (homeDetailTitle == null) return;
+        homeDetailTitle.setText(title);
+        homeDetailDescription.setText("Autoplay preview · Hover with the remote to watch");
+        homeDetailMeta.setText("Movie Room · Select to open this title");
+        if (homeDetailIcon != null) homeDetailIcon.setImageResource(previewArtwork(title));
+    }
+
+    private void openPreviewTarget(String title) {
+        for (ResolveInfo info : discoverInstalledApps()) {
+            String label = String.valueOf(info.loadLabel(getPackageManager()));
+            if (label.equalsIgnoreCase(title) || title.toLowerCase().startsWith(label.toLowerCase() + " ·")) {
+                launchInstalledApp(info);
+                return;
+            }
+        }
+        openMovieRoomApp();
+    }
+
+    private List<ResolveInfo> preferredHomeApps() {
+        List<ResolveInfo> installed = discoverMediaApps();
+        String profileId = bootstrapStore.activeProfileId();
+        if (!bootstrapStore.appPreferencesConfigured(profileId)) return installed;
+        Set<String> preferred = bootstrapStore.preferredAppPackages(profileId);
+        if (preferred.isEmpty()) return installed;
+        List<ResolveInfo> filtered = new ArrayList<>();
+        for (ResolveInfo info : installed) {
+            if (info.activityInfo != null && preferred.contains(info.activityInfo.packageName)) filtered.add(info);
+        }
+        return filtered.isEmpty() ? installed : filtered;
+    }
+
+    private List<ResolveInfo> discoverMediaApps() {
+        List<ResolveInfo> media = new ArrayList<>();
+        for (ResolveInfo info : discoverInstalledApps()) {
+            String label = String.valueOf(info.loadLabel(getPackageManager())).toLowerCase();
+            String packageName = info.activityInfo == null ? "" : info.activityInfo.packageName.toLowerCase();
+            if (label.contains("netflix") || label.contains("prime") || label.contains("youtube")
+                    || label.contains("disney") || label.contains("hulu") || label.contains("paramount")
+                    || label.contains("peacock") || label.contains("apple tv") || label.contains("silk")
+                    || label.contains("appstore") || label.contains("app store") || label.contains("movie")
+                    || label.contains("jellyfin") || label.contains("plex") || label.contains("kodi")
+                    || label.contains("vlc") || packageName.contains("netflix") || packageName.contains("youtube")) {
+                media.add(info);
+            }
+        }
+        return media;
     }
 
     private void showProfileMenu(View anchor) {
@@ -464,8 +586,9 @@ public final class ShellActivity extends Activity {
 
     private GradientDrawable appDockBackground(boolean focused) {
         GradientDrawable circle = new GradientDrawable();
-        circle.setShape(GradientDrawable.OVAL);
+        circle.setShape(GradientDrawable.RECTANGLE);
         circle.setColor(focused ? 0xcc5d1833 : 0xaa241829);
+        circle.setCornerRadius(26f);
         circle.setStroke(focused ? 4 : 2, focused ? GOLD : 0x99f0c45b);
         return circle;
     }
@@ -796,7 +919,75 @@ public final class ShellActivity extends Activity {
         activeProfile = profile.displayName;
         bootstrapStore.completeSetup(profile.id);
         profileStore.remember(profile.id);
-        showHome();
+        showPreferredAppsScreen(profile.id);
+    }
+
+    private void showPreferredAppsScreen(String profileId) {
+        LinearLayout root = column(NAVY);
+        root.setBackground(cinematicBackground());
+        root.setPadding(44, 28, 44, 28);
+        List<List<Button>> focusRows = new ArrayList<>();
+        TextView eyebrow = text("FIRST HOME SETUP · " + activeProfile.toUpperCase(), 15, GOLD);
+        eyebrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        eyebrow.setGravity(Gravity.CENTER);
+        root.addView(eyebrow);
+        TextView title = text("Choose your Home apps", 38, IVORY);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        root.addView(title);
+        TextView intro = text("Select the apps that stay in your left-side Home folder. Hover an app to preview its categories on the right.", 18, IVORY);
+        intro.setGravity(Gravity.CENTER);
+        root.addView(intro);
+
+        Set<String> selected = new HashSet<>();
+        List<ResolveInfo> installed = discoverInstalledApps();
+        if (!installed.isEmpty()) selected.add(installed.get(0).activityInfo.packageName);
+        LinearLayout list = column(Color.TRANSPARENT);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout grid = column(Color.TRANSPARENT);
+        List<Button> row = new ArrayList<>();
+        for (ResolveInfo info : installed) {
+            String packageName = info.activityInfo.packageName;
+            String label = String.valueOf(info.loadLabel(getPackageManager()));
+            Button app = button((selected.contains(packageName) ? "✓ " : "○ ") + label, PANEL, IVORY);
+            app.setContentDescription("Choose " + label + " for the Home app folder");
+            app.setOnClickListener(view -> {
+                if (selected.contains(packageName)) selected.remove(packageName);
+                else selected.add(packageName);
+                app.setText((selected.contains(packageName) ? "✓ " : "○ ") + label);
+                previewInstalledApp(info);
+            });
+            row.add(app);
+            if (row.size() == 3) {
+                LinearLayout itemRow = row();
+                itemRow.setGravity(Gravity.CENTER);
+                for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(300, 76));
+                grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 84));
+                focusRows.add(new ArrayList<>(row));
+                row.clear();
+            }
+        }
+        if (!row.isEmpty()) {
+            LinearLayout itemRow = row();
+            itemRow.setGravity(Gravity.CENTER);
+            for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(300, 76));
+            grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 84));
+            focusRows.add(new ArrayList<>(row));
+        }
+        scroll.addView(grid);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        Button done = button("Save Home folder and open Home", CRIMSON, IVORY);
+        done.setContentDescription("Save preferred Home apps");
+        done.setOnClickListener(view -> {
+            bootstrapStore.setPreferredAppPackages(profileId, selected);
+            showHome();
+        });
+        root.addView(done, new LinearLayout.LayoutParams(-1, 72));
+        focusRows.add(singleton(done));
+        connectFocusRows(focusRows);
+        setContentView(root);
+        if (!focusRows.isEmpty()) focusRows.get(0).get(0).requestFocus();
     }
 
     private Button circleButton(String label, int color, int size) {
@@ -981,9 +1172,9 @@ public final class ShellActivity extends Activity {
         if (info == null || info.activityInfo == null || homeDetailTitle == null) return;
         String label = String.valueOf(info.loadLabel(getPackageManager()));
         homeDetailTitle.setText(label);
-        homeDetailDescription.setText("Installed app · Select to open " + label + "");
+        homeDetailDescription.setText("App preview · Hover to browse categories and select to open " + label);
         if (homeDetailMeta != null) {
-            homeDetailMeta.setText("Preferences · " + activeProfile + " · App overview");
+            homeDetailMeta.setText("Recently watched · Top viewing · Movies · Series · Recommended");
         }
         bootstrapStore.setLastUsedLabel(label);
         Drawable icon = info.loadIcon(getPackageManager());
@@ -1029,6 +1220,10 @@ public final class ShellActivity extends Activity {
         }
 
         switch (action) {
+            case HOME:
+                if (bootstrapStore.setupComplete()) showHome();
+                else showBootstrapScreen();
+                return true;
             case UP:
             case DOWN:
             case LEFT:
@@ -1062,6 +1257,12 @@ public final class ShellActivity extends Activity {
             case PLAY_PAUSE:
                 if (!bootstrapStore.setupComplete()) {
                     showBootstrapScreen();
+                    return true;
+                }
+                View focused = getCurrentFocus();
+                if (focused != null && focused.getTag() instanceof String
+                        && ((String) focused.getTag()).startsWith("video-preview:")) {
+                    focused.performClick();
                     return true;
                 }
                 openMovieRoomApp();
@@ -1505,6 +1706,11 @@ public final class ShellActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             showHome();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_HOME) {
+            if (bootstrapStore.setupComplete()) showHome();
+            else showBootstrapScreen();
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_MENU) {
