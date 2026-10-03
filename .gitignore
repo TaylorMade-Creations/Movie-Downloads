@@ -6,6 +6,9 @@ local.properties
 node_modules/
 movies/*
 !movies/.gitkeep
+inventories/local/
+release/master-build-report.json
+config/library.local.json
 .env
 .env.*
 !.env.example
