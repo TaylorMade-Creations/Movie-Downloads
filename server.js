@@ -25,6 +25,7 @@ const {
   createDefaultProfiles,
   hashPin,
   normalizeProfile,
+  PUBLIC_PREVIEW_LIMIT_SECONDS,
   scopeCatalog,
   verifyPin,
 } = require("./lib/profile-access");
@@ -1775,18 +1776,33 @@ function createRequestHandler(options = {}) {
       if (request.method === "POST" && url.pathname === "/api/playback") {
         ensureSameOrigin(request, context.appOrigin, context.trustProxy);
         await context.sessionManager.get(request, true);
-        if (context.profileManager.isEnabled()) {
-          await context.profileManager.get(request, true);
-        }
         const body = await readJsonBody(request, context.authConfig.bodyLimit);
         const movieId = typeof body.movieId === "string" ? body.movieId : "";
+        const previewRequested = body.preview === true;
+        let profileSession = null;
+        if (context.profileManager.isEnabled()) {
+          try {
+            profileSession = await context.profileManager.get(request, !previewRequested);
+          } catch (error) {
+            if (!previewRequested || !(error instanceof HttpError) || error.statusCode !== 401) {
+              throw error;
+            }
+          }
+        }
 
         if (!movieId) {
           throw new HttpError(400, "A movie id is required.");
         }
 
         const playback = await context.resolvePlayback(movieId);
-        await sendJson(response, 200, playback, noStoreHeaders());
+        const publicPreview = previewRequested
+          && context.profileManager.isEnabled()
+          && (!profileSession || ["needs_setup", "logged_out", "profile_locked"].includes(profileSession.state));
+        await sendJson(response, 200, publicPreview ? {
+          ...playback,
+          previewOnly: true,
+          previewLimitSeconds: PUBLIC_PREVIEW_LIMIT_SECONDS,
+        } : playback, noStoreHeaders());
         return;
       }
 

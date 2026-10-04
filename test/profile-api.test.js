@@ -23,6 +23,12 @@ function createProvider() {
     async listLibrary() {
       return { movies, folders: [] };
     },
+    async resolvePlayback(movieId) {
+      return {
+        url: `https://media.example.test/${encodeURIComponent(movieId)}.mp4`,
+        contentType: "video/mp4",
+      };
+    },
   };
 }
 
@@ -72,15 +78,37 @@ test("profile access state starts gated, exposes only preview, and blocks the fu
 
   const previewResponse = await fetch(`${origin}/api/preview`);
   assert.equal(previewResponse.status, 200);
-  assert.deepEqual((await previewResponse.json()).movies.map((movie) => movie.id), [
+  const preview = await previewResponse.json();
+  assert.deepEqual(preview.movies.map((movie) => movie.id), [
     "movie-0",
     "movie-1",
     "movie-2",
     "movie-3",
+    "movie-4",
   ]);
+  assert.ok(preview.movies.every((movie) => movie.previewOnly === true));
+  assert.ok(preview.movies.every((movie) => movie.previewLimitSeconds === 180));
 
   const libraryResponse = await fetch(`${origin}/api/library`);
   assert.equal(libraryResponse.status, 401);
+});
+
+test("public preview playback is capped before account setup", async (t) => {
+  const server = await startServer();
+  t.after(() => server.close());
+  const origin = originFor(server);
+
+  const fullPlaybackResponse = await postJson(origin, "/api/playback", { movieId: "movie-4" });
+  assert.equal(fullPlaybackResponse.status, 401);
+
+  const previewPlaybackResponse = await postJson(origin, "/api/playback", { movieId: "movie-4", preview: true });
+  assert.equal(previewPlaybackResponse.status, 200);
+  assert.deepEqual(await previewPlaybackResponse.json(), {
+    url: "https://media.example.test/movie-4.mp4",
+    contentType: "video/mp4",
+    previewOnly: true,
+    previewLimitSeconds: 180,
+  });
 });
 
 test("setup creates an unlocked Home profile and grants the full library", async (t) => {

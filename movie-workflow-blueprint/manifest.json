@@ -1,46 +1,93 @@
 {
-  "name": "Taylor-Made Movies / Movie Room",
-  "version": 1,
+  "name": "Movie Room Master",
+  "version": 2,
   "sourceOfTruth": {
-    "label": "TaylorMade Movies repository",
-    "repository": "https://github.com/taylormade02471/Movie-Downloads",
+    "label": "Movie Room Master repository",
+    "repository": "https://github.com/taylormade02471/Movie-Room-Master",
     "branch": "main",
-    "rule": "All Codex, GPT, plugin, and skill work for this project references this repository and its main branch as the source of truth. System-managed plugins and skills remain in their managed directories and are not copied into this project."
+    "rule": "GitHub stores source control, application modules, deployment configuration, generated inventories, and recovery instructions. The movie library and private credentials stay outside Git."
   },
   "deployment": {
     "provider": "Vercel",
-    "productionUrl": "https://movie-downloads-six.vercel.app/",
+    "productionUrl": "https://movie-downloads-six.vercel.app",
     "project": "movie-downloads",
     "target": "production"
   },
+  "libraryConfigPath": "config/library.local.json",
   "paths": {
-    "authoritativeLocalMovieDownloadsRoot": "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads",
-    "activeVideoRoots": [
-      "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads\\Movies",
-      "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads\\TV Shows"
-    ],
-    "applicationArtifactsRoot": "C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads\\Applications",
-    "repositoryRelativeBuildRoot": "firetv/build/outputs/apk"
+    "libraryConfigPath": "config/library.local.json",
+    "repositoryRelativeBuildRoot": "firetv/build/outputs/apk",
+    "applicationArtifactsPolicy": "Installable APKs and release artifacts are copied to the configured applicationsRoot from the ignored local library config, not stored as large generated media in Git."
   },
-  "providerBoundary": {
-    "jellyfin": "Local metadata, title matching, seasons, episode organization, posters, backdrops, and descriptions. Jellyfin is not the viewer-facing app.",
-    "onedrive": "Cloud-resident video playback plus synchronized .jellyfin.json sidecars and artwork stored beside each video.",
-    "movieRoom": "The viewer-facing web and Fire TV front end. It reads the OneDrive catalog and sidecars; it does not copy media into Jellyfin."
+  "applications": [
+    {
+      "id": "web",
+      "kind": "pwa",
+      "path": "public",
+      "packageName": "pwa",
+      "productionUrl": "https://movie-downloads-six.vercel.app"
+    },
+    {
+      "id": "android",
+      "kind": "android-webview",
+      "path": "movieroom-web",
+      "packageName": "com.movieroom.web",
+      "updateManifest": "public/apk/update.json"
+    },
+    {
+      "id": "firetv",
+      "kind": "android-tv",
+      "path": "firetv",
+      "packageName": "com.movieroom.firetv",
+      "updateManifest": "public/apk/firetv-update.json"
+    },
+    {
+      "id": "shell",
+      "kind": "launcher-shell",
+      "path": "movieroom-shell",
+      "packageName": "com.movieroom.shell",
+      "updateManifest": "public/apk/os-update.json",
+      "distinctFrom": "com.movieroom.firetv"
+    },
+    {
+      "id": "aospPrototype",
+      "kind": "aosp-prototype",
+      "path": "movie-room-os",
+      "packageName": "prototype",
+      "releaseEligible": false
+    }
+  ],
+  "artifactManifests": [
+    {
+      "id": "android",
+      "path": "public/apk/update.json"
+    },
+    {
+      "id": "firetv",
+      "path": "public/apk/firetv-update.json"
+    },
+    {
+      "id": "shell",
+      "path": "public/apk/os-update.json"
+    }
+  ],
+  "buildCommands": {
+    "test": "npm.cmd test",
+    "androidDebug": ".\\gradlew.bat :movieroom-web:assembleDebug",
+    "fireTvDebug": ".\\gradlew.bat :firetv:assembleDebug",
+    "shellDebug": ".\\gradlew.bat :movieroom-shell:assembleDebug",
+    "allDebug": ".\\gradlew.bat :firetv:assembleDebug :movieroom-web:assembleDebug :movieroom-shell:assembleDebug --no-daemon --no-parallel --no-build-cache --no-watch-fs"
   },
-  "commands": {
-    "normalize": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/normalize-movie-library.ps1 -LibraryRoot 'C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads' -Apply -FolderizeMovies -OrganizeSeries",
-    "metadataSync": "npm run metadata:sync",
-    "artworkSync": "npm run artwork:sync",
-    "metadataExportToOneDrive": "npm run metadata:export:onedrive",
-    "watcherInstall": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/install-movie-library-watcher.ps1 -LibraryRoot 'C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads'",
-    "watcherRun": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/run-movie-library-sync.ps1 -LibraryRoot 'C:\\Users\\kylet\\OneDrive\\Desktop\\Movie downloads'",
-    "tests": "npm test",
-    "deploy": "vercel.cmd deploy --prod --force --yes"
+  "animationBuckets": {
+    "storage": "object-storage",
+    "metadata": "sql-catalog",
+    "policy": "Store generated Runway, bucket, tile, menu, and app animation binaries in object storage. Store only URLs, hashes, durations, variants, ownership, profile targeting, and catalog pointers in SQL or a lightweight catalog.",
+    "costControl": "Use cached generated assets and app-side local caching before running new billable generations."
   },
   "verificationGates": [
-    "The full test suite reports zero failures; the Windows POSIX-permission test may remain skipped.",
-    "The production alias responds successfully and repeated authenticated /api/library reloads return the catalog from cache without waiting for a full Graph refresh.",
-    "The live catalog count and metadata/artwork counts are checked together before claiming deployment complete.",
-    "No password, session secret, refresh token, API key, cookie, or personal secret is stored in this blueprint."
+    "Run the Node test suite before claiming the web app is ready.",
+    "Build Android, Fire TV, and shell APK modules before publishing APK artifacts.",
+    "Verify the production Vercel URL after deployment.",
+    "Keep credentials, refresh tokens, API keys, cookies, and private local movie paths out of Git."
   ]
 }

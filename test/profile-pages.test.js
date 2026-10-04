@@ -21,9 +21,13 @@ test("profile selection navigates to a dedicated page with watched rails", () =>
 });
 
 test("web startup uses an online profile setup gate instead of a shared password", () => {
+  assert.match(html, /id="account-create"/);
+  assert.match(html, /id="account-login"/);
   assert.match(html, /id="profile-setup-panel"/);
   assert.match(html, /id="profile-setup-form"/);
   assert.match(html, /id="profile-setup-name"/);
+  assert.match(html, /id="profile-avatar-upload"/);
+  assert.match(html, /id="profile-avatar-preview"/);
   assert.match(html, /data-profile-avatar="home-family"/);
   assert.match(html, /data-profile-avatar="mom"/);
   assert.match(html, /data-profile-avatar="morganne"/);
@@ -35,8 +39,22 @@ test("web startup uses an online profile setup gate instead of a shared password
   assert.match(app, /\/api\/access-state/);
   assert.match(app, /\/api\/account\/setup/);
   assert.match(app, /\/api\/profiles\//);
+  assert.match(app, /function openAccountSetup/);
+  assert.match(app, /function openAccountLogin/);
+  assert.match(app, /function handleAvatarUpload/);
   assert.match(app, /function handleProfileSetup/);
   assert.match(app, /function handleProfilePin/);
+  assert.doesNotMatch(html, /id="auth-panel"|id="password-form"|Enter shared password/);
+});
+
+test("new browsers stay on Home in three minute public preview mode until an account is created", () => {
+  assert.match(app, /previewAccessMode/);
+  assert.match(app, /\/api\/preview/);
+  assert.match(app, /previewOnly/);
+  assert.match(app, /previewLimitSeconds/);
+  assert.match(app, /Create an account to unlock full playback/);
+  assert.match(app, /const playbackRequest = previewPlayback \? \{ movieId, preview: true \} : \{ movieId \}/);
+  assert.match(app, /body: JSON\.stringify\(playbackRequest\)/);
 });
 
 test("profile themes use home black and gold, kids orange, mom emerald, and Morganne pink", () => {

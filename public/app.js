@@ -379,10 +379,14 @@ function createApp({
   profileMenu,
   profileLabel,
   profileAvatar,
+  accountCreateButton,
+  accountLoginButton,
   profileSetupPanel,
   profileSetupForm,
   profileSetupName,
   profileSetupStatus,
+  profileAvatarUpload,
+  profileAvatarPreview,
   profileAvatarChoices = [],
   profilePinPanel,
   profilePinForm,
@@ -483,6 +487,7 @@ function createApp({
   let stallRecoveryTimer = null;
   let stallPosition = null;
   let playbackRequestVersion = 0;
+  let publicPreviewLimitSeconds = 0;
   let stableRefreshPosition = null;
   let isSeeking = false;
   let activePreviewCancel = null;
@@ -527,18 +532,22 @@ function createApp({
   let googleCastContext = null;
   let googleCastReady = false;
   let authenticated = false;
+  let previewAccessMode = false;
   let publicAccess = false;
   let profileAccessEnabled = false;
   let profileAccessState = "needs_setup";
   let serverProfiles = [];
   let pendingProfileId = "";
   let selectedSetupAvatar = "home-family";
+  let selectedSetupAvatarImage = "";
+  let accountSetupRequested = false;
   let authTransitionVersion = 0;
   let activeProfile = "home";
   let pendingFireTvCode = "";
   const permissionStorageKey = "movie_room_permissions_v2";
   const libraryStorageKey = "movie_room_library_cache_v1";
   const profileStorageKey = "movie_room_viewer_profile_v1";
+  const profileAvatarStoragePrefix = "movie_room_custom_avatar_v1_";
   const profileLastMoviePrefix = "movie_room_last_movie_v1_";
   const profileSearchPrefix = "movie_room_search_history_v1_";
   const profileNavigationPrefix = "movie_room_navigation_v1_";
@@ -612,6 +621,20 @@ function createApp({
     }
   }
 
+  function avatarUrlForProfile(profileId, serverProfile = null) {
+    const customAvatar = readLocalValue(`${profileAvatarStoragePrefix}${profileId}`);
+    if (customAvatar) return customAvatar;
+    const avatarId = String((serverProfile && serverProfile.avatarId) || profileId || "home");
+    const avatarMap = {
+      "home-family": "/profile-home.jpeg",
+      home: "/profile-home.jpeg",
+      mom: "/profile-mom.jpeg",
+      morganne: "/profile-morganne.jpeg",
+      kids: "/profile-kids.jpeg",
+    };
+    return avatarMap[avatarId] || avatarMap[profileId] || "/profile-home.jpeg";
+  }
+
   function updateProfileUi() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
     const serverProfile = serverProfiles.find((candidate) => candidate.id === activeProfile);
@@ -626,7 +649,7 @@ function createApp({
     if (profileAvatar) {
       profileAvatar.textContent = profileLabelText.slice(0, 1).toUpperCase() || profile.initial;
       if (profileAvatar.style) {
-        profileAvatar.style.backgroundImage = `url("/profile-${activeProfile}.jpeg")`;
+        profileAvatar.style.backgroundImage = `url("${avatarUrlForProfile(activeProfile, serverProfile).replaceAll('"', "%22")}")`;
         profileAvatar.style.backgroundSize = "cover";
         profileAvatar.style.backgroundPosition = "center";
       }
@@ -715,6 +738,26 @@ function createApp({
       stallRecoveryTimer = null;
     }
     stallPosition = null;
+  }
+
+  function clearPublicPreviewLimit() {
+    publicPreviewLimitSeconds = 0;
+  }
+
+  function armPublicPreviewLimit(playback) {
+    publicPreviewLimitSeconds = playback && playback.previewOnly
+      ? Number(playback.previewLimitSeconds) || 180
+      : 0;
+  }
+
+  function enforcePublicPreviewLimit() {
+    if (!publicPreviewLimitSeconds || !player || !Number.isFinite(player.currentTime)) return false;
+    if (player.currentTime < publicPreviewLimitSeconds) return false;
+    if (hasMethod(player, "pause")) player.pause();
+    clearPublicPreviewLimit();
+    updateStatus("Create an account to unlock full playback, downloads, casting, and saved profiles.");
+    openAccountSetup();
+    return true;
   }
 
   function bufferedSecondsAhead() {
@@ -1045,7 +1088,7 @@ function createApp({
       return;
     }
 
-    castButton.disabled = !authenticated;
+    castButton.disabled = !authenticated || previewAccessMode;
     if (safariAirPlayAvailable || player.webkitShowPlaybackTargetPicker) {
       castButton.textContent = "Safari AirPlay";
       return;
@@ -1526,7 +1569,7 @@ function createApp({
   }
 
   function updateProfileAccessUi() {
-    const needsSetup = profileAccessEnabled && profileAccessState === "needs_setup";
+    const needsSetup = profileAccessEnabled && profileAccessState === "needs_setup" && accountSetupRequested;
     const needsPin = profileAccessEnabled && profileAccessState === "profile_locked";
     if (profileSetupPanel) profileSetupPanel.hidden = !needsSetup;
     if (profilePinPanel) profilePinPanel.hidden = !needsPin;
@@ -1542,6 +1585,7 @@ function createApp({
     profileAccessEnabled = Boolean(payload && payload.configured === true);
     profileAccessState = (payload && payload.state) || "needs_setup";
     serverProfiles = Array.isArray(payload && payload.profiles) ? payload.profiles : [];
+    previewAccessMode = profileAccessEnabled && !["home_unlocked", "profile_unlocked"].includes(profileAccessState);
     if (payload && payload.profile && payload.profile.id && Object.prototype.hasOwnProperty.call(viewerProfiles, payload.profile.id)) {
       setViewerProfile(payload.profile.id);
     }
@@ -1570,9 +1614,64 @@ function createApp({
     }
     profileAccessEnabled = false;
     profileAccessState = "home_unlocked";
+    previewAccessMode = false;
     serverProfiles = [];
     updateProfileAccessUi();
     return null;
+  }
+
+  function openAccountSetup() {
+    accountSetupRequested = true;
+    if (!profileAccessEnabled) {
+      profileAccessEnabled = true;
+      profileAccessState = "needs_setup";
+      previewAccessMode = true;
+    }
+    updateProfileAccessUi();
+    if (profileSetupName && typeof profileSetupName.focus === "function") profileSetupName.focus();
+    updateStatus("Create an account to unlock full playback, saved profiles, downloads, and profile settings.");
+    return true;
+  }
+
+  function openAccountLogin() {
+    accountSetupRequested = false;
+    updateProfileAccessUi();
+    if (profileMenu) {
+      profileMenu.hidden = false;
+      if (profileToggle && typeof profileToggle.setAttribute === "function") profileToggle.setAttribute("aria-expanded", "true");
+      const firstProfileButton = profileButtons.find((button) => button && hasMethod(button, "focus"));
+      if (firstProfileButton) firstProfileButton.focus();
+      updateStatus(previewAccessMode
+        ? "Choose a saved profile or create an account to unlock full playback."
+        : "Choose a profile or settings page.");
+      return true;
+    }
+    updateStatus("Create an account to unlock full playback.");
+    return false;
+  }
+
+  function handleAvatarUpload(event) {
+    const file = event && event.target && event.target.files && event.target.files[0];
+    if (!file) return false;
+    if (!/^image\//i.test(file.type || "")) {
+      if (profileSetupStatus) profileSetupStatus.textContent = "Choose an image file for the profile picture.";
+      return false;
+    }
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      selectedSetupAvatar = "custom-library";
+      selectedSetupAvatarImage = String(reader.result || "");
+      if (profileAvatarPreview) {
+        profileAvatarPreview.src = selectedSetupAvatarImage;
+        profileAvatarPreview.hidden = false;
+      }
+      for (const candidate of profileAvatarChoices) {
+        if (candidate && typeof candidate.setAttribute === "function") candidate.setAttribute("aria-pressed", "false");
+      }
+      if (profileSetupStatus) profileSetupStatus.textContent = "Profile picture selected from this device.";
+    });
+    reader.readAsDataURL(file);
+    return true;
   }
 
   async function handleProfileSetup(event) {
@@ -1600,6 +1699,11 @@ function createApp({
       return false;
     }
     const payload = await response.json();
+    if (selectedSetupAvatarImage) {
+      writeLocalValue(`${profileAvatarStoragePrefix}home`, selectedSetupAvatarImage);
+    }
+    accountSetupRequested = false;
+    previewAccessMode = false;
     applyProfileAccessState({ ...payload, configured: true });
     setAuthenticated(true);
     if (profileSetupStatus) profileSetupStatus.textContent = "Home is ready. Loading your library…";
@@ -1660,6 +1764,7 @@ function createApp({
 
   function setAuthenticated(isAuthenticated) {
     if (!isAuthenticated && activePreviewCancel) activePreviewCancel();
+    if (!isAuthenticated) clearPublicPreviewLimit();
     authenticated = Boolean(isAuthenticated);
     if (authPanel) authPanel.hidden = authenticated;
     if (libraryPanel) libraryPanel.hidden = !authenticated;
@@ -1685,17 +1790,24 @@ function createApp({
       updateCastButton();
     }
     if (keepAwakeButton) {
-      keepAwakeButton.disabled = !authenticated || !navigatorRef || !navigatorRef.wakeLock || !hasMethod(navigatorRef.wakeLock, "request");
+      keepAwakeButton.disabled = !authenticated || previewAccessMode || !navigatorRef || !navigatorRef.wakeLock || !hasMethod(navigatorRef.wakeLock, "request");
     }
     if (fullscreenButton) {
-      fullscreenButton.disabled = !authenticated;
+      fullscreenButton.disabled = !authenticated || previewAccessMode;
     }
 
     if (pairFireTvButton) {
-      pairFireTvButton.disabled = !authenticated;
+      pairFireTvButton.disabled = !authenticated || previewAccessMode;
     }
     if (profileToggle) {
       profileToggle.disabled = !authenticated;
+    }
+    if (accountCreateButton) {
+      accountCreateButton.hidden = !profileAccessEnabled || !previewAccessMode;
+    }
+    if (accountLoginButton) {
+      accountLoginButton.hidden = !profileAccessEnabled;
+      accountLoginButton.textContent = previewAccessMode ? "Login / Profiles" : "Profiles";
     }
     updateProfileAccessUi();
   }
@@ -1819,7 +1931,7 @@ function createApp({
   function remoteFocusZones() {
     if (!documentRef || typeof documentRef.querySelectorAll !== "function") return [];
     const selectors = [
-      ".primary-nav button, .profile-toggle, #search-input",
+      ".primary-nav button, .profile-toggle, .account-action, #library-search",
       "#hero-play, #hero-details, #hero-prev, #hero-next",
       "#home-profile-tabs button",
       "#home-genre-tabs button",
@@ -3923,7 +4035,14 @@ function createApp({
     return response;
   }
 
-  async function requestPlaybackLink(movieId, fallbackMessage = "Unable to start playback.") {
+  function movieById(movieId) {
+    return allMovies.find((movie) => movie && movie.id === movieId) || null;
+  }
+
+  async function requestPlaybackLink(movieId, fallbackMessage = "Unable to start playback.", options = {}) {
+    const movie = movieById(movieId);
+    const previewPlayback = options.preview === true || previewAccessMode || Boolean(movie && movie.previewOnly);
+    const playbackRequest = previewPlayback ? { movieId, preview: true } : { movieId };
     const response = await handleApiResponse(
       await fetchImpl("/api/playback", {
         method: "POST",
@@ -3931,7 +4050,7 @@ function createApp({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ movieId }),
+        body: JSON.stringify(playbackRequest),
       }),
       fallbackMessage,
     );
@@ -4001,8 +4120,11 @@ function createApp({
     let library;
     let usingCachedLibrary = false;
     try {
+      const libraryUrl = previewAccessMode
+        ? "/api/preview"
+        : forceRefresh ? "/api/library?refresh=1" : "/api/library";
       const response = await handleApiResponse(
-        await fetchImpl(forceRefresh ? "/api/library?refresh=1" : "/api/library", { credentials: "same-origin" }),
+        await fetchImpl(libraryUrl, { credentials: "same-origin" }),
         "Unable to load movie library.",
       );
       library = normalizeLibraryPayload(await response.json());
@@ -4144,6 +4266,7 @@ function createApp({
       ? playback.url
       : new URL(playback.url, locationOrigin).toString();
     player.load();
+    armPublicPreviewLimit(playback);
     rememberMovieForProfile(movieId);
     updateNowPlaying(selectedMovie(), playback);
     updateMediaSession(selectedMovie());
@@ -4237,13 +4360,14 @@ function createApp({
     if (accessState) {
       if (requestVersion !== authTransitionVersion) return authenticated;
       const unlocked = accessState.state === "home_unlocked" || accessState.state === "profile_unlocked";
-      setAuthenticated(unlocked);
+      previewAccessMode = !unlocked;
+      setAuthenticated(true);
       if (!unlocked) {
         updateStatus(accessState.state === "profile_locked"
-          ? "Choose the profile PIN to continue."
-          : "Complete Movie Room setup to browse the library.");
+          ? "Profile is locked. Public previews stay available until the PIN is entered."
+          : "Preview mode: create an account to unlock full playback.");
       }
-      return unlocked;
+      return true;
     }
     const response = await fetchImpl("/api/session", { credentials: "same-origin" });
     if (requestVersion !== authTransitionVersion) {
@@ -4273,6 +4397,7 @@ function createApp({
       return authenticated;
     }
     publicAccess = Boolean(session.publicAccess);
+    previewAccessMode = false;
     if (publicAccess) {
       setAuthenticated(true);
       return true;
@@ -4842,10 +4967,27 @@ function createApp({
       });
     }
 
+    if (accountCreateButton) {
+      accountCreateButton.addEventListener("click", () => openAccountSetup());
+    }
+
+    if (accountLoginButton) {
+      accountLoginButton.addEventListener("click", () => openAccountLogin());
+    }
+
+    if (profileAvatarUpload) {
+      profileAvatarUpload.addEventListener("change", handleAvatarUpload);
+    }
+
     for (const button of profileAvatarChoices) {
       if (!button || !hasMethod(button, "addEventListener")) continue;
       button.addEventListener("click", () => {
         selectedSetupAvatar = (button.dataset && button.dataset.profileAvatar) || "home-family";
+        selectedSetupAvatarImage = "";
+        if (profileAvatarPreview) {
+          profileAvatarPreview.hidden = true;
+          profileAvatarPreview.removeAttribute("src");
+        }
         for (const candidate of profileAvatarChoices) {
           if (candidate && typeof candidate.setAttribute === "function") {
             candidate.setAttribute("aria-pressed", candidate === button ? "true" : "false");
@@ -5100,6 +5242,7 @@ function createApp({
           stableRefreshPosition = null;
       }
 
+      enforcePublicPreviewLimit();
       updateBufferStatus();
       updateTimeline();
       scheduleProgressSave();
@@ -5115,6 +5258,7 @@ function createApp({
       isSeeking = false;
       updatePlayerPlayPauseButton();
       clearStallRecovery();
+      clearPublicPreviewLimit();
       updatePlaybackState("none");
       releaseWakeLock().catch(() => {});
       savePlaybackProgress("ended").catch(() => {});
@@ -5277,10 +5421,14 @@ if (typeof document !== "undefined") {
     profileMenu: document.getElementById("profile-menu"),
     profileLabel: document.getElementById("profile-label"),
     profileAvatar: document.getElementById("profile-avatar"),
+    accountCreateButton: document.getElementById("account-create"),
+    accountLoginButton: document.getElementById("account-login"),
     profileSetupPanel: document.getElementById("profile-setup-panel"),
     profileSetupForm: document.getElementById("profile-setup-form"),
     profileSetupName: document.getElementById("profile-setup-name"),
     profileSetupStatus: document.getElementById("profile-setup-status"),
+    profileAvatarUpload: document.getElementById("profile-avatar-upload"),
+    profileAvatarPreview: document.getElementById("profile-avatar-preview"),
     profileAvatarChoices: Array.from(document.querySelectorAll("[data-profile-avatar]")),
     profilePinPanel: document.getElementById("profile-pin-panel"),
     profilePinForm: document.getElementById("profile-pin-form"),

@@ -76,8 +76,10 @@ test("scopes preview and full catalogs by access state and ignores client full f
   }));
 
   const preview = scopeCatalog(catalog, { state: "needs_setup", scope: "full" });
-  assert.deepEqual(preview.map((movie) => movie.id), ["movie-0", "movie-1", "movie-2", "movie-3"]);
+  assert.deepEqual(preview.map((movie) => movie.id), catalog.map((movie) => movie.id));
   assert.ok(preview.every((movie) => movie.entitlement === "free"));
+  assert.ok(preview.every((movie) => movie.previewOnly === true));
+  assert.ok(preview.every((movie) => movie.previewLimitSeconds === 180));
 
   assert.deepEqual(scopeCatalog(catalog, "profile_locked"), []);
   assert.equal(scopeCatalog(catalog, "home_unlocked").length, catalog.length);

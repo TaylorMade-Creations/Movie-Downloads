@@ -116,6 +116,9 @@
       .profile-avatar-choice { display: grid; gap: 7px; justify-items: center; border: 1px solid rgba(255, 255, 255, .18); border-radius: 16px; padding: 8px; background: rgba(255, 255, 255, .06); color: #fff; }
       .profile-avatar-choice[aria-pressed="true"], .profile-avatar-choice:focus-visible { border-color: var(--gold-soft); box-shadow: 0 0 0 2px rgba(240, 196, 91, .28); }
       .profile-avatar-choice img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; }
+      .profile-avatar-upload { border: 1px dashed rgba(240, 196, 91, .52); border-radius: 16px; padding: 12px; background: rgba(255, 255, 255, .05); }
+      .profile-avatar-upload input { padding: 0; border: 0; background: transparent; }
+      .profile-avatar-preview { width: 88px; height: 88px; border: 2px solid var(--gold-soft); border-radius: 50%; object-fit: cover; box-shadow: 0 0 26px rgba(240, 196, 91, .22); }
       .profile-access-actions { display: flex; flex-wrap: wrap; gap: 10px; }
       .profile-access-status { min-height: 1.4em; color: var(--gold-soft) !important; }
 
@@ -283,6 +286,18 @@
         height: 1px;
         margin: 3px 0;
         background: #28536b;
+      }
+
+      .account-action {
+        border: 1px solid rgba(240, 196, 91, .44);
+        border-radius: 999px;
+        padding-inline: 14px;
+        white-space: nowrap;
+      }
+
+      .primary-account-action {
+        background: linear-gradient(135deg, #f0c45b, #ffdd84);
+        color: #171208;
       }
 
       .search-wrap {
@@ -4369,6 +4384,10 @@
               <button type="button" class="profile-avatar-choice" data-profile-avatar="kids" aria-pressed="false"><img src="/profile-kids.jpeg" alt="Kids artwork" /><span>Kids</span></button>
             </div>
           </div>
+          <label class="profile-avatar-upload" for="profile-avatar-upload">Or choose a picture from this device
+            <input id="profile-avatar-upload" type="file" accept="image/*" />
+          </label>
+          <img id="profile-avatar-preview" class="profile-avatar-preview" alt="Selected profile artwork preview" hidden />
           <div class="profile-access-actions"><button type="submit">Continue to Home</button></div>
           <p id="profile-setup-status" class="profile-access-status" role="status" aria-live="polite"></p>
         </form>
@@ -4460,6 +4479,8 @@
             <button type="button" role="menuitem" data-profile-destination="settings">Settings</button>
           </div>
         </div>
+        <button id="account-create" class="account-action primary-account-action" type="button">Create account</button>
+        <button id="account-login" class="account-action secondary" type="button">Login / Profiles</button>
         <button id="reload" class="secondary" type="button">Reload</button>
       </div>
       </div>
@@ -4895,6 +4916,6 @@
     </script>
     <script src="/viewer-state.js?v=20260929-streaming-home" defer></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
-  <script src="/app.js?v=20261003-profile-recently-watched-v1" defer></script>
+  <script src="/app.js?v=20261003-auth-preview-v1" defer></script>
   </body>
 </html>

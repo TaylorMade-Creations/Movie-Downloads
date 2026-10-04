@@ -1,6 +1,8 @@
-# Movie-Downloads
+# Movie Room Master
 
-A lightweight browser app for browsing and streaming a shared movie library behind one shared password.
+Movie Room Master is the source-control home for TaylorMade Movies: the web/PWA app, Android APK, Fire TV APK, optional shell APK, library indexing/conversion scripts, metadata/artwork references, deployment configuration, and recovery documentation.
+
+GitHub stores source control, not the movie library. Large movie files, downloaded media, private credentials, local Jellyfin/API secrets, and personal device paths stay outside the repository and are referenced through ignored local configuration such as `config/library.local.json`.
 
 ## Movie Room as an installable TV-style PWA
 
@@ -12,7 +14,7 @@ The Fire TV APK uses the same Movie Room service and secure TV pairing flow, but
 
 ## Project workflow source of truth
 
-The project-owned repository control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative `main` branch, OneDrive Movie downloads root, provider boundary, watcher/sync commands, deployment, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes those values to project tooling. All Codex, GPT, plugin, and skill work for this app should reference the TaylorMade Movies repository rather than creating a parallel project. Secrets are intentionally excluded.
+The project-owned repository control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative `Movie-Room-Master` source repository, client modules, artifact manifests, deployment target, animation bucket policy, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes and validates those values for project tooling. All Codex, GPT, plugin, skill, web, Android, Fire TV, and shell work for this app should reference Movie Room Master rather than creating a parallel project. Secrets and personal local paths are intentionally excluded.
 
 ## What changed
 

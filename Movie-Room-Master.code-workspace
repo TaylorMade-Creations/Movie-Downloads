@@ -1,0 +1,32 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "movie-workflow-blueprint"
+    },
+    {
+      "path": "public"
+    },
+    {
+      "path": "firetv"
+    },
+    {
+      "path": "movieroom-web"
+    },
+    {
+      "path": "movieroom-shell"
+    },
+    {
+      "path": "movie-room-os"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "inventories/local": true,
+      "tmp-runtime": true,
+      "test-results": true
+    }
+  }
+}
