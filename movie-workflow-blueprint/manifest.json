@@ -55,6 +55,16 @@
       "path": "movie-room-os",
       "packageName": "prototype",
       "releaseEligible": false
+    },
+    {
+      "id": "taylormade-creations",
+      "kind": "local-automation-module",
+      "path": "scripts/taylormade",
+      "docs": "docs/taylormade-creations",
+      "packageName": "taylormade-video-pipeline",
+      "releaseEligible": false,
+      "runtimeState": "external-local-only",
+      "secretsPolicy": "OAuth client secrets, refresh tokens, browser sessions, generated videos, logs, and queue state stay outside Git and outside Vercel."
     }
   ],
   "artifactManifests": [
@@ -88,6 +98,7 @@
     "Run the Node test suite before claiming the web app is ready.",
     "Build Android, Fire TV, and shell APK modules before publishing APK artifacts.",
     "Verify the production Vercel URL after deployment.",
-    "Keep credentials, refresh tokens, API keys, cookies, and private local movie paths out of Git."
+    "Keep credentials, refresh tokens, API keys, cookies, and private local movie paths out of Git.",
+    "Keep TaylorMade generated videos, Gemini/browser state, YouTube OAuth tokens, upload queues, and local automation logs out of Git and Vercel."
   ]
 }

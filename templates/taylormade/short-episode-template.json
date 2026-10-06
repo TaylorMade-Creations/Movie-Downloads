@@ -1,0 +1,39 @@
+{
+  "brand": "East Kids Shows",
+  "series": "",
+  "episode_number": "",
+  "topic": "",
+  "target_age": "preschool / early elementary",
+  "target_runtime_seconds": 60,
+  "learning_goal": "",
+  "tone": "friendly, clear, warm, educational, lightly playful",
+  "visual_style": "AI-cartoon reimagined characters from approved reference images; not too visually busy; clear backgrounds; expressive face and body motion",
+  "main_characters": [],
+  "source_images": [],
+  "scenes": [
+    {
+      "scene_number": 1,
+      "duration_seconds": 10,
+      "learning_point": "",
+      "visual_action": "",
+      "voiceover": "",
+      "on_screen_text": "",
+      "generation_route": "reuse_existing_or_browser_free_first",
+      "paid_generation_approved": false,
+      "max_paid_cost_usd": 0
+    }
+  ],
+  "metadata": {
+    "title": "",
+    "description": "",
+    "tags": [
+      "East Kids Shows",
+      "TaylorMade",
+      "kids education",
+      "preschool learning",
+      "educational cartoon"
+    ],
+    "made_for_kids_recommendation": true
+  },
+  "status": "draft"
+}

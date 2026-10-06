@@ -15,3 +15,12 @@ config/library.local.json
 skills-lock.json
 0
 .vercel
+taylormade-local-state/
+scripts/taylormade/youtube/private/*
+!scripts/taylormade/youtube/private/.gitkeep
+scripts/taylormade/youtube/tokens/*
+!scripts/taylormade/youtube/tokens/.gitkeep
+*.mp4
+*.mov
+*.mkv
+*.avi

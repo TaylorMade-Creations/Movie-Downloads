@@ -18,3 +18,10 @@ config/library.local.json
 !public/downloads/MovieRoom-Optional-TV-v0.4.0.apk
 skills-lock.json
 0
+taylormade-local-state/
+scripts/taylormade/youtube/private/
+scripts/taylormade/youtube/tokens/
+*.mp4
+*.mov
+*.mkv
+*.avi
