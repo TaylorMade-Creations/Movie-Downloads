@@ -2,13 +2,13 @@
 param(
     [string]$LibraryRoot = 'C:\Users\kylet\OneDrive\Desktop\Movie downloads',
     [string]$TaskName = 'Movie Room Library Watcher',
-    [int]$IntervalMinutes = 360
+    [int]$IntervalMinutes = 15
 )
 
 $ErrorActionPreference = 'Stop'
-$syncScript = Join-Path $PSScriptRoot 'run-movie-library-sync.ps1'
+$syncScript = Join-Path $PSScriptRoot 'wake-movie-library-worker.ps1'
 if (-not (Test-Path -LiteralPath $syncScript)) {
-    throw "Library sync script not found: $syncScript"
+    throw "Library worker wake script not found: $syncScript"
 }
 
 $shell = (Get-Command pwsh.exe -ErrorAction SilentlyContinue)
@@ -20,5 +20,5 @@ $action = New-ScheduledTaskAction -Execute $shell.Source -Argument $arguments
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($IntervalMinutes) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DontStopOnIdleEnd -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Organizes completed Movie Room downloads and refreshes Jellyfin metadata without deleting source media.' -Force | Out-Null
-Write-Output "Installed '$TaskName' to scan $LibraryRoot every $IntervalMinutes minutes."
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Wakes the Movie Room worker to organize completed downloads, write Jellyfin sidecars, and refresh metadata without deleting source media.' -Force | Out-Null
+Write-Output "Installed '$TaskName' to wake the Movie Room worker for $LibraryRoot every $IntervalMinutes minutes."

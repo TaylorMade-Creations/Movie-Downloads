@@ -64,8 +64,6 @@ test("Movie Room shell remains an optional LEANBACK APK", () => {
 test("the shell contains the profile bootstrap, Crossbar focus model, and dynamic installed apps", () => {
   const manifest = read("src/main/AndroidManifest.xml");
   const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
-  const remoteMap = read("src/main/java/com/movieroom/shell/RemoteMap.java");
-  const focusGrid = read("src/main/java/com/movieroom/shell/FocusGrid.java");
   const bootstrapStore = read("src/main/java/com/movieroom/shell/BootstrapStore.java");
   const profileStore = read("src/main/java/com/movieroom/shell/ProfileStore.java");
 
@@ -121,7 +119,7 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /Recently watched · Top viewing/);
   assert.match(activity, /video-preview:/);
   assert.match(activity, /openPreviewTarget/);
-  assert.match(activity, /focused\.performClick/);
+  assert.match(activity, /performClick/);
   assert.match(activity, /KEYCODE_HOME/);
   assert.match(activity, /homeDetailIcon/);
   assert.match(activity, /LAST USED/);
@@ -167,12 +165,14 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /Continue Watching/);
   assert.match(activity, /Recently Added/);
   assert.match(activity, /Taylor-Made Picks/);
+  assert.match(activity, /TOP 5 · RECENTLY ADDED ROTATION/);
+  assert.match(activity, /"1 Recently Added", "2 New This Week", "3 Fresh Pick", "4 Latest Family", "5 Latest Magic"/);
+  assert.doesNotMatch(activity, /TOP 10 · CIRCULAR MENU/);
+  assert.doesNotMatch(activity, /"1 Top Pick", "2 Family", "3 New", "4 Action", "5 Comedy"/);
   assert.match(activity, /Movie Room OS/);
   assert.match(activity, /HOME/);
-  assert.match(remoteMap, /PLAY_PAUSE/);
-  assert.match(remoteMap, /FAST_FORWARD/);
-  assert.match(remoteMap, /PAGE_DOWN/);
-  assert.match(focusGrid, /nextPosition/);
+  assert.doesNotMatch(activity, /RemoteMap/);
+  assert.doesNotMatch(activity, /FocusGrid/);
   assert.match(bootstrapStore, /setupComplete/);
   assert.match(bootstrapStore, /setLastUsedLabel/);
   assert.match(bootstrapStore, /reset/);
@@ -236,7 +236,6 @@ test("Movie Room shell explains the active network and exposes Wi-Fi and mobile 
 
 test("Movie Room shell provides an explicit Fire TV focus path across library shelves", () => {
   const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
-  const remoteMap = read("src/main/java/com/movieroom/shell/RemoteMap.java");
 
   assert.match(activity, /setNextFocusLeftId/);
   assert.match(activity, /setNextFocusRightId/);
@@ -245,14 +244,10 @@ test("Movie Room shell provides an explicit Fire TV focus path across library sh
   assert.match(activity, /KEYCODE_BACK/);
   assert.match(activity, /KEYCODE_MENU/);
   assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
-  assert.match(activity, /dispatchKeyEvent/);
-  assert.match(activity, /moveShellFocus/);
-  assert.match(activity, /if \(!bootstrapStore\.setupComplete\(\)\)/);
-  assert.match(remoteMap, /KEYCODE_DPAD_UP/);
-  assert.match(remoteMap, /KEYCODE_DPAD_LEFT/);
-  assert.match(remoteMap, /KEYCODE_DPAD_CENTER/);
-  assert.match(remoteMap, /KEYCODE_DPAD_RIGHT/);
-  assert.match(remoteMap, /KEYCODE_DPAD_DOWN/);
+  assert.doesNotMatch(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /moveShellFocus/);
+  assert.doesNotMatch(activity, /REMOTE_REPEAT_THROTTLE_MS/);
+  assert.doesNotMatch(activity, /shouldDropRemoteRepeat|isRemoteMove/);
   assert.match(activity, /performClick/);
   assert.match(activity, /requestFocus/);
   assert.match(activity, /ImageView/);

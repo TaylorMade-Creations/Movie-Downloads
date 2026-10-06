@@ -52,6 +52,7 @@ test("the app keeps page Back but leaves Menu and media routing to Fire TV/WebVi
   assert.match(activity, /MovieRoomBack/);
   assert.match(app, /function handleNativeBack/);
   assert.match(activity, /KEYCODE_MENU/);
+  assert.match(activity, /MovieRoomMenu/);
   assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
   assert.match(app, /windowRef\.MovieRoomMenu/);
 });
@@ -59,8 +60,13 @@ test("the app keeps page Back but leaves Menu and media routing to Fire TV/WebVi
 test("the player has remote-selectable playback controls", () => {
   assert.match(html, /id="player-play-pause"/);
   assert.match(html, /id="fullscreen-player"/);
+  assert.match(html, /id="stop-casting"/);
   assert.match(app, /playerPlayPause/);
   assert.match(app, /togglePlayerPlayback/);
+  assert.match(app, /activeCastStorageKey/);
+  assert.match(app, /function stopCasting/);
+  assert.match(app, /restoreCastSessionAfterLibraryLoad/);
+  assert.match(app, /scheduleCastCheckpoint/);
 });
 
 test("the web app gives search its own row and exposes Menu tabs", () => {
@@ -81,6 +87,11 @@ test("the web app gives search its own row and exposes Menu tabs", () => {
 test("the native Fire TV player handles Menu and playback commands", () => {
   const activity = read("firetv/src/main/java/com/movieroom/firetv/MainActivity.java");
   assert.match(activity, /public boolean onKeyDown\(int keyCode, KeyEvent event\)/);
+  assert.match(activity, /private void showShellSettings\(\) \{/);
+  assert.match(activity, /root\.setPadding\(dp\(56\),\s*dp\(38\),\s*dp\(56\),\s*dp\(38\)\)/);
+  assert.match(activity, /Remote & display settings/);
+  assert.match(activity, /settingsButton\("Back to Movie Room"/);
+  assert.doesNotMatch(activity, /setTitle\("Movie Room TV shell"\)[\s\S]*?\.show\(\)/);
   assert.match(activity, /KEYCODE_MENU/);
   assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
   assert.match(activity, /KEYCODE_MEDIA_PLAY/);
@@ -97,6 +108,10 @@ test("native Fire TV artwork URL encoding uses an Android-compatible overload", 
 
 test("native Fire TV player links every shelf with deterministic remote focus", () => {
   const activity = read("firetv/src/main/java/com/movieroom/firetv/MainActivity.java");
+  assert.doesNotMatch(activity, /public boolean dispatchKeyEvent\(KeyEvent event\)/);
+  assert.doesNotMatch(activity, /remoteActionFor\(event\)/);
+  assert.doesNotMatch(activity, /shouldDropRemoteRepeat/);
+  assert.doesNotMatch(activity, /REMOTE_REPEAT_THROTTLE_MS/);
   assert.match(activity, /connectTvFocusRows/);
   assert.match(activity, /setNextFocusLeftId/);
   assert.match(activity, /setNextFocusRightId/);
@@ -137,6 +152,11 @@ test("the initial TV focus keeps the trending hero at the top until the user mov
 test("the hero carousel maps Fire TV D-pad keys directly to the first five autoplay previews", () => {
   assert.match(app, /function selectHeroMovie/);
   assert.match(app, /heroMovies = recentMovies\.slice\(0, 5\)/);
+  assert.match(app, /const nextTopFiveSignature = heroMovies\.map\(.*?join\("\\|"\)/s);
+  assert.match(app, /heroIndex = nextTopFiveSignature === heroTopFiveSignature/);
+  assert.match(app, /startHeroRotation\(\)/);
+  assert.match(app, /heroRotationTimer = setTimeoutImpl/);
+  assert.doesNotMatch(app, /Math\.random\(\) \* heroMovies\.length/);
   assert.match(app, /function handleHeroRemoteKey/);
   assert.match(app, /keyCode === 21/);
   assert.match(app, /keyCode === 22/);

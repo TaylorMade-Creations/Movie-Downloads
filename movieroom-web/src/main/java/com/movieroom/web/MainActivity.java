@@ -439,7 +439,22 @@ public final class MainActivity extends Activity {
     }
 
     private boolean dispatchNativeMenu() {
-        return dispatchRemoteCommand("Menu");
+        if (webView == null) {
+            return false;
+        }
+        if (!webViewReady) {
+            if (pendingRemoteCommands.size() >= 12) {
+                pendingRemoteCommands.removeFirst();
+            }
+            pendingRemoteCommands.addLast("Menu");
+            return true;
+        }
+        String script = "(function(){"
+            + "if (typeof window.MovieRoomMenu === 'function') return window.MovieRoomMenu() === true;"
+            + "return window.MovieRoomHandleRemoteKey && window.MovieRoomHandleRemoteKey('Menu') === true;"
+            + "})()";
+        webView.post(() -> webView.evaluateJavascript(script, null));
+        return true;
     }
 
     private boolean dispatchNativePlaybackToggle(String command) {

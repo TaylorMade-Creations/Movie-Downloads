@@ -283,6 +283,34 @@ function sendEmpty(response, statusCode, headers = {}) {
   response.end();
 }
 
+function staticAssetCacheHeaders(filePath) {
+  const normalized = filePath.replaceAll("\\", "/");
+  const extension = path.extname(filePath).toLowerCase();
+  const basename = path.basename(filePath).toLowerCase();
+
+  if (basename === "index.html" || basename === "app.js" || basename === "viewer-state.js") {
+    return {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "CDN-Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400",
+    };
+  }
+
+  if (normalized.includes("/posters/")
+      || normalized.includes("/backdrops/")
+      || normalized.includes("/downloads/")
+      || [".jpg", ".jpeg", ".png", ".webp", ".avif", ".svg", ".ico", ".apk"].includes(extension)) {
+    return {
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      "CDN-Cache-Control": "public, s-maxage=604800, stale-while-revalidate=2592000",
+    };
+  }
+
+  return {
+    "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+    "CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+  };
+}
+
 async function readJsonBody(request, limit = DEFAULT_BODY_LIMIT) {
   const chunks = [];
   let size = 0;
@@ -2052,6 +2080,7 @@ function createRequestHandler(options = {}) {
       response.writeHead(200, {
         "Content-Type": getContentType(filePath),
         "Content-Length": fileContents.length,
+        ...staticAssetCacheHeaders(filePath),
         ...mediaFeatureHeaders(),
       });
       response.end(request.method === "HEAD" ? undefined : fileContents);

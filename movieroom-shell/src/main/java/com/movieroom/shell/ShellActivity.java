@@ -261,20 +261,20 @@ public final class ShellActivity extends Activity {
         return rows;
     }
 
-    /** Fire TV-only home layout: one vertical shelf per category and a circular top-ten row. */
+    /** Fire TV-only home layout: one vertical shelf per category and a rotating recently-added top-five row. */
     private List<Button> addFireTvTopTen(LinearLayout parent) {
-        TextView heading = text("TOP 10 · CIRCULAR MENU", 17, GOLD);
+        TextView heading = text("TOP 5 · RECENTLY ADDED ROTATION", 17, GOLD);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         parent.addView(heading, new LinearLayout.LayoutParams(-1, 34));
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout row = row();
         List<Button> buttons = new ArrayList<>();
-        String[] titles = {"1 Top Pick", "2 Family", "3 New", "4 Action", "5 Comedy", "6 Drama", "7 Kids", "8 Series", "9 Fantasy", "10 More"};
+        String[] titles = {"1 Recently Added", "2 New This Week", "3 Fresh Pick", "4 Latest Family", "5 Latest Magic"};
         for (String title : titles) {
             Button item = circleButton(title, PURPLE, 106);
             item.setTextSize(12);
-            item.setContentDescription("Top ten " + title);
+            item.setContentDescription("Top five recently added " + title);
             item.setOnClickListener(view -> openMovieRoomApp());
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(106, 106);
             params.setMargins(6, 0, 6, 8);
@@ -556,7 +556,7 @@ public final class ShellActivity extends Activity {
         selectedAppPreviewContent.addView(summary, new LinearLayout.LayoutParams(-1, 40));
         String lower = label.toLowerCase();
         String[] heroItems = lower.contains("movie room") || lower.contains("movie")
-                ? new String[]{"Movie Room · Continue Watching", "Movie Room · Recently Added", "Movie Room · Trending Now"}
+                ? new String[]{"Movie Room · Recently Added", "Movie Room · Continue Watching", "Movie Room · Trending Now"}
                 : streamingFallbackPreviewTitles(label);
         rows.add(addPreviewRail(selectedAppPreviewContent, label + " · FEATURED TODAY", heroItems));
         rows.add(addPreviewRail(selectedAppPreviewContent, label + " · RECOMMENDED", new String[]{
@@ -665,10 +665,10 @@ public final class ShellActivity extends Activity {
             String[] items;
             if (lower.contains("movie room") || lower.contains("movie")) {
                 items = new String[]{
+                        "Movie Room · Recently Added",
                         "Movie Room · Continue Watching",
                         "Movie Room · Favorites",
-                        "Movie Room · Trending Now",
-                        "Movie Room · Recently Added"
+                        "Movie Room · Trending Now"
                 };
             } else {
                 items = streamingFallbackPreviewTitles(label);
@@ -697,6 +697,8 @@ public final class ShellActivity extends Activity {
         // artwork/video preview cards until Hulu, Disney, Apple TV, and other
         // signed-in apps expose their own watched history inside their app.
         return new String[]{
+                label + " · Recently Added",
+                label + " · New This Week",
                 label + " · Promo Spotlight",
                 label + " · Featured Today",
                 label + " · Top Trending",
@@ -1621,129 +1623,6 @@ public final class ShellActivity extends Activity {
                 }
             }
         }
-    }
-
-    /**
-     * Fire TV sends DPAD events to the foreground TV activity. Keep navigation
-     * inside this optional app's known button rows instead
-     * of depending on Android's view-tree heuristics, which can stop at a
-     * ScrollView or jump to an unexpected control.
-     */
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        RemoteMap.Action action = RemoteMap.actionFor(event);
-        if (action == RemoteMap.Action.NONE) {
-            return super.dispatchKeyEvent(event);
-        }
-        if (event.getAction() != KeyEvent.ACTION_DOWN) {
-            return true;
-        }
-
-        switch (action) {
-            case HOME:
-                if (bootstrapStore.setupComplete()) showHome();
-                else showBootstrapScreen();
-                return true;
-            case UP:
-            case DOWN:
-            case LEFT:
-            case RIGHT:
-                if (!bootstrapStore.setupComplete() && profileChooserScreen
-                        && (action == RemoteMap.Action.LEFT || action == RemoteMap.Action.RIGHT)) {
-                    rotateBootstrapProfile(action == RemoteMap.Action.LEFT ? -1 : 1);
-                    return true;
-                }
-                return moveShellFocus(action);
-            case PAGE_UP:
-                return moveShellFocus(RemoteMap.Action.UP, 3);
-            case PAGE_DOWN:
-                return moveShellFocus(RemoteMap.Action.DOWN, 3);
-            case SELECT:
-                return performFocusedShellAction();
-            case BACK:
-                if (!bootstrapStore.setupComplete()) {
-                    showBootstrapScreen();
-                    return true;
-                }
-                showHome();
-                return true;
-            case MENU:
-                if (!bootstrapStore.setupComplete()) {
-                    showBootstrapScreen();
-                    return true;
-                }
-                showSettingsScreen();
-                return true;
-            case PLAY_PAUSE:
-                if (!bootstrapStore.setupComplete()) {
-                    showBootstrapScreen();
-                    return true;
-                }
-                View focused = getCurrentFocus();
-                if (focused != null && focused.getTag() instanceof String
-                        && ((String) focused.getTag()).startsWith("video-preview:")) {
-                    focused.performClick();
-                    return true;
-                }
-                openMovieRoomApp();
-                return true;
-            case REWIND:
-            case FAST_FORWARD:
-                Toast.makeText(this, action == RemoteMap.Action.REWIND ? "Rewind" : "Fast forward", Toast.LENGTH_SHORT).show();
-                return true;
-            case INFO:
-                Toast.makeText(this, "Movie Room OS · " + activeProfile, Toast.LENGTH_SHORT).show();
-                return true;
-            case RESET:
-                bootstrapStore.reset();
-                showBootstrapScreen();
-                return true;
-            default:
-                return true;
-        }
-    }
-
-    private boolean moveShellFocus(RemoteMap.Action action) {
-        return moveShellFocus(action, 1);
-    }
-
-    private boolean moveShellFocus(RemoteMap.Action action, int distance) {
-        if (activeFocusRows.isEmpty()) {
-            return true;
-        }
-
-        int[] position = findFocusedShellPosition();
-        FocusGrid.Position next = new FocusGrid.Position(position[0], position[1]);
-        for (int step = 0; step < distance; step++) {
-            next = FocusGrid.nextPosition(activeFocusRows, next.row, next.column, action);
-        }
-        int nextRow = next.row;
-        int nextColumn = next.column;
-
-        Button target = activeFocusRows.get(nextRow).get(nextColumn);
-        focusedRowIndex = nextRow;
-        focusedColumnIndex = nextColumn;
-        target.requestFocus();
-        target.post(() -> target.requestRectangleOnScreen(
-                new android.graphics.Rect(0, 0, target.getWidth(), target.getHeight()), true));
-        return true;
-    }
-
-    private int[] findFocusedShellPosition() {
-        View current = getCurrentFocus();
-        for (int row = 0; row < activeFocusRows.size(); row++) {
-            List<Button> buttons = activeFocusRows.get(row);
-            for (int column = 0; column < buttons.size(); column++) {
-                if (buttons.get(column) == current) {
-                    focusedRowIndex = row;
-                    focusedColumnIndex = column;
-                    return new int[]{row, column};
-                }
-            }
-        }
-        int row = Math.min(focusedRowIndex, activeFocusRows.size() - 1);
-        int column = Math.min(focusedColumnIndex, activeFocusRows.get(row).size() - 1);
-        return new int[]{row, column};
     }
 
     private boolean performFocusedShellAction() {
