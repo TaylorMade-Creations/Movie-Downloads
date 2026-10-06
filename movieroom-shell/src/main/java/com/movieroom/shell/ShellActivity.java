@@ -62,6 +62,8 @@ public final class ShellActivity extends Activity {
     private static final int TEXT = Color.rgb(255, 247, 229);
     private static final int STARTUP_PERMISSIONS_REQUEST = 410;
     private static final int PREVIEW_CLIP_LIMIT = 30;
+    private static final String NETFLIX_PACKAGE = "com.netflix.ninja";
+    private static final String PEACOCK_PACKAGE = "com.peacocktv.peacockandroid";
     private String activeProfile = "Home";
     private String selectedProfileId = "home";
     private TextView connectionStatus;
@@ -80,6 +82,22 @@ public final class ShellActivity extends Activity {
     private List<List<Button>> activeFocusRows = new ArrayList<>();
     private int focusedRowIndex;
     private int focusedColumnIndex;
+
+    private static final class AppChoice {
+        final String packageName;
+        final String label;
+        final ResolveInfo resolveInfo;
+
+        AppChoice(String packageName, String label, ResolveInfo resolveInfo) {
+            this.packageName = packageName;
+            this.label = label;
+            this.resolveInfo = resolveInfo;
+        }
+
+        boolean isInstalled() {
+            return resolveInfo != null;
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,8 +137,8 @@ public final class ShellActivity extends Activity {
 
     private void showHome() {
         // Keep the lastUsedLabel hook for profile/bootstrap continuity; the
-        // Fire TV home itself is now movie-only and no longer renders app rows.
-        // Legacy labels remain documented for compatibility: LAST USED, SUGGESTED NEXT,
+        // Fire TV home keeps Movie Room as the primary catalog while also rendering
+        // the selected-app hub and safe live-home rails. Legacy labels remain documented for compatibility: LAST USED, SUGGESTED NEXT,
         // Movie Room · Recently Added, HOME WIDGET, Continue Watching, and My List.
         String lastUsedLabel = bootstrapStore.lastUsedLabel();
         settingsScreen = false;
@@ -187,6 +205,8 @@ public final class ShellActivity extends Activity {
         movieScroll.setFillViewport(true);
         LinearLayout movieContent = column(Color.TRANSPARENT);
         focusRows.add(addFireTvTopTen(movieContent));
+        focusRows.addAll(addSelectedAppHome(movieContent));
+        focusRows.addAll(addServiceWidgetRails(movieContent));
         focusRows.add(addFireTvShelf(movieContent, "ALL MOVIES", new String[]{"All Movies", "Movies Index Catalog"}, true));
         focusRows.add(addFireTvShelf(movieContent, "NEWLY ADDED", new String[]{"New uploads", "Recently added", "Fresh family picks"}, true));
         focusRows.add(addFireTvShelf(movieContent, "MOST WATCHED", new String[]{"Continue watching", "Taylor-Made Picks", "Top viewing"}, true));
@@ -206,6 +226,63 @@ public final class ShellActivity extends Activity {
         connectFocusRows(focusRows);
         setContentView(root);
         topControls.get(0).requestFocus();
+    }
+
+    /**
+     * Keeps the shell visible as the primary surface while exposing the apps
+     * selected during first-run setup as a live, remote-friendly app hub.
+     * The cards never auto-launch; selecting one hands control to that app.
+     */
+    private List<List<Button>> addSelectedAppHome(LinearLayout parent) {
+        List<List<Button>> rows = new ArrayList<>();
+        TextView heading = text("SELECTED APPS · LIVE HOME", 17, GOLD);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        parent.addView(heading, new LinearLayout.LayoutParams(-1, 34));
+        TextView status = text("Movie Room supplies the catalog; installed apps supply their own live home and continue-watching handoff.", 14, 0xffd9cfd9);
+        parent.addView(status, new LinearLayout.LayoutParams(-1, 42));
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(true);
+        scroll.setScrollbarFadingEnabled(false);
+        LinearLayout rail = row();
+        List<Button> buttons = new ArrayList<>();
+        for (ResolveInfo info : preferredHomeApps()) {
+            String label = String.valueOf(info.loadLabel(getPackageManager()));
+            Button app = button(label + "\nLIVE HOME", PANEL, IVORY);
+            app.setGravity(Gravity.CENTER);
+            app.setTextSize(15);
+            app.setContentDescription(label + " live home app");
+            Drawable icon = info.loadIcon(getPackageManager());
+            if (icon != null) {
+                icon.setBounds(0, 0, 60, 60);
+                app.setCompoundDrawables(null, icon, null, null);
+            }
+            app.setOnClickListener(view -> {
+                bootstrapStore.setLastUsedLabel(label);
+                launchInstalledApp(info);
+            });
+            app.setOnFocusChangeListener((view, hasFocus) -> {
+                view.setScaleX(hasFocus ? 1.06f : 1f);
+                view.setScaleY(hasFocus ? 1.06f : 1f);
+                if (hasFocus) previewInstalledApp(info);
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(214, 112);
+            params.setMargins(6, 0, 6, 10);
+            rail.addView(app, params);
+            buttons.add(app);
+        }
+        if (buttons.isEmpty()) {
+            Button setup = button("＋  Add apps in Settings", PANEL, GOLD);
+            setup.setGravity(Gravity.CENTER);
+            setup.setContentDescription("Add apps in profile settings");
+            setup.setOnClickListener(view -> showAppsScreen());
+            rail.addView(setup, new LinearLayout.LayoutParams(320, 82));
+            buttons.add(setup);
+        }
+        scroll.addView(rail);
+        parent.addView(scroll, new LinearLayout.LayoutParams(-1, 126));
+        rows.add(buttons);
+        return rows;
     }
 
     /** Fire TV-only home layout: one vertical shelf per category and a circular top-ten row. */
@@ -1059,9 +1136,17 @@ public final class ShellActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         root.addView(title);
-        TextView intro = text("Select the apps that stay in your left-side Home folder. Hover an app to preview its categories on the right.", 18, IVORY);
+        boolean kidProfile = profileStore.isKidProfile(profileId);
+        TextView intro = text(kidProfile
+                ? "Choose the apps for the Kids Home folder. Netflix and Peacock are included as choices; unavailable apps can be installed later from the Amazon Appstore."
+                : "Select the apps that stay in your left-side Home folder. Hover an app to preview its categories on the right.", 18, IVORY);
         intro.setGravity(Gravity.CENTER);
         root.addView(intro);
+
+        TextView controls = text("REMOTE: ↑ ↓ ← → MOVE   •   OK / ENTER SELECT   •   PAGE UP / DOWN SCROLL   •   GOLD RING = SELECTED", 14, GOLD);
+        controls.setGravity(Gravity.CENTER);
+        controls.setContentDescription("Remote controls: move with the directional pad, select with OK or Enter, and use Page Up or Page Down to scroll.");
+        root.addView(controls);
 
         TextView appPreviewTitle = text("Select an app", 30, IVORY);
         appPreviewTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -1077,26 +1162,44 @@ public final class ShellActivity extends Activity {
         Set<String> selected = new HashSet<>();
         List<ResolveInfo> installed = discoverInstalledApps();
         if (!installed.isEmpty()) selected.add(installed.get(0).activityInfo.packageName);
-        LinearLayout list = column(Color.TRANSPARENT);
+        List<AppChoice> choices = new ArrayList<>();
+        Set<String> choicePackages = new HashSet<>();
+        for (ResolveInfo info : installed) {
+            if (info.activityInfo == null) continue;
+            String packageName = info.activityInfo.packageName;
+            if (choicePackages.add(packageName)) {
+                choices.add(new AppChoice(packageName, String.valueOf(info.loadLabel(getPackageManager())), info));
+            }
+        }
+        if (kidProfile) {
+            addRequiredAppChoice(choices, choicePackages, NETFLIX_PACKAGE, "Netflix");
+            addRequiredAppChoice(choices, choicePackages, PEACOCK_PACKAGE, "Peacock");
+        }
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(true);
+        scroll.setScrollbarFadingEnabled(false);
         LinearLayout grid = column(Color.TRANSPARENT);
         List<Button> row = new ArrayList<>();
-        for (ResolveInfo info : installed) {
-            String packageName = info.activityInfo.packageName;
-            String label = String.valueOf(info.loadLabel(getPackageManager()));
-            Button app = button("", Color.TRANSPARENT, IVORY);
+        for (AppChoice choice : choices) {
+            String packageName = choice.packageName;
+            String label = choice.label;
+            boolean installedChoice = choice.isInstalled();
+            Button app = button(appChoiceLabel(label, installedChoice, selected.contains(packageName)), PANEL, IVORY);
             app.setGravity(Gravity.CENTER);
-            app.setContentDescription("Choose " + label + " for the Home app folder");
-            Drawable icon = info.loadIcon(getPackageManager());
+            app.setTextSize(15);
+            app.setContentDescription("Choose " + label + " for the Home app folder" + (installedChoice ? "" : "; app is not installed"));
+            Drawable icon = installedChoice ? choice.resolveInfo.loadIcon(getPackageManager()) : getDrawable(android.R.drawable.ic_menu_help);
             if (icon != null) {
-                icon.setBounds(0, 0, 78, 78);
+                icon.setBounds(0, 0, 64, 64);
                 app.setCompoundDrawables(null, icon, null, null);
             }
             app.setBackground(appWidgetCircle(false));
             app.setOnClickListener(view -> {
                 if (selected.contains(packageName)) selected.remove(packageName);
                 else selected.add(packageName);
-                app.setBackground(appWidgetCircle(true));
+                app.setBackground(appWidgetCircle(selected.contains(packageName) || app.hasFocus()));
+                app.setText(appChoiceLabel(label, installedChoice, selected.contains(packageName)));
             });
             app.setOnFocusChangeListener((view, hasFocus) -> {
                 app.setBackground(appWidgetCircle(hasFocus || selected.contains(packageName)));
@@ -1104,17 +1207,22 @@ public final class ShellActivity extends Activity {
                 view.setScaleY(hasFocus ? 1.08f : 1f);
                 if (hasFocus) {
                     appPreviewTitle.setText(label);
-                    appPreviewDescription.setText("Installed app · Select to add or remove from this profile's Home folder.");
-                    appPreviewMeta.setText(label + " · Continue watching · Favorites/My List · Trending");
-                    previewInstalledApp(info);
+                    if (installedChoice) {
+                        appPreviewDescription.setText("Installed app · Select to add or remove from this profile's Home folder.");
+                        appPreviewMeta.setText(label + " · Continue watching · Favorites/My List · Trending");
+                        previewInstalledApp(choice.resolveInfo);
+                    } else {
+                        appPreviewDescription.setText("Available choice · Install this app from the Amazon Appstore, then it can appear here.");
+                        appPreviewMeta.setText("Netflix and Peacock are optional Kids profile apps");
+                    }
                 }
             });
             row.add(app);
             if (row.size() == 3) {
                 LinearLayout itemRow = row();
                 itemRow.setGravity(Gravity.CENTER);
-                for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(132, 132));
-                grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 148));
+                for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(190, 148));
+                grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 162));
                 focusRows.add(new ArrayList<>(row));
                 row.clear();
             }
@@ -1122,8 +1230,8 @@ public final class ShellActivity extends Activity {
         if (!row.isEmpty()) {
             LinearLayout itemRow = row();
             itemRow.setGravity(Gravity.CENTER);
-            for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(132, 132));
-            grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 148));
+            for (Button item : row) itemRow.addView(item, new LinearLayout.LayoutParams(190, 148));
+            grid.addView(itemRow, new LinearLayout.LayoutParams(-1, 162));
             focusRows.add(new ArrayList<>(row));
         }
         scroll.addView(grid);
@@ -1132,6 +1240,9 @@ public final class ShellActivity extends Activity {
         body.addView(appPreview, new LinearLayout.LayoutParams(0, -1, 0.54f));
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
 
+        TextView scrollHint = text("APP LIST  ·  Use ↑ ↓ or PAGE UP / PAGE DOWN to reveal more choices", 14, GOLD);
+        scrollHint.setGravity(Gravity.CENTER);
+        root.addView(scrollHint, new LinearLayout.LayoutParams(-1, 42));
         Button done = button("Save Home folder and open Home", CRIMSON, IVORY);
         done.setContentDescription("Save preferred Home apps");
         done.setOnClickListener(view -> {
@@ -1143,6 +1254,24 @@ public final class ShellActivity extends Activity {
         connectFocusRows(focusRows);
         setContentView(root);
         if (!focusRows.isEmpty()) focusRows.get(0).get(0).requestFocus();
+    }
+
+    private void addRequiredAppChoice(List<AppChoice> choices, Set<String> packages, String packageName, String label) {
+        if (packages.contains(packageName)) return;
+        ResolveInfo installed = null;
+        for (ResolveInfo info : discoverInstalledApps()) {
+            if (info.activityInfo != null && packageName.equals(info.activityInfo.packageName)) {
+                installed = info;
+                break;
+            }
+        }
+        choices.add(new AppChoice(packageName, label, installed));
+        packages.add(packageName);
+    }
+
+    private String appChoiceLabel(String label, boolean installed, boolean selected) {
+        if (selected) return label + "\nSELECTED";
+        return label + (installed ? "\nSELECT APP" : "\nSAVE FOR INSTALL");
     }
 
     private Button circleButton(String label, int color, int size) {

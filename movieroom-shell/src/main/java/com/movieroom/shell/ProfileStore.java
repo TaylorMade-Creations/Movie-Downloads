@@ -54,6 +54,11 @@ public final class ProfileStore {
         return defaults().get(0);
     }
 
+    public boolean isKidProfile(String id) {
+        if ("kids".equals(id)) return true;
+        return "custom".equals(id) && "Kid profile".equals(profiles.getString("type", ""));
+    }
+
     public Profile createCustomProfile(String name, String type, int avatarIndex) {
         String cleanName = name == null ? "" : name.trim();
         if (cleanName.isEmpty()) throw new IllegalArgumentException("A name or screen name is required");
