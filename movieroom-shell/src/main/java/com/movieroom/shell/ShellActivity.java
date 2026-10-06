@@ -238,7 +238,7 @@ public final class ShellActivity extends Activity {
         TextView heading = text("SELECTED APPS · LIVE HOME", 17, GOLD);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         parent.addView(heading, new LinearLayout.LayoutParams(-1, 34));
-        TextView status = text("Movie Room supplies the catalog; installed apps supply their own live home and continue-watching handoff.", 14, 0xffd9cfd9);
+        TextView status = text("Icon-only app artwork. Select the picture to open the app; focus previews its home metadata here.", 14, 0xffd9cfd9);
         parent.addView(status, new LinearLayout.LayoutParams(-1, 42));
 
         HorizontalScrollView scroll = new HorizontalScrollView(this);
@@ -248,26 +248,19 @@ public final class ShellActivity extends Activity {
         List<Button> buttons = new ArrayList<>();
         for (ResolveInfo info : preferredHomeApps()) {
             String label = String.valueOf(info.loadLabel(getPackageManager()));
-            Button app = button(label + "\nLIVE HOME", PANEL, IVORY);
-            app.setGravity(Gravity.CENTER);
-            app.setTextSize(15);
-            app.setContentDescription(label + " live home app");
-            Drawable icon = info.loadIcon(getPackageManager());
-            if (icon != null) {
-                icon.setBounds(0, 0, 60, 60);
-                app.setCompoundDrawables(null, icon, null, null);
-            }
+            Button app = appArtworkButton(info, label, 96);
             app.setOnClickListener(view -> {
                 bootstrapStore.setLastUsedLabel(label);
                 launchInstalledApp(info);
             });
             app.setOnFocusChangeListener((view, hasFocus) -> {
+                view.setBackground(appDockBackground(hasFocus));
                 view.setScaleX(hasFocus ? 1.06f : 1f);
                 view.setScaleY(hasFocus ? 1.06f : 1f);
                 if (hasFocus) previewInstalledApp(info);
             });
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(214, 112);
-            params.setMargins(6, 0, 6, 10);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(118, 118);
+            params.setMargins(8, 0, 12, 10);
             rail.addView(app, params);
             buttons.add(app);
         }
@@ -530,16 +523,7 @@ public final class ShellActivity extends Activity {
         List<List<Button>> dockRows = new ArrayList<>();
         for (ResolveInfo info : preferredHomeApps()) {
             String label = String.valueOf(info.loadLabel(getPackageManager()));
-            Button app = button("", Color.TRANSPARENT, IVORY);
-            app.setGravity(Gravity.CENTER);
-            app.setContentDescription(label + " app widget");
-            app.setTextSize(1);
-            Drawable icon = info.loadIcon(getPackageManager());
-            if (icon != null) {
-                icon.setBounds(0, 0, 76, 76);
-                app.setCompoundDrawables(null, icon, null, null);
-            }
-            app.setBackground(appDockBackground(false));
+            Button app = appArtworkButton(info, label, 84);
             if (appDockFocusTarget == null) appDockFocusTarget = app;
             app.setOnClickListener(view -> {
                 bootstrapStore.setLastUsedLabel(label);
@@ -666,10 +650,10 @@ public final class ShellActivity extends Activity {
                 };
             } else {
                 items = new String[]{
-                        label + " · Continue Watching",
-                        label + " · My List",
+                        label + " · Promo Spotlight",
+                        label + " · Featured Today",
                         label + " · Top Trending",
-                        "Open " + label + " for your personal catalog"
+                        "Open " + label + " for personal continue watching"
                 };
             }
             rows.add(addPreviewRail(parent, label + " · HOME WIDGET", items));
@@ -685,6 +669,22 @@ public final class ShellActivity extends Activity {
             }
         }
         return rows;
+    }
+
+    private Button appArtworkButton(ResolveInfo info, String label, int iconSize) {
+        Button app = button("", Color.TRANSPARENT, IVORY);
+        app.setGravity(Gravity.CENTER);
+        app.setTextSize(1);
+        app.setMaxLines(1);
+        app.setContentDescription(label + " app picture button");
+        Drawable icon = info.loadIcon(getPackageManager());
+        if (icon != null) {
+            icon.setBounds(0, 0, iconSize, iconSize);
+            app.setCompoundDrawables(null, icon, null, null);
+        }
+        app.setBackground(appDockBackground(false));
+        app.setPadding(8, 8, 8, 8);
+        return app;
     }
 
     private int previewArtwork(String title) {

@@ -106,7 +106,9 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /discoverMediaApps/);
   assert.match(activity, /app store/);
   assert.doesNotMatch(activity, /setCornerRadius\(26f\)/);
-  assert.match(activity, /setBounds\(0, 0, 76, 76\)/);
+  assert.match(activity, /appArtworkButton/);
+  assert.match(activity, /app picture button/);
+  assert.match(activity, /setBounds\(0, 0, iconSize, iconSize\)/);
   assert.match(activity, /Choose your Home apps/);
   assert.match(activity, /homePreviewVideo/);
   assert.match(activity, /VideoView thumbnail/);
@@ -128,7 +130,8 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /6500L/);
   assert.match(activity, /HOME WIDGET/);
   assert.match(activity, /Continue Watching/);
-  assert.match(activity, /My List/);
+  assert.match(activity, /Promo Spotlight/);
+  assert.match(activity, /Featured Today/);
   assert.match(activity, /Top Trending/);
   assert.match(activity, /LIVE TV/);
   assert.match(activity, /APP PREVIEW/);
