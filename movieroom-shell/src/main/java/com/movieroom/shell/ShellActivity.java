@@ -73,6 +73,7 @@ public final class ShellActivity extends Activity {
     private ImageView homeDetailIcon;
     private VideoView homePreviewVideo;
     private View appDockFocusTarget;
+    private LinearLayout selectedAppPreviewContent;
     private boolean settingsScreen;
     private boolean profileChooserScreen;
     private String pendingProfileType = "Regular user";
@@ -139,7 +140,7 @@ public final class ShellActivity extends Activity {
         // Keep the lastUsedLabel hook for profile/bootstrap continuity; the
         // Fire TV home keeps Movie Room as the primary catalog while also rendering
         // the selected-app hub and safe live-home rails. Legacy labels remain documented for compatibility: LAST USED, SUGGESTED NEXT,
-        // Movie Room · Recently Added, HOME WIDGET, Continue Watching, and My List.
+        // TAYLORMADE MOVIES · HOME, Movie Room · Recently Added, HOME WIDGET, Continue Watching, Taylor-Made Picks, and My List.
         String lastUsedLabel = bootstrapStore.lastUsedLabel();
         settingsScreen = false;
         LinearLayout root = column(NAVY);
@@ -180,47 +181,31 @@ public final class ShellActivity extends Activity {
         TextView divider = text("────────────────────────────────────────────────────────────────────────────────────────────────────────", 12, 0x88fff7e5);
         root.addView(divider, new LinearLayout.LayoutParams(-1, 24));
 
-        LinearLayout body = column(0x66100711);
+        LinearLayout body = row();
+        body.setBackgroundColor(0x66100711);
         body.setPadding(24, 8, 24, 8);
+        LinearLayout leftDock = column(Color.TRANSPARENT);
+        TextView dockLabel = text("LEFT APP DOCK", 12, GOLD);
+        dockLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        dockLabel.setGravity(Gravity.CENTER);
+        leftDock.addView(dockLabel, new LinearLayout.LayoutParams(-1, 24));
+        focusRows.addAll(addAppFolder(leftDock));
+        body.addView(leftDock, new LinearLayout.LayoutParams(170, -1));
+
         FrameLayout detail = new FrameLayout(this);
         detail.addView(new CinematicWaveView(this), new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout scrim = column(0x66100711);
-        scrim.setPadding(18, 12, 18, 12);
-        homeDetailIcon = new ImageView(this);
-        homeDetailIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        scrim.addView(homeDetailIcon, new LinearLayout.LayoutParams(88, 88));
-        TextView eyebrow = text("TAYLORMADE MOVIES · HOME", 15, GOLD);
-        eyebrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        scrim.addView(eyebrow);
-        TextView heading = text("TaylorMade Movies", 34, IVORY);
-        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        scrim.addView(heading);
-        homeDetailTitle = heading;
-        homeDetailDescription = text("Your Movie Room web home · " + activeProfile, 19, 0xfff5e6d1);
-        scrim.addView(homeDetailDescription);
-        homeDetailMeta = text("Web home preview · Continue watching · Recently added · Trending", 15, 0xffd9cfd9);
-        scrim.addView(homeDetailMeta);
-
-        ScrollView movieScroll = new ScrollView(this);
-        movieScroll.setFillViewport(true);
-        LinearLayout movieContent = column(Color.TRANSPARENT);
-        focusRows.add(addFireTvTopTen(movieContent));
-        focusRows.addAll(addSelectedAppHome(movieContent));
-        focusRows.addAll(addServiceWidgetRails(movieContent));
-        focusRows.add(addFireTvShelf(movieContent, "ALL MOVIES", new String[]{"All Movies", "Movies Index Catalog"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "NEWLY ADDED", new String[]{"New uploads", "Recently added", "Fresh family picks"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "MOST WATCHED", new String[]{"Continue watching", "Taylor-Made Picks", "Top viewing"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "FAMILY FAVORITES", new String[]{"Family Favorites", "Kids movies", "Animated Worlds"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "ACTION & ADVENTURE", new String[]{"Action", "Adventure", "Fantasy & Magic"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "COMEDY", new String[]{"Comedy", "Feel Good Movies", "Classics"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "DRAMA", new String[]{"Drama", "Romance", "Documentaries"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "SCI-FI & FANTASY", new String[]{"Sci-Fi & Beyond", "Fantasy", "Superheroes"}, true));
-        focusRows.add(addFireTvShelf(movieContent, "SERIES & COLLECTIONS", new String[]{"Series", "Collections", "Recently watched"}, true));
-        focusRows.add(addFireTvFolderButton(movieContent));
-        movieScroll.addView(movieContent);
-        scrim.addView(movieScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        detail.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-        body.addView(detail, new LinearLayout.LayoutParams(-1, -1));
+        ScrollView previewScroll = new ScrollView(this);
+        previewScroll.setFillViewport(true);
+        selectedAppPreviewContent = column(0x66100711);
+        selectedAppPreviewContent.setPadding(22, 14, 22, 14);
+        TextView previewLabel = text("RIGHT APP PREVIEW", 12, GOLD);
+        previewLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        selectedAppPreviewContent.addView(previewLabel, new LinearLayout.LayoutParams(-1, 24));
+        ResolveInfo firstApp = preferredHomeApps().isEmpty() ? null : preferredHomeApps().get(0);
+        focusRows.addAll(renderSelectedAppPreviewPanel(firstApp));
+        previewScroll.addView(selectedAppPreviewContent);
+        detail.addView(previewScroll, new FrameLayout.LayoutParams(-1, -1));
+        body.addView(detail, new LinearLayout.LayoutParams(0, -1, 1));
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
 
         connectFocusRows(focusRows);
@@ -521,9 +506,10 @@ public final class ShellActivity extends Activity {
         dockScroll.setVerticalScrollBarEnabled(false);
         LinearLayout dock = column(Color.TRANSPARENT);
         List<List<Button>> dockRows = new ArrayList<>();
+        int appDockIconSize = 132;
         for (ResolveInfo info : preferredHomeApps()) {
             String label = String.valueOf(info.loadLabel(getPackageManager()));
-            Button app = appArtworkButton(info, label, 84);
+            Button app = appArtworkButton(info, label, 116);
             if (appDockFocusTarget == null) appDockFocusTarget = app;
             app.setOnClickListener(view -> {
                 bootstrapStore.setLastUsedLabel(label);
@@ -532,17 +518,55 @@ public final class ShellActivity extends Activity {
             app.setOnFocusChangeListener((view, hasFocus) -> {
                 app.setSelected(hasFocus);
                 app.setTextColor(hasFocus ? GOLD : IVORY);
-                if (hasFocus) previewInstalledApp(info);
+                if (hasFocus) {
+                    previewInstalledApp(info);
+                    showOnlySelectedAppRails(info);
+                }
             });
-            LinearLayout.LayoutParams appParams = new LinearLayout.LayoutParams(112, 112);
+            LinearLayout.LayoutParams appParams = new LinearLayout.LayoutParams(appDockIconSize, appDockIconSize);
             appParams.gravity = Gravity.CENTER_HORIZONTAL;
-            appParams.setMargins(0, 0, 0, 14);
+            appParams.setMargins(0, 0, 0, 18);
             dock.addView(app, appParams);
             dockRows.add(singleton(app));
         }
         dockScroll.addView(dock);
         parent.addView(dockScroll, new LinearLayout.LayoutParams(-1, 0, 1));
         return dockRows;
+    }
+
+    private void showOnlySelectedAppRails(ResolveInfo info) {
+        if (selectedAppPreviewContent == null) return;
+        renderSelectedAppPreviewPanel(info);
+    }
+
+    private List<List<Button>> renderSelectedAppPreviewPanel(ResolveInfo info) {
+        List<List<Button>> rows = new ArrayList<>();
+        if (selectedAppPreviewContent == null) return rows;
+        selectedAppPreviewContent.removeAllViews();
+        TextView section = text("RIGHT APP PREVIEW", 12, GOLD);
+        section.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        selectedAppPreviewContent.addView(section, new LinearLayout.LayoutParams(-1, 24));
+        if (info == null) {
+            selectedAppPreviewContent.addView(text("Choose an app icon on the left to preview its home screen.", 24, IVORY));
+            return rows;
+        }
+        String label = String.valueOf(info.loadLabel(getPackageManager()));
+        TextView title = text(label, 34, IVORY);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        selectedAppPreviewContent.addView(title, new LinearLayout.LayoutParams(-1, 52));
+        TextView summary = text("Remote hover preview · " + label + " only", 18, 0xfff5e6d1);
+        selectedAppPreviewContent.addView(summary, new LinearLayout.LayoutParams(-1, 40));
+        String lower = label.toLowerCase();
+        String[] heroItems = lower.contains("movie room") || lower.contains("movie")
+                ? new String[]{"Movie Room · Continue Watching", "Movie Room · Recently Added", "Movie Room · Trending Now"}
+                : streamingFallbackPreviewTitles(label);
+        rows.add(addPreviewRail(selectedAppPreviewContent, label + " · FEATURED TODAY", heroItems));
+        rows.add(addPreviewRail(selectedAppPreviewContent, label + " · RECOMMENDED", new String[]{
+                label + " · Continue Watching",
+                label + " · Top Viewing",
+                label + " · New This Week"
+        }));
+        return rows;
     }
 
     private List<Button> addPreviewRail(LinearLayout parent, String title, String[] items) {
@@ -651,7 +675,7 @@ public final class ShellActivity extends Activity {
             } else {
                 items = streamingFallbackPreviewTitles(label);
             }
-            rows.add(addPreviewRail(parent, label + " · HOME WIDGET", items));
+            rows.add(addPreviewRail(parent, appHomeWidgetTitle(label), items));
         }
 
         for (ResolveInfo info : discoverInstalledApps()) {
@@ -664,6 +688,10 @@ public final class ShellActivity extends Activity {
             }
         }
         return rows;
+    }
+
+    private String appHomeWidgetTitle(String label) {
+        return label + " · HOME WIDGET";
     }
 
     private String[] streamingFallbackPreviewTitles(String label) {

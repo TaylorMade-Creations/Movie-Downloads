@@ -364,6 +364,7 @@ function createApp({
   seekBackwardButton,
   seekForwardButton,
   castButton,
+  castGuide,
   tvGuideTitle,
   tvGuideSteps,
   tvGuideStatus,
@@ -434,6 +435,11 @@ function createApp({
   detailsTitle,
   detailsMeta,
   detailsDescription,
+  detailsInfoDescription,
+  detailsInfoGenres,
+  detailsInfoCast,
+  detailsInfoSource,
+  detailsInfoAvailability,
   detailsPlay,
   detailsOffline,
   detailsWatchLater,
@@ -1102,6 +1108,20 @@ function createApp({
     castButton.textContent = browserCastLabel();
   }
 
+  function showCastGuide() {
+    if (castGuide) {
+      castGuide.hidden = false;
+      if (hasMethod(castGuide, "scrollIntoView")) {
+        castGuide.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+    updateTvGuide();
+  }
+
+  function hideCastGuide() {
+    if (castGuide) castGuide.hidden = true;
+  }
+
   function browserInfo() {
     const userAgent = navigatorRef && navigatorRef.userAgent ? navigatorRef.userAgent : "";
     const vendor = navigatorRef && navigatorRef.vendor ? navigatorRef.vendor : "";
@@ -1276,6 +1296,7 @@ function createApp({
   }
 
   function updateTvGuide() {
+    if (castGuide && castGuide.hidden) return;
     const info = browserInfo();
     if (info.isSafari || info.isIOS) {
       if (tvGuideTitle) {
@@ -1393,7 +1414,7 @@ function createApp({
       player.setAttribute("webkit-playsinline", "");
     }
     updateCastButton();
-    updateTvGuide();
+    hideCastGuide();
   }
 
   async function openFullscreenPlayer() {
@@ -2141,6 +2162,23 @@ function createApp({
     detailsPreviewVideo.removeAttribute("src");
     detailsPreviewVideo.load();
     detailsPreviewVideo.hidden = true;
+  }
+
+  function renderSelectedMovieInfo(movie) {
+    if (!movie) return;
+    const description = movie.description || `Watch ${movie.title || movie.fileName || "this movie"} in your private Movie Room.`;
+    const genres = Array.isArray(movie.genres) && movie.genres.length
+      ? movie.genres.slice(0, 8).join(" • ")
+      : "Genres pending";
+    const cast = Array.isArray(movie.cast) && movie.cast.length
+      ? movie.cast.slice(0, 8).join(" • ")
+      : "Cast pending from Jellyfin";
+    const source = [metadataSourceLabel(movie), movieFolderLabel(movie)].filter(Boolean).join(" • ");
+    if (detailsInfoDescription) detailsInfoDescription.textContent = description;
+    if (detailsInfoGenres) detailsInfoGenres.textContent = genres;
+    if (detailsInfoCast) detailsInfoCast.textContent = cast;
+    if (detailsInfoSource) detailsInfoSource.textContent = source || "Metadata pending";
+    if (detailsInfoAvailability) detailsInfoAvailability.textContent = movieAvailabilityLabel(movie);
   }
 
   async function setDetailsHero(movie) {
@@ -3425,8 +3463,9 @@ function createApp({
       detailsMeta.textContent = [movie.year, movie.rating, movie.runtime].filter(Boolean).join(" • ") || movieFolderLabel(movie);
     }
     if (detailsDescription) {
-      detailsDescription.textContent = movie.description || `Watch ${movie.title || movie.fileName || "this movie"} in your private Movie Room.`;
+      detailsDescription.textContent = "";
     }
+    renderSelectedMovieInfo(movie);
     renderDetailsBrowse(movie);
     if (detailsStatus) {
       detailsStatus.textContent = "";
@@ -3847,14 +3886,9 @@ function createApp({
   }
 
   async function startHeroPreview(movie) {
-    const heroRect = heroMovie && hasMethod(heroMovie, "getBoundingClientRect") ? heroMovie.getBoundingClientRect() : null;
-    const viewportHeight = Number(windowRef && windowRef.innerHeight)
-      || Number(documentRef && documentRef.documentElement && documentRef.documentElement.clientHeight)
-      || 0;
-    const heroVisible = heroRect && viewportHeight
-      ? heroRect.bottom > 0 && heroRect.top < viewportHeight
-      : Boolean(heroMovie && !heroMovie.hidden);
-    const previewVideo = heroVisible ? heroPreviewVideo : (libraryBackgroundPreview || heroPreviewVideo);
+    const previewVideo = activePage === "home" && heroPreviewVideo
+      ? heroPreviewVideo
+      : (libraryBackgroundPreview || heroPreviewVideo);
     if (!previewVideo || !movie || !isMoviePlayable(movie)) return;
     if ((windowRef && hasMethod(windowRef, "matchMedia") && windowRef.matchMedia("(prefers-reduced-motion: reduce)").matches)
       || (navigatorRef && navigatorRef.connection && navigatorRef.connection.saveData)) return;
@@ -3927,6 +3961,36 @@ function createApp({
       if (next && upNextTitle) upNextTitle.textContent = next.title || next.fileName || "Next movie";
       if (next && upNextPlay) upNextPlay.onclick = () => moveToMovie(next);
     }
+  }
+
+  function selectHeroMovie(direction) {
+    if (!heroMovies.length) return false;
+    heroIndex = (heroIndex + direction + heroMovies.length) % heroMovies.length;
+    const featured = heroMovies[heroIndex];
+    if (!featured) return false;
+    setFeaturedMovie(featured);
+    if (heroIndicator) heroIndicator.textContent = `${heroIndex + 1} / ${Math.max(1, heroMovies.length)}`;
+    return true;
+  }
+
+  function handleHeroRemoteKey(event) {
+    const key = event && (event.key || event.code);
+    const keyCode = event && event.keyCode;
+    const moveLeft = key === "ArrowLeft" || key === "Left" || keyCode === 37 || keyCode === 21;
+    const moveRight = key === "ArrowRight" || key === "Right" || keyCode === 39 || keyCode === 22;
+    const select = key === "Enter" || key === " " || key === "Spacebar" || keyCode === 13 || keyCode === 23 || keyCode === 66;
+    if (moveLeft || moveRight) {
+      if (selectHeroMovie(moveLeft ? -1 : 1)) {
+        if (event && hasMethod(event, "preventDefault")) event.preventDefault();
+        return true;
+      }
+    }
+    if (select && heroPlay && hasMethod(heroPlay, "click")) {
+      heroPlay.click();
+      if (event && hasMethod(event, "preventDefault")) event.preventDefault();
+      return true;
+    }
+    return false;
   }
 
   function focusInitialHero() {
@@ -4954,15 +5018,16 @@ function createApp({
     }
 
     if (heroPrev) heroPrev.addEventListener("click", () => {
-      if (!heroMovies.length) return;
-      heroIndex = (heroIndex - 1 + heroMovies.length) % heroMovies.length;
-      renderDiscovery();
+      selectHeroMovie(-1);
     });
     if (heroNext) heroNext.addEventListener("click", () => {
-      if (!heroMovies.length) return;
-      heroIndex = (heroIndex + 1) % heroMovies.length;
-      renderDiscovery();
+      selectHeroMovie(1);
     });
+    for (const heroTarget of [heroMovie, heroPlay, heroDetails, heroPrev, heroNext]) {
+      if (heroTarget && hasMethod(heroTarget, "addEventListener")) {
+        heroTarget.addEventListener("keydown", handleHeroRemoteKey);
+      }
+    }
 
     bindRailScrollButtons();
 
@@ -5092,6 +5157,7 @@ function createApp({
 
     if (castButton) {
       castButton.addEventListener("click", () => {
+        showCastGuide();
         promptRemotePlayback().catch((error) => {
           updateStatus(error.message);
         });
@@ -5172,7 +5238,7 @@ function createApp({
     player.addEventListener("webkitplaybacktargetavailabilitychanged", (event) => {
       safariAirPlayAvailable = event.availability === "available";
       updateCastButton();
-      updateTvGuide();
+      if (castGuide && !castGuide.hidden) updateTvGuide();
     });
     player.addEventListener("webkitbeginfullscreen", () => setVideoFullscreenOrientation(true));
     player.addEventListener("webkitendfullscreen", () => setVideoFullscreenOrientation(false));
@@ -5189,13 +5255,13 @@ function createApp({
     allowRemotePlayback();
     updateKeepAwakeButton();
     updateCastButton();
-    updateTvGuide();
+    hideCastGuide();
     updateBufferStatus();
     showPermissionPanelIfNeeded();
     initializeGoogleCast().catch(() => {
       googleCastReady = false;
       updateCastButton();
-      updateTvGuide();
+      hideCastGuide();
     });
 
     player.addEventListener("waiting", () => {
@@ -5430,6 +5496,7 @@ if (typeof document !== "undefined") {
     openStorageSettingsButton: document.getElementById("open-storage-settings"),
     permissionStatus: document.getElementById("permission-status"),
     castButton: document.getElementById("cast-tv"),
+    castGuide: document.getElementById("cast-tv-guide"),
     tvGuideTitle: document.getElementById("tv-guide-title"),
     tvGuideSteps: document.getElementById("tv-guide-steps"),
     tvGuideStatus: document.getElementById("tv-guide-status"),
@@ -5502,6 +5569,11 @@ if (typeof document !== "undefined") {
     detailsTitle: document.getElementById("details-title"),
     detailsMeta: document.getElementById("details-meta"),
     detailsDescription: document.getElementById("details-description"),
+    detailsInfoDescription: document.getElementById("details-info-description"),
+    detailsInfoGenres: document.getElementById("details-info-genres"),
+    detailsInfoCast: document.getElementById("details-info-cast"),
+    detailsInfoSource: document.getElementById("details-info-source"),
+    detailsInfoAvailability: document.getElementById("details-info-availability"),
     detailsPlay: document.getElementById("details-play"),
     detailsOffline: document.getElementById("details-offline"),
     detailsWatchLater: document.getElementById("details-watch-later"),

@@ -717,6 +717,10 @@
         background: #121212;
       }
 
+      .tv-guide[hidden] {
+        display: none !important;
+      }
+
       .tv-guide h2 {
         margin: 0;
         font-size: 18px;
@@ -1065,10 +1069,12 @@
         color: #b8b8b8;
       }
 
-      .hero-movie { position: relative; min-height: clamp(220px, 30vw, 360px); overflow: hidden; margin-bottom: 20px; border: 1px solid rgba(240,196,91,.34); border-radius: 18px; background: rgba(7,7,7,.72); box-shadow: 0 28px 70px rgba(0,0,0,.5); isolation: isolate; scroll-margin-top: 84px; }
+      .hero-movie { position: relative; min-height: clamp(280px, 38vw, 460px); overflow: visible; margin-bottom: 28px; border: 1px solid rgba(240,196,91,.34); border-radius: 18px; background: rgba(7,7,7,.72); box-shadow: 0 28px 70px rgba(0,0,0,.5); isolation: isolate; scroll-margin-top: 84px; }
+      .hero-movie::before { content: ""; position: absolute; inset: 0; z-index: -3; overflow: hidden; border-radius: inherit; background: rgba(7,7,7,.72); }
       .hero-movie::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(0,0,0,.94), rgba(0,0,0,.58) 42%, rgba(0,0,0,.12) 78%, #090a0b); }
       .hero-movie img { position: absolute; inset: 0 0 0 28%; z-index: -2; width: 72%; height: 100%; object-fit: cover; opacity: .82; mask-image: linear-gradient(90deg, transparent, black 18%, black 82%, transparent); }
-      .hero-copy { display: grid; align-content: end; min-height: inherit; width: min(560px, 78%); padding: clamp(22px, 4vw, 44px); }
+      .hero-copy { display: grid; align-content: end; min-height: inherit; width: min(620px, 82%); padding: clamp(28px, 4vw, 52px) clamp(22px, 4vw, 44px) clamp(42px, 5vw, 72px); }
+      .hero-preview-video { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; opacity: .88; }
       .eyebrow { margin: 0 0 10px; color: var(--gold-soft); font-size: 12px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
       .hero-copy h1, .details-copy h2 { margin: 0; color: #fff; font-size: clamp(28px, 4.2vw, 52px); letter-spacing: -.05em; line-height: .98; }
       .hero-meta, .hero-description { max-width: 560px; color: #d1d1d1; }
@@ -1418,12 +1424,20 @@
       .details-hero .details-copy .detail { max-width: 680px; color: #d7edf5; line-height: 1.55; }
       .details-hero .details-art { position: relative; z-index: 2; align-self: end; justify-self: end; width: min(100%, 240px); }
       .details-hero .details-art img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; box-shadow: 0 20px 55px rgba(0,0,0,.58); }
+      .details-info-panel { position: relative; z-index: 1; display: grid; gap: 12px; width: min(1180px, 100%); margin: 18px auto 0; border: 1px solid rgba(255, 226, 154, .26); border-radius: 18px; padding: clamp(18px, 3vw, 30px); background: linear-gradient(135deg, rgba(7, 4, 7, .84), rgba(122, 11, 36, .32) 58%, rgba(217, 169, 47, .13)); box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+      .details-info-panel h2 { margin: 0; color: var(--ui-ivory, #fff4e5); font-size: clamp(24px, 3vw, 38px); }
+      .details-info-panel .detail { margin: 0; max-width: 980px; color: rgba(255, 244, 229, .84); line-height: 1.55; }
+      .details-info-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 4px 0 0; }
+      .details-info-grid div { border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px; padding: 12px 14px; background: rgba(0, 0, 0, .22); }
+      .details-info-grid dt { color: var(--ui-gold, #f0c65a); font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+      .details-info-grid dd { margin: 5px 0 0; color: #fff; line-height: 1.35; }
       .settings-download { display: inline-flex; margin-top: 18px; border: 1px solid #40d8c0; border-radius: 8px; padding: 11px 14px; color: #061523; background: #a6f1e7; font-weight: 800; text-decoration: none; }
       .settings-download-help { margin-bottom: 0; font-size: 13px; }
       @media (max-width: 720px) {
         .search-page-header, .home-navigation-heading { align-items: start; flex-direction: column; }
         .details-hero { grid-template-columns: 1fr; min-height: 620px; }
         .details-hero .details-art { display: none; }
+        .details-info-grid { grid-template-columns: 1fr; }
       }
 
       /* Final compact visual system: smaller posters, calmer typography, and deliberate spacing. */
@@ -3622,7 +3636,39 @@
       }
 
       .rail-scroll-right {
-        right: 8px;
+        right: auto;
+        left: 8px;
+      }
+
+      #library-panel.home-surface .rail-frame {
+        display: grid;
+        grid-template-columns: clamp(54px, 6vw, 82px) minmax(0, 1fr);
+        gap: 10px;
+        align-items: stretch;
+      }
+
+      #library-panel.home-surface .rail-scroll {
+        position: static;
+        width: 100%;
+        height: clamp(66px, 7vw, 92px);
+        transform: none;
+      }
+
+      #library-panel.home-surface .rail-scroll-left {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: end;
+      }
+
+      #library-panel.home-surface .rail-scroll-right {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: start;
+      }
+
+      #library-panel.home-surface .rail-frame > .movie-rail {
+        grid-column: 2;
+        grid-row: 1 / span 2;
       }
 
       .rail-scroll:hover,
@@ -3641,7 +3687,7 @@
         scroll-behavior: smooth;
         scroll-snap-type: x proximity;
         gap: 18px;
-        padding: 3px 92px 16px;
+        padding: 3px 12px 16px;
       }
 
       #library-panel.home-surface .movie-card {
@@ -4095,7 +4141,7 @@
         overflow-x: auto;
         overflow-y: hidden;
         gap: 18px;
-        padding: 3px 92px 16px;
+        padding: 3px 12px 16px;
       }
 
       #library-panel.home-surface .movie-card .poster {
@@ -4112,7 +4158,7 @@
       @media (max-width: 1050px) {
         #library-panel.home-surface .movie-rail {
           grid-auto-columns: minmax(270px, 56vw);
-          padding-inline: 76px;
+          padding-inline: 10px;
         }
       }
 
@@ -4132,7 +4178,7 @@
         #library-panel.home-surface .movie-rail {
           grid-auto-columns: minmax(240px, 78vw);
           gap: 12px;
-          padding-inline: 60px;
+          padding-inline: 8px;
         }
 
         .rail-scroll {
@@ -4414,6 +4460,76 @@
 
         .menu-group {
           padding: 12px;
+        }
+      }
+
+      /* Final header safety pass: keep controls visible without clipping on TV, desktop, or phone. */
+      .topbar {
+        overflow: visible;
+        align-items: start;
+      }
+
+      .topbar-main {
+        min-height: 52px;
+      }
+
+      .primary-nav,
+      .topbar-actions,
+      .search-row {
+        min-width: 0;
+      }
+
+      .primary-nav {
+        justify-content: center;
+        row-gap: 6px;
+        white-space: normal;
+      }
+
+      .primary-nav button {
+        flex: 0 1 auto;
+        min-height: 42px;
+        line-height: 1.1;
+      }
+
+      .topbar-actions {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        row-gap: 6px;
+      }
+
+      @media (max-width: 960px) {
+        .topbar {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 8px;
+        }
+
+        .topbar-main {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .brand,
+        .primary-nav,
+        .topbar-actions {
+          grid-column: 1 / -1;
+        }
+
+        .primary-nav {
+          display: flex;
+          justify-content: flex-start;
+          overflow-x: auto;
+          padding-bottom: 3px;
+          scrollbar-width: thin;
+        }
+
+        .primary-nav button {
+          min-width: max-content;
+        }
+
+        .topbar-actions {
+          justify-content: flex-start;
         }
       }
     </style>
@@ -4889,7 +5005,7 @@
         </aside>
 
         <section class="guidance-area" aria-label="TV playback help">
-          <section class="tv-guide" aria-labelledby="tv-guide-title">
+          <section id="cast-tv-guide" class="tv-guide" aria-labelledby="tv-guide-title" hidden>
             <h2 id="tv-guide-title">iPhone to TV</h2>
             <ol id="tv-guide-steps">
               <li>Connect the iPhone and Apple TV or AirPlay TV to the same Wi-Fi network.</li>
@@ -4942,6 +5058,29 @@
           <p id="details-status" class="status" role="status" aria-live="polite"></p>
         </div>
         <aside class="details-art" aria-label="Selected movie poster"><img id="details-poster" src="/movie-room-hero.png" alt="" /></aside>
+      </section>
+      <section id="details-info-panel" class="details-info-panel" aria-labelledby="details-info-title">
+        <p class="eyebrow">Jellyfin movie information</p>
+        <h2 id="details-info-title">Movie information</h2>
+        <p id="details-info-description" class="detail"></p>
+        <dl class="details-info-grid">
+          <div>
+            <dt>Genres</dt>
+            <dd id="details-info-genres">Metadata pending</dd>
+          </div>
+          <div>
+            <dt>Cast</dt>
+            <dd id="details-info-cast">Metadata pending</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd id="details-info-source">Metadata pending</dd>
+          </div>
+          <div>
+            <dt>Availability</dt>
+            <dd id="details-info-availability">Metadata pending</dd>
+          </div>
+        </dl>
       </section>
       <section id="details-library-choices" class="details-library-choices" aria-labelledby="details-library-title">
         <div class="details-library-header">

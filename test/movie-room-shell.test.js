@@ -140,6 +140,13 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /Top Trending/);
   assert.match(activity, /streamingFallbackPreviewTitles/);
   assert.match(activity, /thumbnail fallback for protected app promos/);
+  assert.match(activity, /renderSelectedAppPreviewPanel/);
+  assert.match(activity, /selectedAppPreviewContent/);
+  assert.match(activity, /LEFT APP DOCK/);
+  assert.match(activity, /RIGHT APP PREVIEW/);
+  assert.match(activity, /showOnlySelectedAppRails/);
+  assert.match(activity, /appDockIconSize = 132/);
+  assert.doesNotMatch(activity, /rows\.add\(addPreviewRail\(parent, label \+ " · HOME WIDGET", items\)\)/);
   assert.match(activity, /LIVE TV/);
   assert.match(activity, /APP PREVIEW/);
   assert.match(activity, /appWidgetCircle/);

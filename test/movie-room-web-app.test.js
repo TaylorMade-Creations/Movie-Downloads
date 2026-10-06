@@ -178,6 +178,21 @@ test("the home hero and selected-title page expose video background layers", () 
   assert.match(app, /details-preview-video/);
 });
 
+test("selected-title pages move Jellyfin movie information out of the hero", () => {
+  const html = read("public/index.html");
+  const app = read("public/app.js");
+  assert.match(html, /id="details-info-panel"/);
+  assert.match(html, /id="details-info-description"/);
+  assert.match(html, /id="details-info-cast"/);
+  assert.match(html, /id="details-info-genres"/);
+  assert.match(html, /id="cast-tv-guide"[^>]*hidden/);
+  assert.match(app, /function renderSelectedMovieInfo/);
+  assert.match(app, /detailsInfoCast/);
+  assert.match(app, /Cast pending from Jellyfin/);
+  assert.match(app, /detailsDescription\.textContent = ""/);
+  assert.match(app, /showCastGuide/);
+});
+
 test("the Fire TV theme has a crisp high-contrast 1080p presentation", () => {
   const html = read("public/index.html");
   assert.match(html, /body\[data-tv-device="true"\][\s\S]*?-webkit-font-smoothing:\s*antialiased/);

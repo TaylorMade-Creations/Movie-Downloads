@@ -130,8 +130,19 @@ test("the initial TV focus keeps the trending hero at the top until the user mov
   assert.match(app, /function focusInitialHero/);
   assert.match(app, /focusInitialHero\(\)/);
   assert.match(app, /behavior:\s*"auto", block:\s*"start"/);
-  assert.match(app, /const previewVideo = heroVisible \? heroPreviewVideo/);
+  assert.match(app, /const previewVideo = activePage === "home" && heroPreviewVideo/);
   assert.match(html, /Trending now/);
+});
+
+test("the hero carousel maps Fire TV D-pad keys directly to the first five autoplay previews", () => {
+  assert.match(app, /function selectHeroMovie/);
+  assert.match(app, /heroMovies = recentMovies\.slice\(0, 5\)/);
+  assert.match(app, /function handleHeroRemoteKey/);
+  assert.match(app, /keyCode === 21/);
+  assert.match(app, /keyCode === 22/);
+  assert.match(app, /keyCode === 23/);
+  assert.match(app, /heroTarget\.addEventListener\("keydown", handleHeroRemoteKey\)/);
+  assert.match(app, /setFeaturedMovie\(featured\)/);
 });
 
 test("the mobile startup hero clears the sticky Chrome-style top bar", () => {
