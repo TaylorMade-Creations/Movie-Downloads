@@ -17,21 +17,21 @@ test("Movie Room leaves webpage focus to the native Fire TV WebView", () => {
     assert.doesNotMatch(html, new RegExp(`id="${control}"`));
   }
   assert.match(html, /id="settings-dialog"/);
-  assert.match(app, /windowRef\.MovieRoomBack/);
-  assert.match(app, /function moveRemoteFocus/);
-  assert.match(app, /function handleRemoteCommand/);
-  assert.match(app, /windowRef\.MovieRoomHandleRemoteKey/);
-  assert.match(app, /windowRef\.MovieRoomMenu/);
-  assert.match(app, /windowRef\.MovieRoomTogglePlayback/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomBack/);
+  assert.doesNotMatch(app, /function moveRemoteFocus/);
+  assert.doesNotMatch(app, /function handleRemoteCommand/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomHandleRemoteKey/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomMenu/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomTogglePlayback/);
   assert.match(html, /\.movie-grid\s*\{[\s\S]*minmax\(120px,\s*138px\)/);
   assert.match(html, /\.movie-rail[^\{]*\{[\s\S]*grid-auto-columns:\s*minmax\(112px,\s*132px\)/);
   assert.match(html, /\.movie-card:focus-visible[\s\S]*outline/);
-  assert.match(app, /handleRemoteCommand\(command\)/);
+  assert.match(html, /body\[data-tv-device="true"\] \.rail-scroll,[\s\S]*?display:\s*none !important/);
 });
 
-test("the app handles keyboard and Fire TV remote commands without double-click behavior", () => {
-  assert.match(app, /documentRef\.addEventListener\("keydown"/);
-  assert.match(app, /handleRemoteCommand/);
+test("the app does not install a global keyboard router for Fire TV remote commands", () => {
+  assert.doesNotMatch(app, /documentRef\.addEventListener\("keydown"/);
+  assert.doesNotMatch(app, /handleRemoteCommand/);
   assert.doesNotMatch(app, /dblclick/);
 });
 
@@ -40,21 +40,21 @@ test("the WebView allows native focus to reach webpage descendants", () => {
   assert.match(activity, /setFocusable\(true\)/);
   assert.match(activity, /setFocusableInTouchMode\(true\)/);
   assert.match(activity, /setDescendantFocusability\(ViewGroup\.FOCUS_AFTER_DESCENDANTS\)/);
-  assert.match(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /dispatchKeyEvent/);
   for (const key of ["KEYCODE_DPAD_UP", "KEYCODE_DPAD_LEFT", "KEYCODE_DPAD_CENTER", "KEYCODE_DPAD_RIGHT", "KEYCODE_DPAD_DOWN"]) {
-    assert.match(activity, new RegExp(key));
+    assert.doesNotMatch(activity, new RegExp(key));
   }
 });
 
-test("the app keeps page Back but leaves Menu and media routing to Fire TV/WebView", () => {
+test("the app leaves Back, Menu, media, and D-pad routing to Fire TV/WebView", () => {
   const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
   assert.match(activity, /onBackPressed/);
-  assert.match(activity, /MovieRoomBack/);
-  assert.match(app, /function handleNativeBack/);
-  assert.match(activity, /KEYCODE_MENU/);
-  assert.match(activity, /MovieRoomMenu/);
-  assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
-  assert.match(app, /windowRef\.MovieRoomMenu/);
+  assert.doesNotMatch(activity, /MovieRoomBack/);
+  assert.doesNotMatch(app, /function handleNativeBack/);
+  assert.doesNotMatch(activity, /KEYCODE_MENU/);
+  assert.doesNotMatch(activity, /MovieRoomMenu/);
+  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.doesNotMatch(app, /windowRef\.MovieRoomMenu/);
 });
 
 test("the player has remote-selectable playback controls", () => {
@@ -84,20 +84,19 @@ test("the web app gives search its own row and exposes Menu tabs", () => {
   assert.match(app, /function setMenuTab/);
 });
 
-test("the native Fire TV player handles Menu and playback commands", () => {
+test("the native Fire TV player leaves Menu and playback key routing to Android focus/player defaults", () => {
   const activity = read("firetv/src/main/java/com/movieroom/firetv/MainActivity.java");
-  assert.match(activity, /public boolean onKeyDown\(int keyCode, KeyEvent event\)/);
+  assert.doesNotMatch(activity, /public boolean onKeyDown\(int keyCode, KeyEvent event\)/);
   assert.match(activity, /private void showShellSettings\(\) \{/);
   assert.match(activity, /root\.setPadding\(dp\(56\),\s*dp\(38\),\s*dp\(56\),\s*dp\(38\)\)/);
   assert.match(activity, /Remote & display settings/);
   assert.match(activity, /settingsButton\("Back to Movie Room"/);
   assert.doesNotMatch(activity, /setTitle\("Movie Room TV shell"\)[\s\S]*?\.show\(\)/);
-  assert.match(activity, /KEYCODE_MENU/);
-  assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
-  assert.match(activity, /KEYCODE_MEDIA_PLAY/);
-  assert.match(activity, /KEYCODE_MEDIA_PAUSE/);
-  assert.match(activity, /showShellSettings\(\)/);
-  assert.match(activity, /player\.isPlaying\(\)/);
+  assert.doesNotMatch(activity, /KEYCODE_MENU/);
+  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PLAY/);
+  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PAUSE/);
+  assert.doesNotMatch(activity, /player\.isPlaying\(\)/);
 });
 
 test("native Fire TV artwork URL encoding uses an Android-compatible overload", () => {
@@ -106,18 +105,18 @@ test("native Fire TV artwork URL encoding uses an Android-compatible overload", 
   assert.doesNotMatch(api, /URLEncoder\.encode\([^)]*StandardCharsets\.UTF_8/);
 });
 
-test("native Fire TV player links every shelf with deterministic remote focus", () => {
+test("native Fire TV player keeps shelves focusable without deterministic remote focus links", () => {
   const activity = read("firetv/src/main/java/com/movieroom/firetv/MainActivity.java");
   assert.doesNotMatch(activity, /public boolean dispatchKeyEvent\(KeyEvent event\)/);
   assert.doesNotMatch(activity, /remoteActionFor\(event\)/);
   assert.doesNotMatch(activity, /shouldDropRemoteRepeat/);
   assert.doesNotMatch(activity, /REMOTE_REPEAT_THROTTLE_MS/);
   assert.match(activity, /connectTvFocusRows/);
-  assert.match(activity, /setNextFocusLeftId/);
-  assert.match(activity, /setNextFocusRightId/);
-  assert.match(activity, /setNextFocusUpId/);
-  assert.match(activity, /setNextFocusDownId/);
-  assert.match(activity, /KEYCODE_BACK/);
+  assert.doesNotMatch(activity, /setNextFocusLeftId/);
+  assert.doesNotMatch(activity, /setNextFocusRightId/);
+  assert.doesNotMatch(activity, /setNextFocusUpId/);
+  assert.doesNotMatch(activity, /setNextFocusDownId/);
+  assert.doesNotMatch(activity, /KEYCODE_BACK/);
 });
 
 test("permission completion returns native focus to the hero instead of opening Search", () => {
@@ -149,7 +148,7 @@ test("the initial TV focus keeps the trending hero at the top until the user mov
   assert.match(html, /Trending now/);
 });
 
-test("the hero carousel maps Fire TV D-pad keys directly to the first five autoplay previews", () => {
+test("the hero carousel rotates the first five autoplay previews without custom D-pad hooks", () => {
   assert.match(app, /function selectHeroMovie/);
   assert.match(app, /heroMovies = recentMovies\.slice\(0, 5\)/);
   assert.match(app, /const nextTopFiveSignature = heroMovies\.map\(.*?join\("\\|"\)/s);
@@ -157,11 +156,11 @@ test("the hero carousel maps Fire TV D-pad keys directly to the first five autop
   assert.match(app, /startHeroRotation\(\)/);
   assert.match(app, /heroRotationTimer = setTimeoutImpl/);
   assert.doesNotMatch(app, /Math\.random\(\) \* heroMovies\.length/);
-  assert.match(app, /function handleHeroRemoteKey/);
-  assert.match(app, /keyCode === 21/);
-  assert.match(app, /keyCode === 22/);
-  assert.match(app, /keyCode === 23/);
-  assert.match(app, /heroTarget\.addEventListener\("keydown", handleHeroRemoteKey\)/);
+  assert.doesNotMatch(app, /function handleHeroRemoteKey/);
+  assert.doesNotMatch(app, /keyCode === 21/);
+  assert.doesNotMatch(app, /keyCode === 22/);
+  assert.doesNotMatch(app, /keyCode === 23/);
+  assert.doesNotMatch(app, /heroTarget\.addEventListener\("keydown", handleHeroRemoteKey\)/);
   assert.match(app, /setFeaturedMovie\(featured\)/);
 });
 
@@ -181,7 +180,7 @@ test("selecting a title opens More info and promotes that movie to the video her
   assert.match(app, /detailsPreviousFocus = documentRef\.activeElement/);
   assert.match(app, /setDetailsHero\(movie\)/);
   assert.match(app, /if \(detailsPlay && hasMethod\(detailsPlay, "focus"\)\) detailsPlay\.focus\(\)/);
-  assert.match(app, /card\.addEventListener\("click", \(\) => \{[\s\S]*?openMovieDetails\(movie\)/);
+  assert.match(app, /card\.addEventListener\("click", \(\) => \{[\s\S]*?openMovieInfoPopup\(movie\)/);
   assert.match(html, /id="details-title"/);
   assert.match(html, /id="details-play"/);
 });

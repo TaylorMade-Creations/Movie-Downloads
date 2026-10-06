@@ -34,7 +34,7 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.doesNotMatch(manifest, /android\.intent\.category\.HOME/);
   assert.doesNotMatch(manifest, /RECEIVE_BOOT_COMPLETED|\.BootReceiver/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
-  assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
+  assert.match(manifest, /android:banner="@drawable\/banner"/);
   assert.match(manifest, /android:label="TaylorMade Movies"/);
   assert.match(manifest, /android:screenOrientation="unspecified"/);
   assert.match(activity, /setBackgroundColor\(0xff061523\)/);
@@ -59,12 +59,12 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /setDescendantFocusability\(ViewGroup\.FOCUS_AFTER_DESCENDANTS\)/);
   assert.match(activity, /webView\.requestFocus\(View\.FOCUS_DOWN\)/);
   assert.match(activity, /onBackPressed/);
-  assert.match(activity, /MovieRoomBack/);
-  assert.match(activity, /dispatchKeyEvent/);
-  assert.match(activity, /dispatchNativeDirectional/);
-  assert.match(activity, /dispatchNativeSelect/);
-  assert.match(activity, /dispatchNativeMenu/);
-  assert.match(activity, /dispatchNativePlaybackToggle/);
+  assert.doesNotMatch(activity, /MovieRoomBack/);
+  assert.doesNotMatch(activity, /dispatchKeyEvent/);
+  assert.doesNotMatch(activity, /dispatchNativeDirectional/);
+  assert.doesNotMatch(activity, /dispatchNativeSelect/);
+  assert.doesNotMatch(activity, /dispatchNativeMenu/);
+  assert.doesNotMatch(activity, /dispatchNativePlaybackToggle/);
   assert.doesNotMatch(activity, /MovieRoomMove/);
   assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_PORTRAIT/);
   assert.match(activity, /ActivityInfo\.SCREEN_ORIENTATION_LANDSCAPE/);
@@ -79,9 +79,8 @@ test("Movie Room Web APK wraps the current website for Android and TV", () => {
   assert.match(activity, /exitVideoFullscreen/);
   assert.match(activity, /postDelayed/);
   assert.match(activity, /MovieRoomFocusInitialHero/);
-  assert.match(activity, /finish\(\)/);
-  assert.match(app, /function handleNativeBack/);
-  assert.match(app, /function handleNativeBack[\s\S]*?focusInitialHero\(\);\s*return false;/);
+  assert.doesNotMatch(activity, /finish\(\)/);
+  assert.doesNotMatch(app, /function handleNativeBack/);
   assert.match(app, /playInNativePlayer/);
   assert.match(nativePlayer, /ExoPlayer/);
   assert.match(nativePlayer, /setAudioAttributes/);
@@ -129,29 +128,25 @@ test("the Android wrapper exposes storage permission and an offline movie downlo
   assert.match(app, /fullscreenchange/);
 });
 
-test("Fire TV remote commands queue until the WebView is ready and map Back explicitly", () => {
+test("Fire TV remote commands are not intercepted before the WebView can handle focus", () => {
   const activity = read("movieroom-web/src/main/java/com/movieroom/web/MainActivity.java");
-  assert.match(activity, /pendingRemoteCommands/);
-  assert.match(activity, /flushPendingRemoteCommands/);
-  assert.match(activity, /KEYCODE_BACK/);
-  assert.match(activity, /dispatchNativeBack/);
-  assert.match(activity, /webView\.post/);
+  assert.doesNotMatch(activity, /pendingRemoteCommands/);
+  assert.doesNotMatch(activity, /flushPendingRemoteCommands/);
+  assert.doesNotMatch(activity, /KEYCODE_BACK/);
+  assert.doesNotMatch(activity, /dispatchNativeBack/);
+  assert.match(activity, /webView\.requestFocus\(View\.FOCUS_DOWN\)/);
 });
 
-test("Fire TV remote focus follows the visible home layers instead of global geometry", () => {
+test("Fire TV home rows rely on Android/WebView focus instead of a custom remote geometry router", () => {
   const app = read("public/app.js");
-  assert.match(app, /function remoteFocusZones/);
-  assert.match(app, /#home-profile-tabs button/);
-  assert.match(app, /#home-genre-tabs button/);
-  assert.match(app, /function focusWithinRemoteZone/);
-  assert.match(app, /function remoteMovieCardRowFor/);
-  assert.match(app, /button\.movie-card, button\.series-card, button\.collection-card/);
-  assert.match(app, /lastRemoteFocusedElement/);
-  assert.match(app, /heroPlay.*heroDetails/);
-  assert.match(app, /startupTarget = activePage === "home"/);
-  assert.match(app, /launchHeaderDownTarget = activePage === "home"/);
-  assert.match(app, /remoteUiReady/);
-  assert.match(app, /pendingRemoteUiCommands/);
+  assert.doesNotMatch(app, /function remoteFocusZones/);
+  assert.doesNotMatch(app, /function focusWithinRemoteZone/);
+  assert.doesNotMatch(app, /function remoteMovieCardRowFor/);
+  assert.doesNotMatch(app, /lastRemoteFocusedElement/);
+  assert.doesNotMatch(app, /startupTarget = activePage === "home"/);
+  assert.doesNotMatch(app, /launchHeaderDownTarget = activePage === "home"/);
+  assert.doesNotMatch(app, /remoteUiReady/);
+  assert.doesNotMatch(app, /pendingRemoteUiCommands/);
   assert.doesNotMatch(app, /const fallback = direction === "left" \|\| direction === "up" \? elements\[elements\.length - 1\] : elements\[0\]/);
 });
 

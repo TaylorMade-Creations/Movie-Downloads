@@ -5,8 +5,8 @@
         </shape>
     </item>
     <item
-        android:width="96dp"
-        android:height="96dp"
+        android:width="108dp"
+        android:height="61dp"
         android:gravity="center">
         <bitmap
             android:src="@drawable/taylormade_movies_cover"

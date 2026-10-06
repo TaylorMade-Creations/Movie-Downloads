@@ -28,7 +28,6 @@ import android.os.Environment;
 import android.util.Log;
 import android.provider.Settings;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -80,9 +79,6 @@ public final class ShellActivity extends Activity {
     private int selectedAvatarIndex;
     private BootstrapStore bootstrapStore;
     private ProfileStore profileStore;
-    private List<List<Button>> activeFocusRows = new ArrayList<>();
-    private int focusedRowIndex;
-    private int focusedColumnIndex;
 
     private static final class AppChoice {
         final String packageName;
@@ -612,15 +608,6 @@ public final class ShellActivity extends Activity {
             card.setAllCaps(false);
             card.setTag("video-preview:" + item);
             card.setOnClickListener(view -> openPreviewTarget(item));
-            card.setOnKeyListener((view, keyCode, event) -> {
-                if (event.getAction() == KeyEvent.ACTION_DOWN
-                        && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
-                        && appDockFocusTarget != null) {
-                    appDockFocusTarget.requestFocus();
-                    return true;
-                }
-                return false;
-            });
             final String focusedTitle = item;
             card.setOnFocusChangeListener((view, hasFocus) -> {
                 if (hasFocus) previewMovieCard(focusedTitle);
@@ -1415,7 +1402,7 @@ public final class ShellActivity extends Activity {
         return new CircularAvatarButton(this, resourceId, label);
     }
 
-    /** The installed app image is the button; focus draws only a clean ring around the icon. */
+    /** The installed app image is the button; focus draws a widescreen thumbnail ring. */
     private static final class AppIconButton extends Button {
         private final Drawable icon;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1437,14 +1424,15 @@ public final class ShellActivity extends Activity {
 
         @Override
         protected void onDraw(Canvas canvas) {
-            float size = Math.min(getWidth(), getHeight()) - 10f;
-            float left = (getWidth() - size) / 2f;
-            float top = (getHeight() - size) / 2f;
-            iconBounds.set(left, top, left + size, top + size);
-            Path circle = new Path();
-            circle.addOval(iconBounds, Path.Direction.CW);
+            float width = Math.max(10f, getWidth() - 12f);
+            float height = Math.min(getHeight() - 12f, width * 9f / 16f);
+            float left = (getWidth() - width) / 2f;
+            float top = (getHeight() - height) / 2f;
+            iconBounds.set(left, top, left + width, top + height);
+            Path rounded = new Path();
+            rounded.addRoundRect(iconBounds, 18f, 18f, Path.Direction.CW);
             canvas.save();
-            canvas.clipPath(circle);
+            canvas.clipPath(rounded);
             if (icon != null) {
                 icon.setBounds(Math.round(iconBounds.left), Math.round(iconBounds.top),
                         Math.round(iconBounds.right), Math.round(iconBounds.bottom));
@@ -1462,7 +1450,7 @@ public final class ShellActivity extends Activity {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(isSelected() || hasFocus() ? 6f : 2f);
             paint.setColor(isSelected() || hasFocus() ? GOLD : 0x88fff7e5);
-            canvas.drawOval(iconBounds, paint);
+            canvas.drawRoundRect(iconBounds, 18f, 18f, paint);
         }
     }
 
@@ -1604,23 +1592,11 @@ public final class ShellActivity extends Activity {
     }
 
     private void connectFocusRows(List<List<Button>> rows) {
-        activeFocusRows = rows;
-        focusedRowIndex = 0;
-        focusedColumnIndex = 0;
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
             List<Button> row = rows.get(rowIndex);
             for (int column = 0; column < row.size(); column++) {
                 Button current = row.get(column);
-                current.setNextFocusLeftId(row.get(Math.max(0, column - 1)).getId());
-                current.setNextFocusRightId(row.get(Math.min(row.size() - 1, column + 1)).getId());
-                if (rowIndex > 0) {
-                    List<Button> above = rows.get(rowIndex - 1);
-                    current.setNextFocusUpId(above.get(Math.min(column, above.size() - 1)).getId());
-                }
-                if (rowIndex + 1 < rows.size()) {
-                    List<Button> below = rows.get(rowIndex + 1);
-                    current.setNextFocusDownId(below.get(Math.min(column, below.size() - 1)).getId());
-                }
+                if (current.getId() == View.NO_ID) current.setId(View.generateViewId());
             }
         }
     }
@@ -2001,25 +1977,4 @@ public final class ShellActivity extends Activity {
         return new LinearLayout.LayoutParams(0, -2, value);
     }
 
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            showHome();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_HOME) {
-            if (bootstrapStore.setupComplete()) showHome();
-            else showBootstrapScreen();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
-            showSettingsScreen();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-            openMovieRoomApp();
-            return true;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
 }

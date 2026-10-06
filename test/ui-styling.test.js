@@ -87,7 +87,7 @@ test("home shelves use crisp landscape artwork, compact cards, and profile-menu-
   assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
 });
 
-test("home genre chips sit above the hero and rails page their own rows with large dark chevrons", () => {
+test("home genre chips sit above the hero while TV rows hide chevrons and move thumbnail-to-thumbnail", () => {
   const navigationIndex = html.indexOf('id="home-navigation"');
   const heroIndex = html.indexOf('id="hero-movie"');
   assert.ok(navigationIndex >= 0 && heroIndex >= 0 && navigationIndex < heroIndex);
@@ -97,15 +97,18 @@ test("home genre chips sit above the hero and rails page their own rows with lar
   assert.match(finalPass, /\.rail-scroll\s*\{[\s\S]*?background:\s*rgba\(0,\s*0,\s*0,\s*\.94\)/);
   assert.match(finalPass, /\.rail-scroll\s*\{[\s\S]*?font-size:\s*clamp\(42px,\s*5vw,\s*74px\)/);
   assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(finalPass, /body\[data-tv-device="true"\] \.rail-scroll,[\s\S]*?body\[data-tv-device="true"\] \.hero-carousel-nav\s*\{[\s\S]*?display:\s*none !important/);
+  assert.match(finalPass, /body\[data-tv-device="true"\] #library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(11,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(finalPass, /#library-panel\.home-surface \.movie-rail::-webkit-scrollbar\s*\{[\s\S]*?display:\s*none/);
   assert.match(finalPass, /#library-panel\.home-surface \.view-more-poster\s*\{[\s\S]*?text-align:\s*center/);
+  assert.match(finalPass, /\.view-more-collage\s*\{/);
   assert.match(app, /function bindRailScrollButtons/);
   assert.match(app, /function pageShelf\(shelf,\s*direction\)/);
   assert.match(app, /if \(shelfWindows\.has\(rail\)\) \{\s*pageShelf\(rail,\s*direction\);/);
-  assert.match(app, /movies\.slice\(state\.start,\s*state\.start \+ 5\)/);
-  assert.match(app, /cards\.push\(createViewMoreCard\(shelfType,\s*movies\.length\)\)/);
-  assert.match(app, /button\.addEventListener\("keydown", \(event\) =>/);
-  assert.match(app, /next\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /movies\.slice\(state\.start,\s*state\.start \+ 10\)/);
+  assert.match(app, /cards\.push\(createViewMoreCard\(shelfType,\s*movies\.length,\s*movies\.slice\(state\.start \+ 10,\s*state\.start \+ 14\)\)\)/);
+  assert.doesNotMatch(app, /button\.addEventListener\("keydown", \(event\) =>/);
+  assert.doesNotMatch(app, /next\.focus\(\{ preventScroll: true \}\)/);
   assert.match(finalPass, /\.hero-movie\s*\{[\s\S]*?min-height:\s*clamp\(430px,\s*50vw,\s*680px\)/);
   assert.match(finalPass, /\.hero-copy\s*\{[\s\S]*?clamp\(92px,\s*8vw,\s*132px\)/);
 });
@@ -117,7 +120,7 @@ test("active hero video removes the smoky color wash over the autoplay preview",
 });
 
 test("home card selection normalizes the chosen movie before opening details", () => {
-  assert.match(app, /card\.addEventListener\("click",\s*\(\) => \{\s*moveToMovie\(movie,\s*\{ openDetails:\s*true \}\)/);
+  assert.match(app, /card\.addEventListener\("click",\s*\(\) => \{[\s\S]*?openMovieInfoPopup\(movie\)/);
   assert.match(app, /const detailsPrimary = remoteArtworkUrl\(movie\)/);
   assert.match(app, /attachArtworkImage\(detailsPoster,\s*detailsPrimary/);
 });

@@ -44,7 +44,7 @@ test("the shell declares the web app and TV presentation assets", () => {
   const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
 
   assert.match(manifest, /<queries>[\s\S]*<package\s+android:name="com\.movieroom\.web"\s*\/>[\s\S]*<\/queries>/);
-  assert.match(manifest, /android:banner="@drawable\/taylormade_movies_cover"/);
+  assert.match(manifest, /android:banner="@drawable\/banner"/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(activity, /com\.movieroom\.web/);
   assert.match(activity, /com\.movieroom\.web\.MainActivity/);
@@ -107,7 +107,7 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /appArtworkButton/);
   assert.match(activity, /app picture button/);
   assert.match(activity, /AppIconButton/);
-  assert.match(activity, /drawOval/);
+  assert.match(activity, /drawRoundRect/);
   assert.match(activity, /drawFocusRing/);
   assert.match(activity, /setClipToOutline\(true\)/);
   assert.doesNotMatch(activity, /app\.setCompoundDrawables\(null, icon, null, null\)/);
@@ -120,7 +120,7 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /video-preview:/);
   assert.match(activity, /openPreviewTarget/);
   assert.match(activity, /performClick/);
-  assert.match(activity, /KEYCODE_HOME/);
+  assert.doesNotMatch(activity, /KEYCODE_HOME/);
   assert.match(activity, /homeDetailIcon/);
   assert.match(activity, /LAST USED/);
   assert.match(activity, /SUGGESTED NEXT/);
@@ -234,16 +234,16 @@ test("Movie Room shell explains the active network and exposes Wi-Fi and mobile 
   assert.match(activity, /Mobile data/);
 });
 
-test("Movie Room shell provides an explicit Fire TV focus path across library shelves", () => {
+test("Movie Room shell provides native focusable controls without custom key routing", () => {
   const activity = read("src/main/java/com/movieroom/shell/ShellActivity.java");
 
-  assert.match(activity, /setNextFocusLeftId/);
-  assert.match(activity, /setNextFocusRightId/);
-  assert.match(activity, /setNextFocusUpId/);
-  assert.match(activity, /setNextFocusDownId/);
-  assert.match(activity, /KEYCODE_BACK/);
-  assert.match(activity, /KEYCODE_MENU/);
-  assert.match(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
+  assert.doesNotMatch(activity, /setNextFocusLeftId/);
+  assert.doesNotMatch(activity, /setNextFocusRightId/);
+  assert.doesNotMatch(activity, /setNextFocusUpId/);
+  assert.doesNotMatch(activity, /setNextFocusDownId/);
+  assert.doesNotMatch(activity, /KEYCODE_BACK/);
+  assert.doesNotMatch(activity, /KEYCODE_MENU/);
+  assert.doesNotMatch(activity, /KEYCODE_MEDIA_PLAY_PAUSE/);
   assert.doesNotMatch(activity, /dispatchKeyEvent/);
   assert.doesNotMatch(activity, /moveShellFocus/);
   assert.doesNotMatch(activity, /REMOTE_REPEAT_THROTTLE_MS/);
@@ -265,10 +265,10 @@ test("Movie Room shell provides an explicit Fire TV focus path across library sh
 test("the published OS launcher artifact matches the shell version", () => {
   const build = read("build.gradle");
   const update = JSON.parse(readPublic("apk/os-update.json"));
-  assert.match(build, /versionCode\s+10/);
-  assert.match(build, /versionName\s+"0\.8\.1"/);
+  assert.match(build, /versionCode\s+11/);
+  assert.match(build, /versionName\s+"0\.8\.2"/);
   assert.equal(update.packageName, "com.movieroom.shell");
-  assert.equal(update.versionCode, 10);
-  assert.equal(update.versionName, "0.8.1");
-  assert.match(update.downloadUrl, /MovieRoom-Optional-TV-v0\.8\.1\.apk$/);
+  assert.equal(update.versionCode, 11);
+  assert.equal(update.versionName, "0.8.2");
+  assert.match(update.downloadUrl, /MovieRoom-Optional-TV-v0\.8\.2\.apk$/);
 });

@@ -90,6 +90,6 @@ test("classifyPath keeps generated outputs and local reports out of Git inventor
   assert.equal(classifyPath("inventories/local/pre-conversion.json").include, false);
   assert.equal(classifyPath("test-results/firestick.png").include, false);
   assert.equal(classifyPath("tmp-runtime/server.log").include, false);
-  assert.equal(classifyPath("public/downloads/TaylorMade-Movies-Android-v1.0.16.apk").include, true);
+  assert.equal(classifyPath("public/downloads/TaylorMade-Movies-Android-v1.0.17.apk").include, true);
   assert.equal(classifyPath("public/index.html").include, true);
 });

@@ -524,9 +524,6 @@ function createApp({
   let heroTopFiveSignature = "";
   let heroRotationTimer = null;
   const heroRotationIntervalMs = 9000;
-  let remoteUiReady = false;
-  const pendingRemoteUiCommands = [];
-  let lastRemoteFocusedElement = null;
   let siteBackgroundVersion = 0;
   let siteBackgroundMovieId = "";
   let searchTerm = "";
@@ -2154,7 +2151,6 @@ function createApp({
 
   function focusRemoteElement(element) {
     if (!element || element.disabled || !hasMethod(element, "focus")) return false;
-    lastRemoteFocusedElement = element;
     try {
       element.focus({ preventScroll: true });
     } catch {
@@ -2168,122 +2164,6 @@ function createApp({
       }
     }
     return true;
-  }
-
-  function remoteFocusZones() {
-    if (!documentRef || typeof documentRef.querySelectorAll !== "function") return [];
-    const selectors = [
-      ".primary-nav button, .profile-toggle, .account-action, #library-search",
-      "#hero-play, #hero-details, #hero-prev, #hero-next",
-      "#home-profile-tabs button",
-      "#home-genre-tabs button",
-      "#continue-watching-shelf button",
-      "#recently-added-shelf button",
-      "#picks-shelf button",
-      "#home-library-shelf button",
-      "#profile-most-watched-shelf button, #profile-recently-watched-shelf button",
-      "#movie-grid button, #library-series-grid button",
-      ".search-page button, .navigation-page button, .movie-details-page button"
-    ];
-    return selectors.map((selector) => Array.from(documentRef.querySelectorAll(selector))
-      .filter((element) => visibleFocusableElements().includes(element))).filter((zone) => zone.length);
-  }
-
-  function remoteFocusZoneFor(element, zones) {
-    return zones.find((zone) => zone.includes(element)) || null;
-  }
-
-  function remoteMovieCardRowFor(element) {
-    if (!element || !hasMethod(element, "closest") || !documentRef) return [];
-    const row = element.closest(".movie-grid, .movie-rail, .shelf");
-    if (!row || !hasMethod(row, "querySelectorAll")) return [];
-    return Array.from(row.querySelectorAll("button.movie-card, button.series-card, button.collection-card"))
-      .filter((candidate) => visibleFocusableElements().includes(candidate));
-  }
-
-  function focusWithinRemoteZone(zone, current, direction) {
-    if (!zone || !zone.length) return false;
-    if (direction !== "left" && direction !== "right") return false;
-    const index = zone.indexOf(current);
-    if (index < 0) return false;
-    const nextIndex = direction === "right" ? index + 1 : index - 1;
-    // Do not wrap. A remote press at the edge should stay in the row.
-    return nextIndex >= 0 && nextIndex < zone.length ? focusRemoteElement(zone[nextIndex]) : true;
-  }
-
-  function focusNextRemoteZone(zones, zoneIndex, current, direction) {
-    const step = direction === "down" ? 1 : -1;
-    const nextZone = zones[zoneIndex + step];
-    if (!nextZone || !nextZone.length) return true;
-    const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
-    const currentX = currentRect ? currentRect.left + currentRect.width / 2 : 0;
-    const ranked = nextZone.map((candidate) => {
-      const rect = hasMethod(candidate, "getBoundingClientRect") ? candidate.getBoundingClientRect() : null;
-      const candidateX = rect ? rect.left + rect.width / 2 : 0;
-      return { candidate, distance: Math.abs(candidateX - currentX) };
-    }).sort((a, b) => a.distance - b.distance);
-    return focusRemoteElement(ranked[0].candidate);
-  }
-
-  function markRemoteUiReady() {
-    remoteUiReady = true;
-    while (pendingRemoteUiCommands.length) handleRemoteCommand(pendingRemoteUiCommands.shift());
-  }
-
-  function moveRemoteFocus(direction) {
-    const elements = visibleFocusableElements();
-    if (!elements.length) return false;
-    const active = documentRef && documentRef.activeElement;
-    const remembered = lastRemoteFocusedElement && lastRemoteFocusedElement.isConnected !== false
-      && elements.includes(lastRemoteFocusedElement) ? lastRemoteFocusedElement : null;
-    const startupTarget = activePage === "home" ? (heroPlay || heroDetails || elements[0]) : elements[0];
-    const headerZone = remoteFocusZones()[0] || [];
-    const launchHeaderDownTarget = activePage === "home" && direction === "down" && headerZone.includes(active)
-      ? startupTarget
-      : null;
-    const current = launchHeaderDownTarget || (elements.includes(active) ? active : (remembered || (elements.includes(startupTarget) ? startupTarget : elements[0])));
-    if (!current) return false;
-    if (current === player && (direction === "left" || direction === "right")) {
-      seekPlayerBy(direction === "left" ? -10 : 30);
-      return true;
-    }
-
-    const zones = remoteFocusZones();
-    const cardRow = remoteMovieCardRowFor(current);
-    if (cardRow.length && (direction === "left" || direction === "right")) {
-      return focusWithinRemoteZone(cardRow, current, direction);
-    }
-    const zone = remoteFocusZoneFor(current, zones);
-    const zoneIndex = zone ? zones.indexOf(zone) : -1;
-    if (zone && (direction === "left" || direction === "right")) {
-      return focusWithinRemoteZone(zone, current, direction);
-    }
-    if (zone && (direction === "up" || direction === "down")) {
-      return focusNextRemoteZone(zones, zoneIndex, current, direction);
-    }
-
-    // Detail/search/settings pages can contain controls outside the home rows.
-    // Keep their navigation spatial, but never jump to an unrelated global edge.
-    const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
-    if (!currentRect) return focusRemoteElement(elements[0]);
-    const currentX = currentRect.left + currentRect.width / 2;
-    const currentY = currentRect.top + currentRect.height / 2;
-    let best = null;
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (const candidate of elements) {
-      if (candidate === current || !hasMethod(candidate, "getBoundingClientRect")) continue;
-      const rect = candidate.getBoundingClientRect();
-      if (!rect.width || !rect.height) continue;
-      const dx = rect.left + rect.width / 2 - currentX;
-      const dy = rect.top + rect.height / 2 - currentY;
-      const primary = direction === "left" || direction === "right" ? dx : dy;
-      const secondary = direction === "left" || direction === "right" ? dy : dx;
-      if ((direction === "left" && primary >= -1) || (direction === "right" && primary <= 1) ||
-          (direction === "up" && primary >= -1) || (direction === "down" && primary <= 1)) continue;
-      const score = Math.abs(primary) * 1000 + Math.abs(secondary);
-      if (score < bestScore) { best = candidate; bestScore = score; }
-    }
-    return best ? focusRemoteElement(best) : true;
   }
 
   function updatePlayerPlayPauseButton() {
@@ -2305,57 +2185,6 @@ function createApp({
     return true;
   }
 
-  function handleNativeMenu() {
-    if (playerVisible) {
-      if (hasMethod(player, "pause")) player.pause();
-      setPlayerVisibility(false);
-    }
-    openNavigationPage();
-    return true;
-  }
-
-  function selectRemoteTarget() {
-    const active = documentRef && documentRef.activeElement;
-    if (active === player) return togglePlayerPlayback();
-    if (active && hasMethod(active, "click")) {
-      active.click();
-      return true;
-    }
-    const first = visibleFocusableElements()[0];
-    return focusRemoteElement(first);
-  }
-
-  function handleRemoteCommand(command) {
-    const normalizedCommand = String(command || "");
-    if (!remoteUiReady && ["ArrowUp", "ArrowLeft", "ArrowRight", "ArrowDown", "Enter", "Select", " ", "Spacebar"].includes(normalizedCommand)) {
-      if (pendingRemoteUiCommands.length < 12) pendingRemoteUiCommands.push(normalizedCommand);
-      return true;
-    }
-    switch (normalizedCommand) {
-      case "ArrowUp": return moveRemoteFocus("up");
-      case "ArrowLeft": return moveRemoteFocus("left");
-      case "ArrowRight": return moveRemoteFocus("right");
-      case "ArrowDown": return moveRemoteFocus("down");
-      case "Enter":
-      case "Select":
-      case " ":
-      case "Spacebar": return selectRemoteTarget();
-      case "Back":
-      case "Escape":
-      case "Backspace": return handleNativeBack();
-      case "Menu": return handleNativeMenu();
-      case "MediaPlayPause": return togglePlayerPlayback();
-      case "MediaPlay":
-        if (player && playerVisible && player.paused) return togglePlayerPlayback();
-        return playerVisible;
-      case "MediaPause":
-        if (player && playerVisible && !player.paused) return togglePlayerPlayback();
-        return playerVisible;
-      case "Rewind": return playerVisible && seekPlayerBy(-10);
-      case "FastForward": return playerVisible && seekPlayerBy(30);
-      default: return false;
-    }
-  }
 
   function openSettings() {
     if (!settingsDialog) return false;
@@ -2672,41 +2501,6 @@ function createApp({
       if (firstFocusable && hasMethod(firstFocusable, "focus")) firstFocusable.focus();
     }
     return true;
-  }
-
-  function handleNativeBack() {
-    if (activePage === "search" || (searchOverlay && !searchOverlay.hidden)) {
-      setSearchOverlayVisible(false);
-      focusInitialHero();
-      return true;
-    }
-    if (activePage === "menu" || (navigationPage && !navigationPage.hidden)) {
-      setActivePage("home");
-      focusInitialHero();
-      return true;
-    }
-    if (activePage === "settings" || (settingsDialog && !settingsDialog.hidden)) {
-      closeSettings();
-      return true;
-    }
-    if (activePage === "details" || (movieDetailsDialog && !movieDetailsDialog.hidden)) {
-      closeMovieDetails();
-      return true;
-    }
-    if (playerVisible) {
-      if (hasMethod(player, "pause")) player.pause();
-      setPlayerVisibility(false);
-      setActivePage(activePage === "user" ? "home" : activePage);
-      focusInitialHero();
-      return true;
-    }
-    if (activePage !== "home") {
-      setActivePage("home");
-      focusInitialHero();
-      return true;
-    }
-    focusInitialHero();
-    return false;
   }
 
   function handleNativePlayerClosed() {
@@ -3704,6 +3498,78 @@ function createApp({
     return true;
   }
 
+  function openMovieInfoPopup(movie) {
+    if (!movie || !documentRef) return false;
+    let popup = documentRef.getElementById("movie-info-popup");
+    if (!popup) {
+      popup = documentRef.createElement("dialog");
+      popup.id = "movie-info-popup";
+      popup.className = "movie-info-popup";
+      documentRef.body.append(popup);
+    }
+    const record = viewerRecord(movie.id);
+    popup.replaceChildren();
+    const art = documentRef.createElement("div");
+    art.className = "movie-info-popup-art";
+    appendPosterImage(art, movie, posterAltText(movie), { preferBackdrop: true });
+    const copy = documentRef.createElement("div");
+    copy.className = "movie-info-popup-copy";
+    const eyebrow = documentRef.createElement("p");
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = [movie.year, movie.rating, movie.runtime].filter(Boolean).join(" • ") || "Movie Room";
+    const title = documentRef.createElement("h2");
+    title.textContent = movie.title || movie.fileName || "Movie";
+    const description = documentRef.createElement("p");
+    description.className = "detail";
+    description.textContent = movie.description || "Open the full details page for description, cast, genres, and source information.";
+    const actions = documentRef.createElement("div");
+    actions.className = "movie-info-popup-actions";
+    const play = documentRef.createElement("button");
+    play.type = "button";
+    play.textContent = "▶ Play fullscreen";
+    play.addEventListener("click", () => {
+      if (hasMethod(popup, "close")) popup.close();
+      moveToMovie(movie);
+    });
+    const readMore = documentRef.createElement("button");
+    readMore.type = "button";
+    readMore.className = "secondary";
+    readMore.textContent = "Read more";
+    readMore.addEventListener("click", () => {
+      if (hasMethod(popup, "close")) popup.close();
+      openMovieDetails(movie, { autoPlayOnTv: false });
+    });
+    const favorite = documentRef.createElement("button");
+    favorite.type = "button";
+    favorite.className = "secondary";
+    favorite.textContent = record && record.favorite ? "★ Remove favorite" : "☆ Add to favorites";
+    favorite.addEventListener("click", async () => {
+      if (!viewerStateClient) return;
+      const current = viewerRecord(movie.id);
+      const nextValue = !(current && current.favorite);
+      viewerState = await viewerStateClient.apply(activeProfile, [{ type: "setFlag", movieId: movie.id, flag: "favorite", value: nextValue }]);
+      favorite.textContent = nextValue ? "★ Remove favorite" : "☆ Add to favorites";
+      renderDiscovery();
+    });
+    const download = documentRef.createElement("button");
+    download.type = "button";
+    download.className = "secondary";
+    download.textContent = "Download";
+    download.addEventListener("click", () => downloadMovieOffline(movie).catch(() => {}));
+    const close = documentRef.createElement("button");
+    close.type = "button";
+    close.className = "secondary";
+    close.textContent = "Close";
+    close.addEventListener("click", () => hasMethod(popup, "close") ? popup.close() : popup.setAttribute("hidden", ""));
+    actions.append(play, readMore, favorite, download, close);
+    copy.append(eyebrow, title, description, actions);
+    popup.append(art, copy);
+    if (hasMethod(popup, "showModal")) popup.showModal();
+    else popup.removeAttribute("hidden");
+    setTimeoutImpl(() => play.focus({ preventScroll: true }), 40);
+    return true;
+  }
+
   function renderDetailsBrowse(movie) {
     if (!detailsNextMoviesShelf || typeof detailsNextMoviesShelf.replaceChildren !== "function") return;
     const currentId = movie && movie.id;
@@ -3772,7 +3638,8 @@ function createApp({
     }
     card.append(poster, info);
     card.addEventListener("click", () => {
-      moveToMovie(movie, { openDetails: true });
+      if (nativeTvBridge()) openMovieInfoPopup(movie);
+      else moveToMovie(movie, { openDetails: true });
     });
     return card;
   }
@@ -3793,34 +3660,26 @@ function createApp({
         if (!hasMethod(rail, "scrollBy")) return;
         const amount = direction * Math.max(rail.clientWidth * 0.82, 320);
         rail.scrollBy({ left: amount, behavior: "smooth" });
-        const cards = Array.from(rail.querySelectorAll ? rail.querySelectorAll(".movie-card, .view-more-card, button, [tabindex]") : []);
-        const currentIndex = cards.findIndex((card) => card === documentRef.activeElement || card.matches && card.matches(":focus"));
-        const fallbackIndex = direction > 0 ? 0 : cards.length - 1;
-        const nextIndex = Math.max(0, Math.min(cards.length - 1, currentIndex >= 0 ? currentIndex + direction : fallbackIndex));
-        const next = cards[nextIndex];
-        if (next && hasMethod(next, "focus")) {
-          setTimeoutImpl(() => next.focus({ preventScroll: true }), 80);
-        }
       };
       button.addEventListener("click", operateRail);
-      button.addEventListener("keydown", (event) => {
-        const key = event && (event.key || event.code);
-        const keyCode = event && event.keyCode;
-        const select = key === "Enter" || key === " " || key === "Spacebar" || keyCode === 13 || keyCode === 23 || keyCode === 66;
-        if (!select) return;
-        if (event && hasMethod(event, "preventDefault")) event.preventDefault();
-        operateRail();
-      });
     }
   }
 
-  function createViewMoreCard(shelfType, totalCount) {
+  function createViewMoreCard(shelfType, totalCount, collageMovies = []) {
     const button = documentRef.createElement("button");
     button.type = "button";
     button.className = "movie-card view-more-card";
     button.setAttribute("aria-label", `View more ${shelfType === "continue" ? "continue watching" : "movies"}`);
     const poster = documentRef.createElement("span");
     poster.className = "poster view-more-poster";
+    const collage = documentRef.createElement("span");
+    collage.className = "view-more-collage";
+    for (const movie of collageMovies.slice(0, 4)) {
+      const tile = documentRef.createElement("span");
+      tile.className = "view-more-collage-tile";
+      appendPosterImage(tile, movie, posterAltText(movie), { preferBackdrop: true });
+      collage.append(tile);
+    }
     const plus = documentRef.createElement("span");
     plus.className = "view-more-plus";
     plus.textContent = "+";
@@ -3829,8 +3688,8 @@ function createApp({
     label.textContent = "View more";
     const count = documentRef.createElement("span");
     count.className = "view-more-count";
-    count.textContent = `${Math.max(0, totalCount - 5)} more`;
-    poster.append(plus, label, count);
+    count.textContent = `${Math.max(0, totalCount - 10)} more`;
+    poster.append(collage, plus, label, count);
     button.append(poster);
     button.addEventListener("click", () => {
       selectBrowseDestination(shelfType === "continue" ? "profile" : "library", { resetScroll: true });
@@ -3849,10 +3708,10 @@ function createApp({
       shelf.replaceChildren(empty);
       return;
     }
-    const maxStart = Math.max(0, movies.length - 5);
+    const maxStart = Math.max(0, movies.length - 10);
     state.start = Math.max(0, Math.min(state.start || 0, maxStart));
-    const cards = movies.slice(state.start, state.start + 5).map((movie) => createShelfCard(movie, shelf, shelfType));
-    if (movies.length > 5) cards.push(createViewMoreCard(shelfType, movies.length));
+    const cards = movies.slice(state.start, state.start + 10).map((movie) => createShelfCard(movie, shelf, shelfType));
+    if (movies.length > 10) cards.push(createViewMoreCard(shelfType, movies.length, movies.slice(state.start + 10, state.start + 14)));
     shelf.replaceChildren(...cards);
     if (shelf.dataset) {
       shelf.dataset.rowStart = String(state.start + 1);
@@ -3863,11 +3722,11 @@ function createApp({
   function pageShelf(shelf, direction) {
     const state = shelfWindows.get(shelf);
     if (!state || !state.movies.length) return;
-    const maxStart = Math.max(0, state.movies.length - 5);
+    const maxStart = Math.max(0, state.movies.length - 10);
     const current = Math.max(0, Math.min(state.start || 0, maxStart));
     state.start = direction > 0
-      ? (current >= maxStart ? 0 : Math.min(current + 5, maxStart))
-      : (current <= 0 ? maxStart : Math.max(current - 5, 0));
+      ? (current >= maxStart ? 0 : Math.min(current + 10, maxStart))
+      : (current <= 0 ? maxStart : Math.max(current - 10, 0));
     renderShelfWindow(shelf);
     const firstCard = shelf.querySelector && shelf.querySelector(".movie-card");
     if (firstCard && hasMethod(firstCard, "focus")) {
@@ -4303,26 +4162,6 @@ function createApp({
     return showHeroMovieAtIndex(heroIndex + direction);
   }
 
-  function handleHeroRemoteKey(event) {
-    const key = event && (event.key || event.code);
-    const keyCode = event && event.keyCode;
-    const moveLeft = key === "ArrowLeft" || key === "Left" || keyCode === 37 || keyCode === 21;
-    const moveRight = key === "ArrowRight" || key === "Right" || keyCode === 39 || keyCode === 22;
-    const select = key === "Enter" || key === " " || key === "Spacebar" || keyCode === 13 || keyCode === 23 || keyCode === 66;
-    if (moveLeft || moveRight) {
-      if (selectHeroMovie(moveLeft ? -1 : 1)) {
-        if (event && hasMethod(event, "preventDefault")) event.preventDefault();
-        return true;
-      }
-    }
-    if (select && heroPlay && hasMethod(heroPlay, "click")) {
-      heroPlay.click();
-      if (event && hasMethod(event, "preventDefault")) event.preventDefault();
-      return true;
-    }
-    return false;
-  }
-
   function focusInitialHero() {
     if (!heroMovie || heroMovie.hidden) return false;
     if (searchOverlay && !searchOverlay.hidden) setSearchOverlayVisible(false);
@@ -4578,7 +4417,6 @@ function createApp({
       player.load();
       updateNowPlaying(null);
       if (!quiet) updateStatus("No movie files found yet. When the files finish showing up in the Downloads folder, they will appear here.");
-      markRemoteUiReady();
       return [];
     }
 
@@ -4602,7 +4440,6 @@ function createApp({
       player.load();
       updateNowPlaying(null);
       if (!quiet) updateStatus("Movie files are listed, but they are still uploading to OneDrive.");
-      markRemoteUiReady();
       return [];
     }
 
@@ -4635,7 +4472,6 @@ function createApp({
     renderLibrary();
     restoreCastSessionAfterLibraryLoad();
     if (!playerVisible && !quiet && activePage === "home") focusInitialHero();
-    markRemoteUiReady();
     return playableMovies;
   }
 
@@ -5014,16 +4850,12 @@ function createApp({
       documentRef.body.dataset.tvDevice = "true";
     }
     if (windowRef) {
-      windowRef.MovieRoomBack = handleNativeBack;
-      windowRef.MovieRoomHandleRemoteKey = handleRemoteCommand;
       windowRef.MovieRoomFocusInitialHero = () => {
         const active = documentRef && documentRef.activeElement;
         const isHeaderFocus = active && active.closest && active.closest(".primary-nav, .profile-toggle, .search-wrap");
         if (!active || active === documentRef.body || isHeaderFocus) return focusInitialHero();
         return false;
       };
-      windowRef.MovieRoomMenu = () => handleRemoteCommand("Menu");
-      windowRef.MovieRoomTogglePlayback = () => handleRemoteCommand("MediaPlayPause");
       windowRef.MovieRoomNativePlayerClosed = handleNativePlayerClosed;
     }
     if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
@@ -5360,12 +5192,6 @@ function createApp({
     if (heroNext) heroNext.addEventListener("click", () => {
       selectHeroMovie(1);
     });
-    for (const heroTarget of [heroMovie, heroPlay, heroDetails, heroPrev, heroNext]) {
-      if (heroTarget && hasMethod(heroTarget, "addEventListener")) {
-        heroTarget.addEventListener("keydown", handleHeroRemoteKey);
-      }
-    }
-
     bindRailScrollButtons();
 
     if (theaterModeButton) theaterModeButton.addEventListener("click", () => setPlayerMode(playerMode === "theater" ? "normal" : "theater"));
@@ -5373,12 +5199,6 @@ function createApp({
     if (upNextPlay) upNextPlay.addEventListener("click", () => playNextFromQueue());
 
     if (documentRef && typeof documentRef.addEventListener === "function") {
-      documentRef.addEventListener("keydown", (event) => {
-        const command = event && (event.key || event.code);
-        if (!handleRemoteCommand(command)) return;
-        event.preventDefault();
-        event.stopPropagation();
-      });
       documentRef.addEventListener("fullscreenchange", () => {
         const fullscreenElement = documentRef.fullscreenElement || documentRef.webkitFullscreenElement;
         setVideoFullscreenOrientation(Boolean(fullscreenElement));

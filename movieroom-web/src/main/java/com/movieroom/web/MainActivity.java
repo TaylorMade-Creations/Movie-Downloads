@@ -20,7 +20,6 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.KeyEvent;
 import android.widget.Toast;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -32,8 +31,6 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -50,8 +47,6 @@ public final class MainActivity extends Activity {
     private boolean networkPromptScheduled;
     private boolean updateCheckInFlight;
     private boolean nativePlayerStarted;
-    private boolean webViewReady;
-    private final Deque<String> pendingRemoteCommands = new ArrayDeque<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,8 +67,6 @@ public final class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                webViewReady = true;
-                flushPendingRemoteCommands();
                 view.postDelayed(() -> view.evaluateJavascript(
                     "window.MovieRoomFocusInitialHero && window.MovieRoomFocusInitialHero();",
                     null
@@ -351,145 +344,11 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView == null) {
-            super.onBackPressed();
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
             return;
         }
-        webView.evaluateJavascript(
-            "(function(){return typeof window.MovieRoomBack==='function' && window.MovieRoomBack()===true;})()",
-            handled -> {
-                if ("false".equals(handled) || "null".equals(handled) || handled == null) {
-                    finish();
-                }
-            });
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (!isTelevisionDevice() || !isForwardedRemoteKey(event.getKeyCode())) {
-            return super.dispatchKeyEvent(event);
-        }
-        if (event.getAction() != KeyEvent.ACTION_DOWN || webView == null) {
-            return true;
-        }
-
-        switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                return dispatchNativeDirectional(event);
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-            case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                return dispatchNativeSelect();
-            case KeyEvent.KEYCODE_BACK:
-                return dispatchNativeBack();
-            case KeyEvent.KEYCODE_MENU:
-                return dispatchNativeMenu();
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                return dispatchNativePlaybackToggle("MediaPlayPause");
-            case KeyEvent.KEYCODE_MEDIA_PLAY:
-                return dispatchNativePlaybackToggle("MediaPlay");
-            case KeyEvent.KEYCODE_MEDIA_PAUSE:
-                return dispatchNativePlaybackToggle("MediaPause");
-            case KeyEvent.KEYCODE_MEDIA_REWIND:
-                return dispatchNativePlaybackToggle("Rewind");
-            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
-                return dispatchNativePlaybackToggle("FastForward");
-            default:
-                return true;
-        }
-    }
-
-    private boolean isForwardedRemoteKey(int keyCode) {
-        return keyCode == KeyEvent.KEYCODE_DPAD_UP
-            || keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-            || keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-            || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-            || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
-            || keyCode == KeyEvent.KEYCODE_ENTER
-            || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
-            || keyCode == KeyEvent.KEYCODE_BACK
-            || keyCode == KeyEvent.KEYCODE_MENU
-            || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-            || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY
-            || keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE
-            || keyCode == KeyEvent.KEYCODE_MEDIA_REWIND
-            || keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD;
-    }
-
-    private boolean dispatchNativeDirectional(KeyEvent event) {
-        String key;
-        switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_DPAD_UP: key = "ArrowUp"; break;
-            case KeyEvent.KEYCODE_DPAD_LEFT: key = "ArrowLeft"; break;
-            case KeyEvent.KEYCODE_DPAD_RIGHT: key = "ArrowRight"; break;
-            default: key = "ArrowDown"; break;
-        }
-        return dispatchRemoteCommand(key);
-    }
-
-    private boolean dispatchNativeSelect() {
-        return dispatchRemoteCommand("Enter");
-    }
-
-    private boolean dispatchNativeBack() {
-        return dispatchRemoteCommand("Back");
-    }
-
-    private boolean dispatchNativeMenu() {
-        if (webView == null) {
-            return false;
-        }
-        if (!webViewReady) {
-            if (pendingRemoteCommands.size() >= 12) {
-                pendingRemoteCommands.removeFirst();
-            }
-            pendingRemoteCommands.addLast("Menu");
-            return true;
-        }
-        String script = "(function(){"
-            + "if (typeof window.MovieRoomMenu === 'function') return window.MovieRoomMenu() === true;"
-            + "return window.MovieRoomHandleRemoteKey && window.MovieRoomHandleRemoteKey('Menu') === true;"
-            + "})()";
-        webView.post(() -> webView.evaluateJavascript(script, null));
-        return true;
-    }
-
-    private boolean dispatchNativePlaybackToggle(String command) {
-        return dispatchRemoteCommand(command);
-    }
-
-    private boolean dispatchRemoteCommand(String command) {
-        if (webView == null) {
-            return false;
-        }
-        if (!webViewReady) {
-            if (pendingRemoteCommands.size() >= 12) {
-                pendingRemoteCommands.removeFirst();
-            }
-            pendingRemoteCommands.addLast(command);
-            return true;
-        }
-        postRemoteCommand(command);
-        return true;
-    }
-
-    private void flushPendingRemoteCommands() {
-        while (!pendingRemoteCommands.isEmpty()) {
-            postRemoteCommand(pendingRemoteCommands.removeFirst());
-        }
-    }
-
-    private void postRemoteCommand(String command) {
-        if (webView == null) {
-            return;
-        }
-        String script = "(function(){return window.MovieRoomHandleRemoteKey && window.MovieRoomHandleRemoteKey("
-            + JSONObject.quote(command)
-            + ") === true;})()";
-        webView.post(() -> webView.evaluateJavascript(script, null));
+        super.onBackPressed();
     }
 
     private void scheduleNetworkUpdatePrompt() {
@@ -672,8 +531,6 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        webViewReady = false;
-        pendingRemoteCommands.clear();
         if (webView != null) {
             webView.stopLoading();
             webView.destroy();
