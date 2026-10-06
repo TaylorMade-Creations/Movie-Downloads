@@ -254,7 +254,7 @@ public final class ShellActivity extends Activity {
                 launchInstalledApp(info);
             });
             app.setOnFocusChangeListener((view, hasFocus) -> {
-                view.setBackground(appDockBackground(hasFocus));
+                view.setSelected(hasFocus);
                 view.setScaleX(hasFocus ? 1.06f : 1f);
                 view.setScaleY(hasFocus ? 1.06f : 1f);
                 if (hasFocus) previewInstalledApp(info);
@@ -530,7 +530,7 @@ public final class ShellActivity extends Activity {
                 launchInstalledApp(info);
             });
             app.setOnFocusChangeListener((view, hasFocus) -> {
-                app.setBackground(appDockBackground(hasFocus));
+                app.setSelected(hasFocus);
                 app.setTextColor(hasFocus ? GOLD : IVORY);
                 if (hasFocus) previewInstalledApp(info);
             });
@@ -649,12 +649,7 @@ public final class ShellActivity extends Activity {
                         "Movie Room · Recently Added"
                 };
             } else {
-                items = new String[]{
-                        label + " · Promo Spotlight",
-                        label + " · Featured Today",
-                        label + " · Top Trending",
-                        "Open " + label + " for personal continue watching"
-                };
+                items = streamingFallbackPreviewTitles(label);
             }
             rows.add(addPreviewRail(parent, label + " · HOME WIDGET", items));
         }
@@ -671,19 +666,28 @@ public final class ShellActivity extends Activity {
         return rows;
     }
 
+    private String[] streamingFallbackPreviewTitles(String label) {
+        // thumbnail fallback for protected app promos: show Movie Room-style
+        // artwork/video preview cards until Hulu, Disney, Apple TV, and other
+        // signed-in apps expose their own watched history inside their app.
+        return new String[]{
+                label + " · Promo Spotlight",
+                label + " · Featured Today",
+                label + " · Top Trending",
+                "Open " + label + " for personal continue watching"
+        };
+    }
+
     private Button appArtworkButton(ResolveInfo info, String label, int iconSize) {
-        Button app = button("", Color.TRANSPARENT, IVORY);
+        Drawable icon = info.loadIcon(getPackageManager());
+        Button app = new AppIconButton(this, icon, label);
         app.setGravity(Gravity.CENTER);
         app.setTextSize(1);
         app.setMaxLines(1);
         app.setContentDescription(label + " app picture button");
-        Drawable icon = info.loadIcon(getPackageManager());
-        if (icon != null) {
-            icon.setBounds(0, 0, iconSize, iconSize);
-            app.setCompoundDrawables(null, icon, null, null);
-        }
-        app.setBackground(appDockBackground(false));
-        app.setPadding(8, 8, 8, 8);
+        app.setBackgroundColor(Color.TRANSPARENT);
+        app.setClipToOutline(true);
+        app.setPadding(0, 0, 0, 0);
         return app;
     }
 
@@ -1185,24 +1189,19 @@ public final class ShellActivity extends Activity {
             String packageName = choice.packageName;
             String label = choice.label;
             boolean installedChoice = choice.isInstalled();
-            Button app = button(appChoiceLabel(label, installedChoice, selected.contains(packageName)), PANEL, IVORY);
+            Drawable icon = installedChoice ? choice.resolveInfo.loadIcon(getPackageManager()) : getDrawable(android.R.drawable.ic_menu_help);
+            Button app = new AppIconButton(this, icon, label);
             app.setGravity(Gravity.CENTER);
             app.setTextSize(15);
             app.setContentDescription("Choose " + label + " for the Home app folder" + (installedChoice ? "" : "; app is not installed"));
-            Drawable icon = installedChoice ? choice.resolveInfo.loadIcon(getPackageManager()) : getDrawable(android.R.drawable.ic_menu_help);
-            if (icon != null) {
-                icon.setBounds(0, 0, 64, 64);
-                app.setCompoundDrawables(null, icon, null, null);
-            }
-            app.setBackground(appWidgetCircle(false));
+            app.setSelected(selected.contains(packageName));
             app.setOnClickListener(view -> {
                 if (selected.contains(packageName)) selected.remove(packageName);
                 else selected.add(packageName);
-                app.setBackground(appWidgetCircle(selected.contains(packageName) || app.hasFocus()));
-                app.setText(appChoiceLabel(label, installedChoice, selected.contains(packageName)));
+                app.setSelected(selected.contains(packageName) || app.hasFocus());
             });
             app.setOnFocusChangeListener((view, hasFocus) -> {
-                app.setBackground(appWidgetCircle(hasFocus || selected.contains(packageName)));
+                app.setSelected(hasFocus || selected.contains(packageName));
                 view.setScaleX(hasFocus ? 1.08f : 1f);
                 view.setScaleY(hasFocus ? 1.08f : 1f);
                 if (hasFocus) {
@@ -1334,6 +1333,57 @@ public final class ShellActivity extends Activity {
 
     private Button avatarButton(String label, int resourceId) {
         return new CircularAvatarButton(this, resourceId, label);
+    }
+
+    /** The installed app image is the button; focus draws only a clean ring around the icon. */
+    private static final class AppIconButton extends Button {
+        private final Drawable icon;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF iconBounds = new RectF();
+
+        AppIconButton(android.content.Context context, Drawable icon, String label) {
+            super(context);
+            this.icon = icon;
+            setId(View.generateViewId());
+            setFocusable(true);
+            setFocusableInTouchMode(true);
+            setAllCaps(false);
+            setText("");
+            setIncludeFontPadding(false);
+            setContentDescription(label + " app picture button");
+            setWillNotDraw(false);
+            setOnFocusChangeListener((view, hasFocus) -> invalidate());
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float size = Math.min(getWidth(), getHeight()) - 10f;
+            float left = (getWidth() - size) / 2f;
+            float top = (getHeight() - size) / 2f;
+            iconBounds.set(left, top, left + size, top + size);
+            Path circle = new Path();
+            circle.addOval(iconBounds, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(circle);
+            if (icon != null) {
+                icon.setBounds(Math.round(iconBounds.left), Math.round(iconBounds.top),
+                        Math.round(iconBounds.right), Math.round(iconBounds.bottom));
+                icon.draw(canvas);
+            } else {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(PANEL);
+                canvas.drawOval(iconBounds, paint);
+            }
+            canvas.restore();
+            drawFocusRing(canvas);
+        }
+
+        private void drawFocusRing(Canvas canvas) {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(isSelected() || hasFocus() ? 6f : 2f);
+            paint.setColor(isSelected() || hasFocus() ? GOLD : 0x88fff7e5);
+            canvas.drawOval(iconBounds, paint);
+        }
     }
 
     /** The supplied artwork is the circle; there is no colored button plate behind it. */

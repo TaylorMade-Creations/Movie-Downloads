@@ -108,7 +108,12 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.doesNotMatch(activity, /setCornerRadius\(26f\)/);
   assert.match(activity, /appArtworkButton/);
   assert.match(activity, /app picture button/);
-  assert.match(activity, /setBounds\(0, 0, iconSize, iconSize\)/);
+  assert.match(activity, /AppIconButton/);
+  assert.match(activity, /drawOval/);
+  assert.match(activity, /drawFocusRing/);
+  assert.match(activity, /setClipToOutline\(true\)/);
+  assert.doesNotMatch(activity, /app\.setCompoundDrawables\(null, icon, null, null\)/);
+  assert.doesNotMatch(activity, /app\.setBackground\(appDockBackground\(false\)\)/);
   assert.match(activity, /Choose your Home apps/);
   assert.match(activity, /homePreviewVideo/);
   assert.match(activity, /VideoView thumbnail/);
@@ -133,6 +138,8 @@ test("the shell contains the profile bootstrap, Crossbar focus model, and dynami
   assert.match(activity, /Promo Spotlight/);
   assert.match(activity, /Featured Today/);
   assert.match(activity, /Top Trending/);
+  assert.match(activity, /streamingFallbackPreviewTitles/);
+  assert.match(activity, /thumbnail fallback for protected app promos/);
   assert.match(activity, /LIVE TV/);
   assert.match(activity, /APP PREVIEW/);
   assert.match(activity, /appWidgetCircle/);
