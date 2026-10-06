@@ -2494,6 +2494,15 @@ function createApp({
     poster.prepend(image);
   }
 
+  function setImageWithFallback(image, primaryUrl, fallbackUrl) {
+    if (!image) return;
+    image.onerror = () => {
+      image.onerror = null;
+      image.src = fallbackUrl;
+    };
+    image.src = primaryUrl || fallbackUrl;
+  }
+
   function attachArtworkImage(image, url, onFailure, fallbackUrl = "") {
     let attempts = 0;
     const load = () => {
@@ -3401,11 +3410,12 @@ function createApp({
     void setDetailsHero(movie);
     if (detailsPoster) {
       const detailsFallback = generatedPosterUrl(movie);
-      detailsPoster.onerror = () => {
-        detailsPoster.onerror = null;
-        detailsPoster.src = detailsFallback;
-      };
-      detailsPoster.src = movie.posterUrl || detailsFallback;
+      const detailsPrimary = remoteArtworkUrl(movie);
+      const detailsFallbackSource = movie.posterUrl || movie.posterFallbackUrl || detailsFallback;
+      setImageWithFallback(detailsPoster, detailsFallback, detailsFallback);
+      attachArtworkImage(detailsPoster, detailsPrimary, () => {
+        setImageWithFallback(detailsPoster, detailsFallbackSource, detailsFallback);
+      }, detailsFallbackSource);
       detailsPoster.alt = posterAltText(movie);
     }
     if (detailsTitle) {
@@ -3502,9 +3512,23 @@ function createApp({
     }
     card.append(poster, info);
     card.addEventListener("click", () => {
-      openMovieDetails(movie);
+      moveToMovie(movie, { openDetails: true });
     });
     return card;
+  }
+
+  function bindRailScrollButtons() {
+    if (!documentRef || !hasMethod(documentRef, "querySelectorAll")) return;
+    const buttons = Array.from(documentRef.querySelectorAll("[data-rail-target][data-rail-direction]"));
+    for (const button of buttons) {
+      button.addEventListener("click", () => {
+        const targetId = button.dataset && button.dataset.railTarget;
+        const direction = Number(button.dataset && button.dataset.railDirection) || 1;
+        const rail = targetId && documentRef.getElementById ? documentRef.getElementById(targetId) : null;
+        if (!rail || !hasMethod(rail, "scrollBy")) return;
+        rail.scrollBy({ left: direction * Math.max(rail.clientWidth * 0.82, 320), behavior: "smooth" });
+      });
+    }
   }
 
   function renderShelf(shelf, movies, emptyText) {
@@ -4939,6 +4963,8 @@ function createApp({
       heroIndex = (heroIndex + 1) % heroMovies.length;
       renderDiscovery();
     });
+
+    bindRailScrollButtons();
 
     if (theaterModeButton) theaterModeButton.addEventListener("click", () => setPlayerMode(playerMode === "theater" ? "normal" : "theater"));
     if (miniplayerModeButton) miniplayerModeButton.addEventListener("click", () => setPlayerMode(playerMode === "miniplayer" ? "normal" : "miniplayer"));

@@ -80,10 +80,31 @@ test("home shelves use crisp landscape artwork, compact cards, and profile-menu-
   assert.match(finalPass, /#library-panel\.home-surface \.profile-image-tabs\s*\{[\s\S]*?display:\s*none/);
   assert.match(finalPass, /#library-panel\.home-surface \.genre-image-tabs\s*\{[\s\S]*?display:\s*flex/);
   assert.match(finalPass, /\.genre-image-tab\s*\{[\s\S]*?border-radius:\s*999px/);
-  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4/);
-  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-auto-flow:\s*row/);
-  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?gap:\s*8px/);
-  assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-template-columns:\s*none/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-auto-flow:\s*column/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?gap:\s*18px/);
+  assert.match(finalPass, /@media \(max-width: 720px\)[\s\S]*?#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-auto-columns:\s*minmax\(240px,\s*78vw\)/);
+});
+
+test("home genre chips sit above the hero and rails scroll sideways with large dark chevrons", () => {
+  const navigationIndex = html.indexOf('id="home-navigation"');
+  const heroIndex = html.indexOf('id="hero-movie"');
+  assert.ok(navigationIndex >= 0 && heroIndex >= 0 && navigationIndex < heroIndex);
+  assert.match(html, /class="rail-scroll rail-scroll-left"[^>]*aria-label="Scroll Continue Watching left"/);
+  assert.match(html, /class="rail-scroll rail-scroll-right"[^>]*aria-label="Scroll Continue Watching right"/);
+  assert.match(finalPass, /\.rail-frame\s*\{[\s\S]*?position:\s*relative/);
+  assert.match(finalPass, /\.rail-scroll\s*\{[\s\S]*?background:\s*rgba\(0,\s*0,\s*0,\s*\.94\)/);
+  assert.match(finalPass, /\.rail-scroll\s*\{[\s\S]*?font-size:\s*clamp\(42px,\s*5vw,\s*74px\)/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-auto-flow:\s*column/);
+  assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?overflow-x:\s*auto/);
+  assert.match(app, /function bindRailScrollButtons/);
+  assert.match(app, /scrollBy\(\{ left: direction \* Math\.max\(rail\.clientWidth \* 0\.82,\s*320\)/);
+});
+
+test("home card selection normalizes the chosen movie before opening details", () => {
+  assert.match(app, /card\.addEventListener\("click",\s*\(\) => \{\s*moveToMovie\(movie,\s*\{ openDetails:\s*true \}\)/);
+  assert.match(app, /const detailsPrimary = remoteArtworkUrl\(movie\)/);
+  assert.match(app, /attachArtworkImage\(detailsPoster,\s*detailsPrimary/);
 });
 
 test("movie previews can start when a landscape card becomes meaningfully visible", () => {
