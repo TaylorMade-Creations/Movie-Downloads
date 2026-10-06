@@ -3560,12 +3560,30 @@ function createApp({
     if (!documentRef || !hasMethod(documentRef, "querySelectorAll")) return;
     const buttons = Array.from(documentRef.querySelectorAll("[data-rail-target][data-rail-direction]"));
     for (const button of buttons) {
-      button.addEventListener("click", () => {
+      const operateRail = () => {
         const targetId = button.dataset && button.dataset.railTarget;
         const direction = Number(button.dataset && button.dataset.railDirection) || 1;
         const rail = targetId && documentRef.getElementById ? documentRef.getElementById(targetId) : null;
         if (!rail || !hasMethod(rail, "scrollBy")) return;
-        rail.scrollBy({ left: direction * Math.max(rail.clientWidth * 0.82, 320), behavior: "smooth" });
+        const amount = direction * Math.max(rail.clientWidth * 0.82, 320);
+        rail.scrollBy({ left: amount, behavior: "smooth" });
+        const cards = Array.from(rail.querySelectorAll ? rail.querySelectorAll(".movie-card, button, [tabindex]") : []);
+        const currentIndex = cards.findIndex((card) => card === documentRef.activeElement || card.matches && card.matches(":focus"));
+        const fallbackIndex = direction > 0 ? 0 : cards.length - 1;
+        const nextIndex = Math.max(0, Math.min(cards.length - 1, currentIndex >= 0 ? currentIndex + direction : fallbackIndex));
+        const next = cards[nextIndex];
+        if (next && hasMethod(next, "focus")) {
+          setTimeoutImpl(() => next.focus({ preventScroll: true }), 80);
+        }
+      };
+      button.addEventListener("click", operateRail);
+      button.addEventListener("keydown", (event) => {
+        const key = event && (event.key || event.code);
+        const keyCode = event && event.keyCode;
+        const select = key === "Enter" || key === " " || key === "Spacebar" || keyCode === 13 || keyCode === 23 || keyCode === 66;
+        if (!select) return;
+        if (event && hasMethod(event, "preventDefault")) event.preventDefault();
+        operateRail();
       });
     }
   }

@@ -98,7 +98,12 @@ test("home genre chips sit above the hero and rails scroll sideways with large d
   assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?grid-auto-flow:\s*column/);
   assert.match(finalPass, /#library-panel\.home-surface \.movie-rail\s*\{[\s\S]*?overflow-x:\s*auto/);
   assert.match(app, /function bindRailScrollButtons/);
-  assert.match(app, /scrollBy\(\{ left: direction \* Math\.max\(rail\.clientWidth \* 0\.82,\s*320\)/);
+  assert.match(app, /const amount = direction \* Math\.max\(rail\.clientWidth \* 0\.82,\s*320\)/);
+  assert.match(app, /scrollBy\(\{ left: amount, behavior: "smooth" \}\)/);
+  assert.match(app, /button\.addEventListener\("keydown", \(event\) =>/);
+  assert.match(app, /next\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(finalPass, /\.hero-movie\s*\{[\s\S]*?min-height:\s*clamp\(430px,\s*50vw,\s*680px\)/);
+  assert.match(finalPass, /\.hero-copy\s*\{[\s\S]*?clamp\(92px,\s*8vw,\s*132px\)/);
 });
 
 test("home card selection normalizes the chosen movie before opening details", () => {

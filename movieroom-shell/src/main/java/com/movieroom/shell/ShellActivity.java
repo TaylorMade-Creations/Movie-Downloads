@@ -185,12 +185,10 @@ public final class ShellActivity extends Activity {
         body.setBackgroundColor(0x66100711);
         body.setPadding(24, 8, 24, 8);
         LinearLayout leftDock = column(Color.TRANSPARENT);
-        TextView dockLabel = text("LEFT APP DOCK", 12, GOLD);
-        dockLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        dockLabel.setGravity(Gravity.CENTER);
-        leftDock.addView(dockLabel, new LinearLayout.LayoutParams(-1, 24));
+        leftDock.setContentDescription("MOVIE_APP_FOLDER_LEFT_THIRD");
         focusRows.addAll(addAppFolder(leftDock));
-        body.addView(leftDock, new LinearLayout.LayoutParams(170, -1));
+        int leftMenuWidth = Math.max(360, getResources().getDisplayMetrics().widthPixels / 3);
+        body.addView(leftDock, new LinearLayout.LayoutParams(leftMenuWidth, -1));
 
         FrameLayout detail = new FrameLayout(this);
         detail.addView(new CinematicWaveView(this), new FrameLayout.LayoutParams(-1, -1));
@@ -198,7 +196,7 @@ public final class ShellActivity extends Activity {
         previewScroll.setFillViewport(true);
         selectedAppPreviewContent = column(0x66100711);
         selectedAppPreviewContent.setPadding(22, 14, 22, 14);
-        TextView previewLabel = text("RIGHT APP PREVIEW", 12, GOLD);
+        TextView previewLabel = text("APP PREVIEW", 12, GOLD);
         previewLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         selectedAppPreviewContent.addView(previewLabel, new LinearLayout.LayoutParams(-1, 24));
         ResolveInfo firstApp = preferredHomeApps().isEmpty() ? null : preferredHomeApps().get(0);
@@ -543,7 +541,7 @@ public final class ShellActivity extends Activity {
         List<List<Button>> rows = new ArrayList<>();
         if (selectedAppPreviewContent == null) return rows;
         selectedAppPreviewContent.removeAllViews();
-        TextView section = text("RIGHT APP PREVIEW", 12, GOLD);
+        TextView section = text("APP PREVIEW", 12, GOLD);
         section.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         selectedAppPreviewContent.addView(section, new LinearLayout.LayoutParams(-1, 24));
         if (info == null) {
@@ -761,20 +759,70 @@ public final class ShellActivity extends Activity {
     }
 
     private List<ResolveInfo> discoverMediaApps() {
+        // onlyMovieAndStoreApps: profile setup and the left-side home folder
+        // show entertainment apps, Movie Room, browser/storefront apps used to
+        // get video services, and live-TV apps. OS controls stay in Settings.
         List<ResolveInfo> media = new ArrayList<>();
         for (ResolveInfo info : discoverInstalledApps()) {
-            String label = String.valueOf(info.loadLabel(getPackageManager())).toLowerCase();
-            String packageName = info.activityInfo == null ? "" : info.activityInfo.packageName.toLowerCase();
-            if (label.contains("netflix") || label.contains("prime") || label.contains("youtube")
-                    || label.contains("disney") || label.contains("hulu") || label.contains("paramount")
-                    || label.contains("peacock") || label.contains("apple tv") || label.contains("silk")
-                    || label.contains("appstore") || label.contains("app store") || label.contains("movie")
-                    || label.contains("jellyfin") || label.contains("plex") || label.contains("kodi")
-                    || label.contains("vlc") || packageName.contains("netflix") || packageName.contains("youtube")) {
+            if (isMovieAppCandidate(info) && !isSystemSettingsCandidate(info)) {
                 media.add(info);
             }
         }
         return media;
+    }
+
+    private boolean isMovieAppCandidate(ResolveInfo info) {
+        String label = String.valueOf(info.loadLabel(getPackageManager())).toLowerCase();
+        String packageName = info.activityInfo == null ? "" : info.activityInfo.packageName.toLowerCase();
+        String haystack = label + " " + packageName;
+        return haystack.contains("movie room")
+                || haystack.contains("movieroom")
+                || haystack.contains("movie")
+                || haystack.contains("netflix")
+                || haystack.contains("prime video")
+                || haystack.contains("primevideo")
+                || haystack.contains("youtube")
+                || haystack.contains("disney")
+                || haystack.contains("hulu")
+                || haystack.contains("paramount")
+                || haystack.contains("peacock")
+                || haystack.contains("apple tv")
+                || haystack.contains("appletv")
+                || haystack.contains("max")
+                || haystack.contains("hbo")
+                || haystack.contains("tubi")
+                || haystack.contains("pluto")
+                || haystack.contains("freevee")
+                || haystack.contains("sling")
+                || haystack.contains("roku")
+                || haystack.contains("crackle")
+                || haystack.contains("vudu")
+                || haystack.contains("fandango")
+                || haystack.contains("xumo")
+                || haystack.contains("plex")
+                || haystack.contains("jellyfin")
+                || haystack.contains("kodi")
+                || haystack.contains("vlc")
+                || haystack.contains("silk")
+                || haystack.contains("browser")
+                || haystack.contains("appstore")
+                || haystack.contains("app store");
+    }
+
+    private boolean isSystemSettingsCandidate(ResolveInfo info) {
+        String label = String.valueOf(info.loadLabel(getPackageManager())).toLowerCase();
+        String packageName = info.activityInfo == null ? "" : info.activityInfo.packageName.toLowerCase();
+        String haystack = label + " " + packageName;
+        return haystack.contains("settings")
+                || haystack.contains("bluetooth")
+                || haystack.contains("network")
+                || haystack.contains("developer")
+                || haystack.contains("adb")
+                || haystack.contains("files")
+                || haystack.contains("storage")
+                || haystack.contains("package installer")
+                || haystack.contains("permission controller")
+                || haystack.contains("systemui");
     }
 
     private void showProfileMenu(View anchor) {
@@ -1192,7 +1240,7 @@ public final class ShellActivity extends Activity {
         appPreview.addView(appPreviewMeta);
 
         Set<String> selected = new HashSet<>();
-        List<ResolveInfo> installed = discoverInstalledApps();
+        List<ResolveInfo> installed = discoverMediaApps();
         if (!installed.isEmpty()) selected.add(installed.get(0).activityInfo.packageName);
         List<AppChoice> choices = new ArrayList<>();
         Set<String> choicePackages = new HashSet<>();
@@ -1263,8 +1311,10 @@ public final class ShellActivity extends Activity {
         }
         scroll.addView(grid);
         LinearLayout body = row();
-        body.addView(scroll, new LinearLayout.LayoutParams(0, 0, 0.46f));
-        body.addView(appPreview, new LinearLayout.LayoutParams(0, -1, 0.54f));
+        body.setGravity(Gravity.CENTER);
+        body.setContentDescription("CENTERED_PROFILE_APP_PICKER");
+        body.addView(scroll, new LinearLayout.LayoutParams(0, -1, 0.58f));
+        body.addView(appPreview, new LinearLayout.LayoutParams(0, -1, 0.42f));
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView scrollHint = text("APP LIST  ·  Use ↑ ↓ or PAGE UP / PAGE DOWN to reveal more choices", 14, GOLD);
@@ -1286,7 +1336,7 @@ public final class ShellActivity extends Activity {
     private void addRequiredAppChoice(List<AppChoice> choices, Set<String> packages, String packageName, String label) {
         if (packages.contains(packageName)) return;
         ResolveInfo installed = null;
-        for (ResolveInfo info : discoverInstalledApps()) {
+        for (ResolveInfo info : discoverMediaApps()) {
             if (info.activityInfo != null && packageName.equals(info.activityInfo.packageName)) {
                 installed = info;
                 break;
@@ -1479,9 +1529,9 @@ public final class ShellActivity extends Activity {
         back.setOnClickListener(view -> returnToShellHome());
         header.addView(back, wrap());
         root.addView(header, new LinearLayout.LayoutParams(-1, 74));
-        root.addView(text("Apps are discovered from the installed Android/Fire TV launchers. Missing apps stay out of the profile shelf.", 18, IVORY));
+        root.addView(text("Only TV/movie apps and the app store are shown here. Network, Bluetooth, storage, and developer controls stay in OS Settings.", 18, IVORY));
 
-        List<ResolveInfo> installedApps = discoverInstalledApps();
+        List<ResolveInfo> installedApps = discoverMediaApps();
         LinearLayout list = column(Color.TRANSPARENT);
         List<Button> row = new ArrayList<>();
         for (ResolveInfo info : installedApps) {
