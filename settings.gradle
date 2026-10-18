@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MovieRoomFireTv"
+rootProject.name = "MovieRoomMaster"
 include ":firetv"
 include ":movieroom-shell"
 include ":movieroom-web"

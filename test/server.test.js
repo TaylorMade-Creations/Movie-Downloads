@@ -207,7 +207,7 @@ test("ships discovery shelves and a profile-aware viewer-state client", async ()
   const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
   const appSource = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
   assert.match(html, /id="hero-movie"/);
-  assert.match(html, /hero-movie \{[^}]*min-height: clamp\(220px, 30vw, 360px\)/);
+  assert.match(html, /hero-movie \{[^}]*min-height: clamp\(280px, 38vw, 460px\)/);
   assert.match(html, /background-image: var\(--page-backdrop/);
   assert.match(html, /aspect-ratio: 2 \/ 3/);
   assert.match(html, /\.poster > img \+ \.poster-fallback/);
@@ -2549,9 +2549,8 @@ test("shows iPhone AirPlay guidance and opens the Safari picker", async () => {
 
   assert.equal(player.disableRemotePlayback, false);
   assert.equal(castButton.textContent, "Safari AirPlay");
-  assert.equal(tvGuideTitle.textContent, "iPhone to TV");
-  assert.match(tvGuideStatus.textContent, /AirPlay is available/i);
-  assert.match(guideSteps.join(" "), /same Wi-Fi/i);
+  assert.equal(tvGuideTitle.textContent, "");
+  assert.equal(tvGuideStatus.textContent, "");
   listeners.click();
   assert.equal(airPlayPickerOpened, 1);
   assert.match(status.textContent, /Apple TV or AirPlay TV/i);

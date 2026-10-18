@@ -299,7 +299,7 @@ function filterMovieFolders(folders) {
 }
 
 function resetPageScroll(windowRef, page) {
-  const fullPageDestinations = new Set(["home", "library", "profile", "search", "menu", "details", "settings"]);
+  const fullPageDestinations = new Set(["home", "library", "profile", "search", "menu", "details", "settings", "catalog"]);
   if (!fullPageDestinations.has(page) || !windowRef || typeof windowRef.scrollTo !== "function") {
     return false;
   }
@@ -320,6 +320,10 @@ function createApp({
   searchScopeSelect,
   searchYearSelect,
   searchSortSelect,
+  movieCatalogPage,
+  movieCatalogGrid,
+  movieCatalogSummary,
+  pageFooter,
   navigationPage,
   menuTabButtons = [],
   menuTabPanels = [],
@@ -360,6 +364,8 @@ function createApp({
   seekBackwardButton,
   seekForwardButton,
   castButton,
+  castStopButton,
+  castGuide,
   tvGuideTitle,
   tvGuideSteps,
   tvGuideStatus,
@@ -375,6 +381,21 @@ function createApp({
   profileMenu,
   profileLabel,
   profileAvatar,
+  accountCreateButton,
+  accountLoginButton,
+  profileSetupPanel,
+  profileSetupForm,
+  profileSetupName,
+  profileSetupStatus,
+  profileAvatarUpload,
+  profileAvatarPreview,
+  profileAvatarChoices = [],
+  profilePinPanel,
+  profilePinForm,
+  profilePinInput,
+  profilePinStatus,
+  profilePinCancel,
+  profilePinSummary,
   viewerHeaderLabel,
   pageHeaderLabel,
   profileButtons = [],
@@ -404,6 +425,9 @@ function createApp({
   profilePageSummary,
   profileMostWatchedShelf,
   profileRecentlyWatchedShelf,
+  menuRecentlyWatchedShelf,
+  menuRecentlyWatchedSummary,
+  menuRecentlyWatchedProfile,
   movieDetailsDialog,
   detailsClose,
   detailsBackdrop,
@@ -412,6 +436,11 @@ function createApp({
   detailsTitle,
   detailsMeta,
   detailsDescription,
+  detailsInfoDescription,
+  detailsInfoGenres,
+  detailsInfoCast,
+  detailsInfoSource,
+  detailsInfoAvailability,
   detailsPlay,
   detailsOffline,
   detailsWatchLater,
@@ -433,6 +462,7 @@ function createApp({
   settingsSystemButton,
   settingsUpdatesButton,
   settingsReloadButton,
+  settingsResetProfileButton,
   settingsCloseButton,
   menuHomeButton,
   menuLibraryButton,
@@ -464,6 +494,7 @@ function createApp({
   let stallRecoveryTimer = null;
   let stallPosition = null;
   let playbackRequestVersion = 0;
+  let publicPreviewLimitSeconds = 0;
   let stableRefreshPosition = null;
   let isSeeking = false;
   let activePreviewCancel = null;
@@ -478,19 +509,21 @@ function createApp({
   let pendingOfflineMovie = null;
   let playerMode = "normal";
   let progressTimer = null;
+  let castCheckpointTimer = null;
   let restoredMovieId = "";
   let progressWriteInFlight = null;
+  const shelfWindows = new WeakMap();
   let activeFolder = "all";
   let activeCategory = "all";
   let activeLibraryView = "movies";
   let activePage = "home";
+  let searchLoadInFlight = null;
   let heroMovies = [];
   let heroIndex = 0;
   let heroPreviewVersion = 0;
-  let heroSelectionInitialized = false;
-  let remoteUiReady = false;
-  const pendingRemoteUiCommands = [];
-  let lastRemoteFocusedElement = null;
+  let heroTopFiveSignature = "";
+  let heroRotationTimer = null;
+  const heroRotationIntervalMs = 9000;
   let siteBackgroundVersion = 0;
   let siteBackgroundMovieId = "";
   let searchTerm = "";
@@ -507,16 +540,26 @@ function createApp({
   let googleCastContext = null;
   let googleCastReady = false;
   let authenticated = false;
+  let previewAccessMode = false;
   let publicAccess = false;
+  let profileAccessEnabled = false;
+  let profileAccessState = "needs_setup";
+  let serverProfiles = [];
+  let pendingProfileId = "";
+  let selectedSetupAvatar = "home-family";
+  let selectedSetupAvatarImage = "";
+  let accountSetupRequested = false;
   let authTransitionVersion = 0;
   let activeProfile = "home";
   let pendingFireTvCode = "";
   const permissionStorageKey = "movie_room_permissions_v2";
   const libraryStorageKey = "movie_room_library_cache_v1";
   const profileStorageKey = "movie_room_viewer_profile_v1";
+  const profileAvatarStoragePrefix = "movie_room_custom_avatar_v1_";
   const profileLastMoviePrefix = "movie_room_last_movie_v1_";
   const profileSearchPrefix = "movie_room_search_history_v1_";
   const profileNavigationPrefix = "movie_room_navigation_v1_";
+  const activeCastStorageKey = "movie_room_active_cast_session_v1";
   const viewerProfiles = {
     home: { label: "Home", initial: "H", palette: "home", pick: () => true },
     mom: { label: "Mom", initial: "M", palette: "mom", pick: (movie) => classifyMovie(movie) === "mom" || genresForMovie(movie).some((genre) => /drama|romance|family/i.test(genre)) },
@@ -567,16 +610,19 @@ function createApp({
 
   function updateHeaderContext() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
-    if (viewerHeaderLabel) viewerHeaderLabel.textContent = profile.label;
+    const serverProfile = serverProfiles.find((candidate) => candidate.id === activeProfile);
+    const profileLabelText = (serverProfile && serverProfile.displayName) || profile.label;
+    if (viewerHeaderLabel) viewerHeaderLabel.textContent = profileLabelText;
     if (pageHeaderLabel) {
       const pageLabel = activePage === "library"
         ? (activeLibraryView === "collections" ? "Collections & series"
           : activeLibraryView === "genres" ? "Genres" : "General library")
-        : activePage === "profile" ? `${profile.label} profile`
-          : activePage === "user" ? "Profile"
+        : activePage === "profile" ? `${profileLabelText} profile`
+        : activePage === "user" ? "Profile"
               : activePage === "search" ? "Search"
                 : activePage === "menu" ? "Movie Room menu"
                   : activePage === "settings" ? "Settings"
+                    : activePage === "catalog" ? "Movies Index Catalog"
             : activePage === "details"
               ? `Title details`
             : "Home / Trending";
@@ -584,17 +630,91 @@ function createApp({
     }
   }
 
+  function removeLocalValue(key) {
+    try {
+      if (localStorageRef && hasMethod(localStorageRef, "removeItem")) {
+        localStorageRef.removeItem(key);
+      }
+    } catch {
+      // Private browsing can disable local storage.
+    }
+  }
+
+  function readActiveCastSession() {
+    try {
+      const raw = readLocalValue(activeCastStorageKey);
+      if (!raw) return null;
+      const record = JSON.parse(raw);
+      if (!record || typeof record.movieId !== "string" || !record.movieId) return null;
+      return {
+        movieId: record.movieId,
+        title: typeof record.title === "string" ? record.title : "",
+        deviceName: typeof record.deviceName === "string" ? record.deviceName : "TV",
+        positionSeconds: Number.isFinite(record.positionSeconds) ? Math.max(0, record.positionSeconds) : 0,
+        durationSeconds: Number.isFinite(record.durationSeconds) ? Math.max(0, record.durationSeconds) : 0,
+        status: typeof record.status === "string" ? record.status : "casting",
+        updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : "",
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function writeActiveCastSession(record) {
+    if (!record || !record.movieId) return;
+    writeLocalValue(activeCastStorageKey, JSON.stringify({
+      movieId: record.movieId,
+      title: record.title || "",
+      deviceName: record.deviceName || "TV",
+      positionSeconds: Number.isFinite(record.positionSeconds) ? Math.max(0, record.positionSeconds) : 0,
+      durationSeconds: Number.isFinite(record.durationSeconds) ? Math.max(0, record.durationSeconds) : 0,
+      status: record.status || "casting",
+      updatedAt: new Date().toISOString(),
+    }));
+    updateCastButton();
+  }
+
+  function clearActiveCastSession() {
+    removeLocalValue(activeCastStorageKey);
+    if (castCheckpointTimer !== null) {
+      clearTimeoutImpl(castCheckpointTimer);
+      castCheckpointTimer = null;
+    }
+    updateCastButton();
+  }
+
+  function avatarUrlForProfile(profileId, serverProfile = null) {
+    const customAvatar = readLocalValue(`${profileAvatarStoragePrefix}${profileId}`);
+    if (customAvatar) return customAvatar;
+    const avatarId = String((serverProfile && serverProfile.avatarId) || profileId || "home");
+    const avatarMap = {
+      "home-family": "/profile-home.jpeg",
+      home: "/profile-home.jpeg",
+      mom: "/profile-mom.jpeg",
+      morganne: "/profile-morganne.jpeg",
+      kids: "/profile-kids.jpeg",
+    };
+    return avatarMap[avatarId] || avatarMap[profileId] || "/profile-home.jpeg";
+  }
+
   function updateProfileUi() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const serverProfile = serverProfiles.find((candidate) => candidate.id === activeProfile);
+    const profileLabelText = (serverProfile && serverProfile.displayName) || profile.label;
     if (documentRef && documentRef.body && documentRef.body.dataset) {
       documentRef.body.dataset.viewerProfile = profile.palette;
     }
-    if (profileLabel) profileLabel.textContent = "Profile";
+    if (profileLabel) profileLabel.textContent = profileLabelText;
     if (profileToggle && typeof profileToggle.setAttribute === "function") {
-      profileToggle.setAttribute("aria-label", `Profile selector. Current profile: ${profile.label}`);
+      profileToggle.setAttribute("aria-label", `Profile selector. Current profile: ${profileLabelText}`);
     }
     if (profileAvatar) {
-      profileAvatar.textContent = profile.initial;
+      profileAvatar.textContent = profileLabelText.slice(0, 1).toUpperCase() || profile.initial;
+      if (profileAvatar.style) {
+        profileAvatar.style.backgroundImage = `url("${avatarUrlForProfile(activeProfile, serverProfile).replaceAll('"', "%22")}")`;
+        profileAvatar.style.backgroundSize = "cover";
+        profileAvatar.style.backgroundPosition = "center";
+      }
     }
     for (const button of profileButtons) {
       const selected = button.dataset && button.dataset.viewerProfile === activeProfile;
@@ -648,6 +768,7 @@ function createApp({
       profileToggle.setAttribute("aria-expanded", "false");
     }
     updateProfileUi();
+    if (activePage === "menu") renderRecentlyWatchedMenu();
   }
 
   function saveProfileNavigationState() {
@@ -679,6 +800,26 @@ function createApp({
       stallRecoveryTimer = null;
     }
     stallPosition = null;
+  }
+
+  function clearPublicPreviewLimit() {
+    publicPreviewLimitSeconds = 0;
+  }
+
+  function armPublicPreviewLimit(playback) {
+    publicPreviewLimitSeconds = playback && playback.previewOnly
+      ? Number(playback.previewLimitSeconds) || 180
+      : 0;
+  }
+
+  function enforcePublicPreviewLimit() {
+    if (!publicPreviewLimitSeconds || !player || !Number.isFinite(player.currentTime)) return false;
+    if (player.currentTime < publicPreviewLimitSeconds) return false;
+    if (hasMethod(player, "pause")) player.pause();
+    clearPublicPreviewLimit();
+    updateStatus("Create an account to unlock full playback, downloads, casting, and saved profiles.");
+    openAccountSetup();
+    return true;
   }
 
   function bufferedSecondsAhead() {
@@ -829,7 +970,7 @@ function createApp({
 
   function setActivePage(page) {
     const previousPage = activePage;
-    activePage = ["home", "library", "profile", "user", "search", "menu", "details", "settings"].includes(page) ? page : "home";
+    activePage = ["home", "library", "profile", "user", "search", "menu", "details", "settings", "catalog"].includes(page) ? page : "home";
     const homeVisible = activePage === "home";
     const libraryVisible = activePage === "library";
     const profileVisible = activePage === "profile";
@@ -838,6 +979,7 @@ function createApp({
     const menuVisible = activePage === "menu";
     const detailsVisible = activePage === "details";
     const settingsVisible = activePage === "settings";
+    const catalogVisible = activePage === "catalog";
     if (heroMovie) heroMovie.hidden = !homeVisible;
     if (homeNavigation) homeNavigation.hidden = !homeVisible;
     if (homeLibrarySection) homeLibrarySection.hidden = !homeVisible;
@@ -857,7 +999,10 @@ function createApp({
     if (navigationPage) navigationPage.hidden = !menuVisible;
     if (movieDetailsDialog) movieDetailsDialog.hidden = !detailsVisible;
     if (settingsDialog) settingsDialog.hidden = !settingsVisible;
+    if (movieCatalogPage) movieCatalogPage.hidden = !catalogVisible;
+    if (pageFooter) pageFooter.hidden = Boolean(authPanel && !authenticated);
     if (categoryShelf && categoryShelf.parentElement) categoryShelf.parentElement.hidden = !libraryVisible;
+    if (!homeVisible) stopHeroRotation();
     if (folderShelf && folderShelf.parentElement) folderShelf.parentElement.hidden = !libraryVisible;
     if (profileMenu) {
       profileMenu.hidden = !userVisible;
@@ -1002,11 +1147,26 @@ function createApp({
   }
 
   function updateCastButton() {
+    const savedCast = readActiveCastSession();
+    const castConnected = Boolean(savedCast);
+
+    if (castStopButton) {
+      castStopButton.hidden = !castConnected;
+      castStopButton.disabled = !castConnected;
+      castStopButton.textContent = castConnected
+        ? `Stop Casting${savedCast.deviceName ? ` to ${savedCast.deviceName}` : ""}`
+        : "Stop Casting";
+    }
+
     if (!castButton) {
       return;
     }
 
-    castButton.disabled = !authenticated;
+    castButton.disabled = !authenticated || previewAccessMode;
+    if (castConnected) {
+      castButton.textContent = `Reconnect ${savedCast.deviceName || "TV"}`;
+      return;
+    }
     if (safariAirPlayAvailable || player.webkitShowPlaybackTargetPicker) {
       castButton.textContent = "Safari AirPlay";
       return;
@@ -1018,6 +1178,20 @@ function createApp({
     }
 
     castButton.textContent = browserCastLabel();
+  }
+
+  function showCastGuide() {
+    if (castGuide) {
+      castGuide.hidden = false;
+      if (hasMethod(castGuide, "scrollIntoView")) {
+        castGuide.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+    updateTvGuide();
+  }
+
+  function hideCastGuide() {
+    if (castGuide) castGuide.hidden = true;
   }
 
   function browserInfo() {
@@ -1064,6 +1238,67 @@ function createApp({
     return typeof friendlyName === "string" && friendlyName.trim()
       ? friendlyName.trim()
       : "Google TV";
+  }
+
+  function currentGoogleCastMediaSession(session = null) {
+    const activeSession = session || (googleCastContext && hasMethod(googleCastContext, "getCurrentSession")
+      ? googleCastContext.getCurrentSession()
+      : null);
+    if (!activeSession || !hasMethod(activeSession, "getMediaSession")) return null;
+    return activeSession.getMediaSession();
+  }
+
+  function castEstimatedPosition(session = null) {
+    const mediaSession = currentGoogleCastMediaSession(session);
+    if (mediaSession && hasMethod(mediaSession, "getEstimatedTime")) {
+      const estimated = Number(mediaSession.getEstimatedTime());
+      if (Number.isFinite(estimated)) return Math.max(0, estimated);
+    }
+    const saved = readActiveCastSession();
+    if (saved && Number.isFinite(saved.positionSeconds)) return saved.positionSeconds;
+    if (Number.isFinite(player.currentTime)) return Math.max(0, player.currentTime);
+    return 0;
+  }
+
+  function persistCastCheckpoint(session = null, overrides = {}) {
+    const movie = selectedMovie() || movieById(overrides.movieId);
+    const movieId = overrides.movieId || (movie && movie.id) || movieSelect.value;
+    if (!movieId) return;
+    const durationSeconds = Number.isFinite(overrides.durationSeconds)
+      ? overrides.durationSeconds
+      : Number.isFinite(player.duration) ? Math.max(0, player.duration) : 0;
+    writeActiveCastSession({
+      movieId,
+      title: overrides.title || (movie && (movie.title || movie.fileName)) || "",
+      deviceName: overrides.deviceName || castDeviceName(session),
+      positionSeconds: Number.isFinite(overrides.positionSeconds)
+        ? overrides.positionSeconds
+        : castEstimatedPosition(session),
+      durationSeconds,
+      status: overrides.status || "casting",
+    });
+  }
+
+  function scheduleCastCheckpoint(session = null) {
+    if (castCheckpointTimer !== null) return;
+    castCheckpointTimer = setTimeoutImpl(() => {
+      castCheckpointTimer = null;
+      const savedCast = readActiveCastSession();
+      if (!savedCast) return;
+      const activeSession = session || (googleCastContext && hasMethod(googleCastContext, "getCurrentSession")
+        ? googleCastContext.getCurrentSession()
+        : null);
+      persistCastCheckpoint(activeSession, {
+        movieId: savedCast.movieId,
+        title: savedCast.title,
+        deviceName: savedCast.deviceName,
+        positionSeconds: castEstimatedPosition(activeSession),
+        durationSeconds: savedCast.durationSeconds,
+        status: "casting",
+      });
+      savePlaybackProgress("cast-checkpoint").catch(() => {});
+      scheduleCastCheckpoint(activeSession);
+    }, 10000);
   }
 
   function castState() {
@@ -1116,7 +1351,25 @@ function createApp({
       ? castFramework.CastContextEventType.SESSION_STATE_CHANGED
       : null;
     if (sessionStateChanged) {
-      googleCastContext.addEventListener(sessionStateChanged, () => {
+      googleCastContext.addEventListener(sessionStateChanged, (event) => {
+        const session = hasMethod(googleCastContext, "getCurrentSession")
+          ? googleCastContext.getCurrentSession()
+          : null;
+        const savedCast = readActiveCastSession();
+        if (session && savedCast) {
+          persistCastCheckpoint(session, {
+            movieId: savedCast.movieId,
+            title: savedCast.title,
+            deviceName: castDeviceName(session),
+            positionSeconds: savedCast.positionSeconds,
+            durationSeconds: savedCast.durationSeconds,
+            status: "casting",
+          });
+        } else if (event && String(event.sessionState || "").toLowerCase().includes("ended")) {
+          // Do not clear the saved cast intent here. A flaky Wi-Fi interruption can look
+          // like an ended session; only the explicit Stop Casting button clears it.
+          updateStatus("The TV connection was interrupted. Movie Room kept your cast session so you can reconnect and resume.");
+        }
         updateCastButton();
         updateTvGuide();
       });
@@ -1166,10 +1419,25 @@ function createApp({
 
     const request = new mediaApi.LoadRequest(mediaInfo);
     request.autoplay = true;
-    request.currentTime = Number.isFinite(player.currentTime)
-      ? Math.max(0, player.currentTime)
-      : 0;
+    const savedCast = readActiveCastSession();
+    const viewerProgress = viewerRecord(movie.id);
+    request.currentTime = savedCast && savedCast.movieId === movie.id
+      ? Math.max(0, savedCast.positionSeconds || 0)
+      : Number.isFinite(player.currentTime) && player.currentTime > 0
+        ? Math.max(0, player.currentTime)
+        : viewerProgress && Number.isFinite(viewerProgress.positionSeconds)
+          ? Math.max(0, viewerProgress.positionSeconds)
+          : 0;
     await session.loadMedia(request);
+    persistCastCheckpoint(session, {
+      movieId: movie.id,
+      title: playback.title || movie.title || movie.fileName || "Movie Room",
+      deviceName: castDeviceName(session),
+      positionSeconds: request.currentTime,
+      durationSeconds: Number.isFinite(player.duration) ? Math.max(0, player.duration) : 0,
+      status: "casting",
+    });
+    scheduleCastCheckpoint(session);
     if (hasMethod(player, "pause")) {
       player.pause();
     }
@@ -1194,6 +1462,7 @@ function createApp({
   }
 
   function updateTvGuide() {
+    if (castGuide && castGuide.hidden) return;
     const info = browserInfo();
     if (info.isSafari || info.isIOS) {
       if (tvGuideTitle) {
@@ -1300,6 +1569,58 @@ function createApp({
     updateStatus(browserCastInstructions());
   }
 
+  async function stopCasting() {
+    const savedCast = readActiveCastSession();
+    try {
+      const session = googleCastContext && hasMethod(googleCastContext, "getCurrentSession")
+        ? googleCastContext.getCurrentSession()
+        : null;
+      if (session) {
+        persistCastCheckpoint(session, {
+          movieId: savedCast && savedCast.movieId,
+          title: savedCast && savedCast.title,
+          positionSeconds: castEstimatedPosition(session),
+          status: "stopped",
+        });
+      }
+      if (googleCastContext && hasMethod(googleCastContext, "endCurrentSession")) {
+        googleCastContext.endCurrentSession(true);
+      } else if (session && hasMethod(session, "endSession")) {
+        session.endSession(true);
+      }
+    } catch {
+      // The TV may already be disconnected; the local stop still clears the durable cast intent.
+    }
+    clearActiveCastSession();
+    updateTvGuide();
+    updateStatus("Casting stopped. This page will no longer try to reconnect to the TV.");
+  }
+
+  function restoreCastSessionAfterLibraryLoad() {
+    const savedCast = readActiveCastSession();
+    if (!savedCast || !savedCast.movieId || !allMovies.some((movie) => movie.id === savedCast.movieId)) {
+      return;
+    }
+    if (movieSelect) {
+      movieSelect.value = savedCast.movieId;
+    }
+    rememberMovieForProfile(savedCast.movieId);
+    const movie = movieById(savedCast.movieId);
+    updateNowPlaying(movie);
+    updateCastButton();
+    const session = googleCastContext && hasMethod(googleCastContext, "getCurrentSession")
+      ? googleCastContext.getCurrentSession()
+      : null;
+    if (session && movieSelect && movieSelect.value === savedCast.movieId) {
+      loadSelectedMovieOnCast(session).catch((error) => {
+        updateStatus(error.message || "Reconnect to the TV to resume casting.");
+      });
+      return;
+    }
+    scheduleCastCheckpoint(null);
+    updateStatus(`${savedCast.title || (movie && movie.title) || "Your movie"} is still marked as casting to ${savedCast.deviceName || "the TV"}. Tap Reconnect TV to resume near ${formatTimelineTime(savedCast.positionSeconds || 0)}, or Stop Casting to end it.`);
+  }
+
   function allowRemotePlayback() {
     player.disableRemotePlayback = false;
     if (hasMethod(player, "removeAttribute")) {
@@ -1311,7 +1632,7 @@ function createApp({
       player.setAttribute("webkit-playsinline", "");
     }
     updateCastButton();
-    updateTvGuide();
+    hideCastGuide();
   }
 
   async function openFullscreenPlayer() {
@@ -1486,11 +1807,208 @@ function createApp({
     passwordInput.removeAttribute("aria-invalid");
   }
 
+  function updateProfileAccessUi() {
+    const needsSetup = profileAccessEnabled && profileAccessState === "needs_setup" && accountSetupRequested;
+    const needsPin = profileAccessEnabled && profileAccessState === "profile_locked";
+    if (profileSetupPanel) profileSetupPanel.hidden = !needsSetup;
+    if (profilePinPanel) profilePinPanel.hidden = !needsPin;
+    if (needsSetup && profileSetupName && typeof profileSetupName.focus === "function") {
+      profileSetupName.focus();
+    }
+    if (needsPin && profilePinInput && typeof profilePinInput.focus === "function") {
+      profilePinInput.focus();
+    }
+  }
+
+  function applyProfileAccessState(payload) {
+    profileAccessEnabled = Boolean(payload && payload.configured === true);
+    profileAccessState = (payload && payload.state) || "needs_setup";
+    serverProfiles = Array.isArray(payload && payload.profiles) ? payload.profiles : [];
+    previewAccessMode = profileAccessEnabled && !["home_unlocked", "profile_unlocked"].includes(profileAccessState);
+    if (payload && payload.profile && payload.profile.id && Object.prototype.hasOwnProperty.call(viewerProfiles, payload.profile.id)) {
+      setViewerProfile(payload.profile.id);
+    }
+    updateProfileUi();
+    updateProfileAccessUi();
+  }
+
+  async function loadAccessState() {
+    let response;
+    try {
+      response = await fetchImpl("/api/access-state", { credentials: "same-origin" });
+    } catch {
+      // Older deployments may not have the profile endpoint yet; retain the
+      // legacy session path until the server is updated.
+      return null;
+    }
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error((payload && payload.error) || "Unable to verify Movie Room setup.");
+    }
+    const payload = await response.json();
+    if (payload && payload.configured === true) {
+      applyProfileAccessState(payload);
+      return payload;
+    }
+    profileAccessEnabled = false;
+    profileAccessState = "home_unlocked";
+    previewAccessMode = false;
+    serverProfiles = [];
+    updateProfileAccessUi();
+    return null;
+  }
+
+  function openAccountSetup() {
+    accountSetupRequested = true;
+    if (!profileAccessEnabled) {
+      profileAccessEnabled = true;
+      profileAccessState = "needs_setup";
+      previewAccessMode = true;
+    }
+    updateProfileAccessUi();
+    if (profileSetupName && typeof profileSetupName.focus === "function") profileSetupName.focus();
+    updateStatus("Create an account to unlock full playback, saved profiles, downloads, and profile settings.");
+    return true;
+  }
+
+  function openAccountLogin() {
+    accountSetupRequested = false;
+    updateProfileAccessUi();
+    if (profileMenu) {
+      profileMenu.hidden = false;
+      if (profileToggle && typeof profileToggle.setAttribute === "function") profileToggle.setAttribute("aria-expanded", "true");
+      const firstProfileButton = profileButtons.find((button) => button && hasMethod(button, "focus"));
+      if (firstProfileButton) firstProfileButton.focus();
+      updateStatus(previewAccessMode
+        ? "Choose a saved profile or create an account to unlock full playback."
+        : "Choose a profile or settings page.");
+      return true;
+    }
+    updateStatus("Create an account to unlock full playback.");
+    return false;
+  }
+
+  function handleAvatarUpload(event) {
+    const file = event && event.target && event.target.files && event.target.files[0];
+    if (!file) return false;
+    if (!/^image\//i.test(file.type || "")) {
+      if (profileSetupStatus) profileSetupStatus.textContent = "Choose an image file for the profile picture.";
+      return false;
+    }
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      selectedSetupAvatar = "custom-library";
+      selectedSetupAvatarImage = String(reader.result || "");
+      if (profileAvatarPreview) {
+        profileAvatarPreview.src = selectedSetupAvatarImage;
+        profileAvatarPreview.hidden = false;
+      }
+      for (const candidate of profileAvatarChoices) {
+        if (candidate && typeof candidate.setAttribute === "function") candidate.setAttribute("aria-pressed", "false");
+      }
+      if (profileSetupStatus) profileSetupStatus.textContent = "Profile picture selected from this device.";
+    });
+    reader.readAsDataURL(file);
+    return true;
+  }
+
+  async function handleProfileSetup(event) {
+    event.preventDefault();
+    if (profileSetupStatus) profileSetupStatus.textContent = "Saving your Home profile…";
+    const response = await fetchImpl("/api/account/setup", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: profileSetupName && profileSetupName.value ? profileSetupName.value.trim() : "Home",
+        avatarId: selectedSetupAvatar,
+        accentColor: selectedSetupAvatar === "mom"
+          ? "#28c48f"
+          : selectedSetupAvatar === "morganne"
+            ? "#ff74ad"
+            : selectedSetupAvatar === "kids"
+              ? "#f59e0b"
+              : "#f0c45b",
+      }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      if (profileSetupStatus) profileSetupStatus.textContent = (payload && payload.error) || "Movie Room setup could not be saved.";
+      return false;
+    }
+    const payload = await response.json();
+    if (selectedSetupAvatarImage) {
+      writeLocalValue(`${profileAvatarStoragePrefix}home`, selectedSetupAvatarImage);
+    }
+    accountSetupRequested = false;
+    previewAccessMode = false;
+    applyProfileAccessState({ ...payload, configured: true });
+    setAuthenticated(true);
+    if (profileSetupStatus) profileSetupStatus.textContent = "Home is ready. Loading your library…";
+    await loadLibrary();
+    return true;
+  }
+
+  async function unlockServerProfile(profileId, pin = "") {
+    const response = await fetchImpl(`/api/profiles/${encodeURIComponent(profileId)}/unlock`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error((payload && payload.error) || "This profile could not be unlocked.");
+    }
+    const stateResponse = await fetchImpl("/api/access-state", { credentials: "same-origin" });
+    const state = await stateResponse.json();
+    applyProfileAccessState({ ...state, configured: true });
+    setAuthenticated(true);
+    await loadLibrary();
+    return true;
+  }
+
+  async function handleProfilePin(event) {
+    event.preventDefault();
+    if (profilePinStatus) profilePinStatus.textContent = "Checking PIN…";
+    try {
+      await unlockServerProfile(pendingProfileId, profilePinInput && profilePinInput.value || "");
+      if (profilePinInput) profilePinInput.value = "";
+      if (profilePinStatus) profilePinStatus.textContent = "Profile unlocked.";
+      return true;
+    } catch (error) {
+      if (profilePinStatus) profilePinStatus.textContent = error.message;
+      if (profilePinInput && typeof profilePinInput.select === "function") profilePinInput.select();
+      return false;
+    }
+  }
+
+  function selectServerProfile(profileId) {
+    const selected = serverProfiles.find((profile) => profile.id === profileId);
+    if (!selected) {
+      openProfilePage(profileId);
+      return;
+    }
+    pendingProfileId = profileId;
+    if (selected.pinRequired) {
+      profileAccessState = "profile_locked";
+      if (profilePinSummary) profilePinSummary.textContent = `Enter the PIN for ${selected.displayName}.`;
+      updateProfileAccessUi();
+      setAuthenticated(false);
+      return;
+    }
+    unlockServerProfile(profileId).catch((error) => updateStatus(error.message));
+  }
+
   function setAuthenticated(isAuthenticated) {
     if (!isAuthenticated && activePreviewCancel) activePreviewCancel();
+    if (!isAuthenticated) clearPublicPreviewLimit();
     authenticated = Boolean(isAuthenticated);
     if (authPanel) authPanel.hidden = authenticated;
     if (libraryPanel) libraryPanel.hidden = !authenticated;
+    if (movieCatalogPage) movieCatalogPage.hidden = !authenticated;
+    if (pageFooter) pageFooter.hidden = !authenticated;
     if (!authenticated) {
       activePage = "home";
       if (searchOverlay) searchOverlay.hidden = true;
@@ -1511,18 +2029,26 @@ function createApp({
       updateCastButton();
     }
     if (keepAwakeButton) {
-      keepAwakeButton.disabled = !authenticated || !navigatorRef || !navigatorRef.wakeLock || !hasMethod(navigatorRef.wakeLock, "request");
+      keepAwakeButton.disabled = !authenticated || previewAccessMode || !navigatorRef || !navigatorRef.wakeLock || !hasMethod(navigatorRef.wakeLock, "request");
     }
     if (fullscreenButton) {
-      fullscreenButton.disabled = !authenticated;
+      fullscreenButton.disabled = !authenticated || previewAccessMode;
     }
 
     if (pairFireTvButton) {
-      pairFireTvButton.disabled = !authenticated;
+      pairFireTvButton.disabled = !authenticated || previewAccessMode;
     }
     if (profileToggle) {
       profileToggle.disabled = !authenticated;
     }
+    if (accountCreateButton) {
+      accountCreateButton.hidden = !profileAccessEnabled || !previewAccessMode;
+    }
+    if (accountLoginButton) {
+      accountLoginButton.hidden = !profileAccessEnabled;
+      accountLoginButton.textContent = previewAccessMode ? "Login / Profiles" : "Profiles";
+    }
+    updateProfileAccessUi();
   }
 
   function setAuthUnavailable(unavailable) {
@@ -1625,7 +2151,6 @@ function createApp({
 
   function focusRemoteElement(element) {
     if (!element || element.disabled || !hasMethod(element, "focus")) return false;
-    lastRemoteFocusedElement = element;
     try {
       element.focus({ preventScroll: true });
     } catch {
@@ -1639,122 +2164,6 @@ function createApp({
       }
     }
     return true;
-  }
-
-  function remoteFocusZones() {
-    if (!documentRef || typeof documentRef.querySelectorAll !== "function") return [];
-    const selectors = [
-      ".primary-nav button, .profile-toggle, #search-input",
-      "#hero-play, #hero-details, #hero-prev, #hero-next",
-      "#home-profile-tabs button",
-      "#home-genre-tabs button",
-      "#continue-watching-shelf button",
-      "#recently-added-shelf button",
-      "#picks-shelf button",
-      "#home-library-shelf button",
-      "#profile-most-watched-shelf button, #profile-recently-watched-shelf button",
-      "#movie-grid button, #library-series-grid button",
-      ".search-page button, .navigation-page button, .movie-details-page button"
-    ];
-    return selectors.map((selector) => Array.from(documentRef.querySelectorAll(selector))
-      .filter((element) => visibleFocusableElements().includes(element))).filter((zone) => zone.length);
-  }
-
-  function remoteFocusZoneFor(element, zones) {
-    return zones.find((zone) => zone.includes(element)) || null;
-  }
-
-  function remoteMovieCardRowFor(element) {
-    if (!element || !hasMethod(element, "closest") || !documentRef) return [];
-    const row = element.closest(".movie-grid, .movie-rail, .shelf");
-    if (!row || !hasMethod(row, "querySelectorAll")) return [];
-    return Array.from(row.querySelectorAll("button.movie-card, button.series-card, button.collection-card"))
-      .filter((candidate) => visibleFocusableElements().includes(candidate));
-  }
-
-  function focusWithinRemoteZone(zone, current, direction) {
-    if (!zone || !zone.length) return false;
-    if (direction !== "left" && direction !== "right") return false;
-    const index = zone.indexOf(current);
-    if (index < 0) return false;
-    const nextIndex = direction === "right" ? index + 1 : index - 1;
-    // Do not wrap. A remote press at the edge should stay in the row.
-    return nextIndex >= 0 && nextIndex < zone.length ? focusRemoteElement(zone[nextIndex]) : true;
-  }
-
-  function focusNextRemoteZone(zones, zoneIndex, current, direction) {
-    const step = direction === "down" ? 1 : -1;
-    const nextZone = zones[zoneIndex + step];
-    if (!nextZone || !nextZone.length) return true;
-    const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
-    const currentX = currentRect ? currentRect.left + currentRect.width / 2 : 0;
-    const ranked = nextZone.map((candidate) => {
-      const rect = hasMethod(candidate, "getBoundingClientRect") ? candidate.getBoundingClientRect() : null;
-      const candidateX = rect ? rect.left + rect.width / 2 : 0;
-      return { candidate, distance: Math.abs(candidateX - currentX) };
-    }).sort((a, b) => a.distance - b.distance);
-    return focusRemoteElement(ranked[0].candidate);
-  }
-
-  function markRemoteUiReady() {
-    remoteUiReady = true;
-    while (pendingRemoteUiCommands.length) handleRemoteCommand(pendingRemoteUiCommands.shift());
-  }
-
-  function moveRemoteFocus(direction) {
-    const elements = visibleFocusableElements();
-    if (!elements.length) return false;
-    const active = documentRef && documentRef.activeElement;
-    const remembered = lastRemoteFocusedElement && lastRemoteFocusedElement.isConnected !== false
-      && elements.includes(lastRemoteFocusedElement) ? lastRemoteFocusedElement : null;
-    const startupTarget = activePage === "home" ? (heroPlay || heroDetails || elements[0]) : elements[0];
-    const headerZone = remoteFocusZones()[0] || [];
-    const launchHeaderDownTarget = activePage === "home" && direction === "down" && headerZone.includes(active)
-      ? startupTarget
-      : null;
-    const current = launchHeaderDownTarget || (elements.includes(active) ? active : (remembered || (elements.includes(startupTarget) ? startupTarget : elements[0])));
-    if (!current) return false;
-    if (current === player && (direction === "left" || direction === "right")) {
-      seekPlayerBy(direction === "left" ? -10 : 30);
-      return true;
-    }
-
-    const zones = remoteFocusZones();
-    const cardRow = remoteMovieCardRowFor(current);
-    if (cardRow.length && (direction === "left" || direction === "right")) {
-      return focusWithinRemoteZone(cardRow, current, direction);
-    }
-    const zone = remoteFocusZoneFor(current, zones);
-    const zoneIndex = zone ? zones.indexOf(zone) : -1;
-    if (zone && (direction === "left" || direction === "right")) {
-      return focusWithinRemoteZone(zone, current, direction);
-    }
-    if (zone && (direction === "up" || direction === "down")) {
-      return focusNextRemoteZone(zones, zoneIndex, current, direction);
-    }
-
-    // Detail/search/settings pages can contain controls outside the home rows.
-    // Keep their navigation spatial, but never jump to an unrelated global edge.
-    const currentRect = hasMethod(current, "getBoundingClientRect") ? current.getBoundingClientRect() : null;
-    if (!currentRect) return focusRemoteElement(elements[0]);
-    const currentX = currentRect.left + currentRect.width / 2;
-    const currentY = currentRect.top + currentRect.height / 2;
-    let best = null;
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (const candidate of elements) {
-      if (candidate === current || !hasMethod(candidate, "getBoundingClientRect")) continue;
-      const rect = candidate.getBoundingClientRect();
-      if (!rect.width || !rect.height) continue;
-      const dx = rect.left + rect.width / 2 - currentX;
-      const dy = rect.top + rect.height / 2 - currentY;
-      const primary = direction === "left" || direction === "right" ? dx : dy;
-      const secondary = direction === "left" || direction === "right" ? dy : dx;
-      if ((direction === "left" && primary >= -1) || (direction === "right" && primary <= 1) ||
-          (direction === "up" && primary >= -1) || (direction === "down" && primary <= 1)) continue;
-      const score = Math.abs(primary) * 1000 + Math.abs(secondary);
-      if (score < bestScore) { best = candidate; bestScore = score; }
-    }
-    return best ? focusRemoteElement(best) : true;
   }
 
   function updatePlayerPlayPauseButton() {
@@ -1776,57 +2185,6 @@ function createApp({
     return true;
   }
 
-  function handleNativeMenu() {
-    if (playerVisible) {
-      if (hasMethod(player, "pause")) player.pause();
-      setPlayerVisibility(false);
-    }
-    openNavigationPage();
-    return true;
-  }
-
-  function selectRemoteTarget() {
-    const active = documentRef && documentRef.activeElement;
-    if (active === player) return togglePlayerPlayback();
-    if (active && hasMethod(active, "click")) {
-      active.click();
-      return true;
-    }
-    const first = visibleFocusableElements()[0];
-    return focusRemoteElement(first);
-  }
-
-  function handleRemoteCommand(command) {
-    const normalizedCommand = String(command || "");
-    if (!remoteUiReady && ["ArrowUp", "ArrowLeft", "ArrowRight", "ArrowDown", "Enter", "Select", " ", "Spacebar"].includes(normalizedCommand)) {
-      if (pendingRemoteUiCommands.length < 12) pendingRemoteUiCommands.push(normalizedCommand);
-      return true;
-    }
-    switch (normalizedCommand) {
-      case "ArrowUp": return moveRemoteFocus("up");
-      case "ArrowLeft": return moveRemoteFocus("left");
-      case "ArrowRight": return moveRemoteFocus("right");
-      case "ArrowDown": return moveRemoteFocus("down");
-      case "Enter":
-      case "Select":
-      case " ":
-      case "Spacebar": return selectRemoteTarget();
-      case "Back":
-      case "Escape":
-      case "Backspace": return handleNativeBack();
-      case "Menu": return handleNativeMenu();
-      case "MediaPlayPause": return togglePlayerPlayback();
-      case "MediaPlay":
-        if (player && playerVisible && player.paused) return togglePlayerPlayback();
-        return playerVisible;
-      case "MediaPause":
-        if (player && playerVisible && !player.paused) return togglePlayerPlayback();
-        return playerVisible;
-      case "Rewind": return playerVisible && seekPlayerBy(-10);
-      case "FastForward": return playerVisible && seekPlayerBy(30);
-      default: return false;
-    }
-  }
 
   function openSettings() {
     if (!settingsDialog) return false;
@@ -1854,6 +2212,23 @@ function createApp({
     detailsPreviewVideo.removeAttribute("src");
     detailsPreviewVideo.load();
     detailsPreviewVideo.hidden = true;
+  }
+
+  function renderSelectedMovieInfo(movie) {
+    if (!movie) return;
+    const description = movie.description || `Watch ${movie.title || movie.fileName || "this movie"} in your private Movie Room.`;
+    const genres = Array.isArray(movie.genres) && movie.genres.length
+      ? movie.genres.slice(0, 8).join(" • ")
+      : "Genres pending";
+    const cast = Array.isArray(movie.cast) && movie.cast.length
+      ? movie.cast.slice(0, 8).join(" • ")
+      : "Cast pending from Jellyfin";
+    const source = [metadataSourceLabel(movie), movieFolderLabel(movie)].filter(Boolean).join(" • ");
+    if (detailsInfoDescription) detailsInfoDescription.textContent = description;
+    if (detailsInfoGenres) detailsInfoGenres.textContent = genres;
+    if (detailsInfoCast) detailsInfoCast.textContent = cast;
+    if (detailsInfoSource) detailsInfoSource.textContent = source || "Metadata pending";
+    if (detailsInfoAvailability) detailsInfoAvailability.textContent = movieAvailabilityLabel(movie);
   }
 
   async function setDetailsHero(movie) {
@@ -1927,12 +2302,12 @@ function createApp({
     return true;
   }
 
-  function openSavedView() {
+  function openSavedView(filter = "favorites") {
     activeLibraryView = "movies";
     activeFolder = "all";
     activeCategory = "all";
     searchTerm = "";
-    searchOverlayGenre = "favorites";
+    searchOverlayGenre = filter === "watch-later" ? "watch-later" : "favorites";
     if (searchInput) searchInput.value = "";
     setSearchOverlayVisible(true);
     renderSearchOverlay();
@@ -1942,13 +2317,14 @@ function createApp({
   function openNavigationPage() {
     closeSettings();
     setActivePage("menu");
-    setMenuTab("browse");
+    setMenuTab("recent");
+    renderRecentlyWatchedMenu();
     return true;
   }
 
   function setMenuTab(tabId, focusFirst = true) {
-    const allowedTabs = ["browse", "profiles", "settings"];
-    const activeTab = allowedTabs.includes(String(tabId || "")) ? String(tabId) : "browse";
+    const allowedTabs = ["recent", "profiles", "settings"];
+    const activeTab = allowedTabs.includes(String(tabId || "")) ? String(tabId) : "recent";
     for (const button of menuTabButtons) {
       const selected = button && button.dataset && button.dataset.menuTab === activeTab;
       if (button && typeof button.setAttribute === "function") {
@@ -1971,13 +2347,45 @@ function createApp({
     return true;
   }
 
-  function selectBrowseDestination(destination) {
+  function scrollHomeDestination(target) {
+    const key = String(target || "").toLowerCase();
+    const shelves = {
+      continue: continueWatchingShelf,
+      recent: recentlyAddedShelf,
+      history: profileRecentlyWatchedShelf,
+      "tv-guide": documentRef && typeof documentRef.querySelector === "function"
+        ? documentRef.querySelector(".tv-guide")
+        : null,
+    };
+    const shelf = shelves[key];
+    if (!shelf) return false;
+    const section = shelf.closest && (shelf.closest(".shelf-section") || shelf.closest(".tv-guide"));
+    const destination = section || shelf;
+    if (hasMethod(destination, "scrollIntoView")) {
+      destination.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    const firstTarget = shelf.querySelector
+      ? shelf.querySelector("button:not([disabled]), [tabindex]")
+      : null;
+    if (firstTarget && hasMethod(firstTarget, "focus")) {
+      firstTarget.focus({ preventScroll: true });
+    }
+    return true;
+  }
+
+  function selectBrowseDestination(destination, options = {}) {
     const target = String(destination || "").toLowerCase();
+    const homeTarget = String(options.homeTarget || "").toLowerCase();
+    const savedFilter = String(options.savedFilter || "").toLowerCase();
     if (target === "profile") {
-      return openProfilePage(activeProfile);
+      const opened = openProfilePage(activeProfile);
+      if (homeTarget === "history") {
+        setTimeoutImpl(() => scrollHomeDestination("history"), 0);
+      }
+      return opened;
     }
     if (target === "saved") {
-      return openSavedView();
+      return openSavedView(savedFilter);
     }
     if (target === "search") {
       searchOverlayGenre = "all";
@@ -1986,6 +2394,16 @@ function createApp({
     }
     if (target === "settings") {
       return openSettings();
+    }
+    if (target === "catalog") {
+      setActivePage("catalog");
+      renderMovieCatalog();
+      closeSettings();
+      const firstCatalogMovie = movieCatalogGrid && movieCatalogGrid.querySelector
+        ? movieCatalogGrid.querySelector("button:not([disabled])")
+        : null;
+      focusRemoteElement(firstCatalogMovie);
+      return true;
     }
     if (target === "menu") {
       return openNavigationPage();
@@ -1997,6 +2415,9 @@ function createApp({
       setActivePage("home");
       closeSettings();
       focusInitialHero();
+      if (homeTarget) {
+        setTimeoutImpl(() => scrollHomeDestination(homeTarget), 0);
+      }
       return true;
     }
     if (["library", "collections", "genres"].includes(target)) {
@@ -2010,6 +2431,9 @@ function createApp({
       closeSettings();
       if (movieGrid && hasMethod(movieGrid, "scrollIntoView")) movieGrid.scrollIntoView({ behavior: "auto", block: "start" });
       focusLibraryPrimaryTarget();
+      if (homeTarget === "tv-guide") {
+        setTimeoutImpl(() => scrollHomeDestination("tv-guide"), 0);
+      }
       return true;
     }
     return false;
@@ -2079,41 +2503,6 @@ function createApp({
     return true;
   }
 
-  function handleNativeBack() {
-    if (activePage === "search" || (searchOverlay && !searchOverlay.hidden)) {
-      setSearchOverlayVisible(false);
-      focusInitialHero();
-      return true;
-    }
-    if (activePage === "menu" || (navigationPage && !navigationPage.hidden)) {
-      setActivePage("home");
-      focusInitialHero();
-      return true;
-    }
-    if (activePage === "settings" || (settingsDialog && !settingsDialog.hidden)) {
-      closeSettings();
-      return true;
-    }
-    if (activePage === "details" || (movieDetailsDialog && !movieDetailsDialog.hidden)) {
-      closeMovieDetails();
-      return true;
-    }
-    if (playerVisible) {
-      if (hasMethod(player, "pause")) player.pause();
-      setPlayerVisibility(false);
-      setActivePage(activePage === "user" ? "home" : activePage);
-      focusInitialHero();
-      return true;
-    }
-    if (activePage !== "home") {
-      setActivePage("home");
-      focusInitialHero();
-      return true;
-    }
-    focusInitialHero();
-    return false;
-  }
-
   function handleNativePlayerClosed() {
     const movie = nativePlayerMovie;
     nativePlayerMovie = null;
@@ -2137,19 +2526,34 @@ function createApp({
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
-  function appendPosterImage(poster, movie, alt = posterAltText(movie)) {
+  function appendPosterImage(poster, movie, alt = posterAltText(movie), options = {}) {
     const documentRef = poster && poster.ownerDocument;
     if (!documentRef || !hasMethod(documentRef, "createElement")) return;
     const image = documentRef.createElement("img");
     const fallbackUrl = generatedPosterUrl(movie);
+    const primaryUrl = options.preferBackdrop
+      ? (movie.backdropUrl || movie.posterUrl || "")
+      : (movie.posterUrl || "");
+    const artworkFallbackUrl = options.preferBackdrop
+      ? (movie.posterUrl || movie.posterFallbackUrl || fallbackUrl)
+      : (movie.posterFallbackUrl || fallbackUrl);
     image.alt = alt;
     image.loading = "lazy";
     image.decoding = "async";
     image.src = fallbackUrl;
-    if (movie.posterUrl) {
-      attachArtworkImage(image, movie.posterUrl, () => { image.src = fallbackUrl; }, movie.posterFallbackUrl);
+    if (primaryUrl) {
+      attachArtworkImage(image, primaryUrl, () => { image.src = artworkFallbackUrl; }, artworkFallbackUrl);
     }
     poster.prepend(image);
+  }
+
+  function setImageWithFallback(image, primaryUrl, fallbackUrl) {
+    if (!image) return;
+    image.onerror = () => {
+      image.onerror = null;
+      image.src = fallbackUrl;
+    };
+    image.src = primaryUrl || fallbackUrl;
   }
 
   function attachArtworkImage(image, url, onFailure, fallbackUrl = "") {
@@ -2312,6 +2716,19 @@ function createApp({
       searchOverlayPreviousFocus = documentRef && documentRef.activeElement;
       setActivePage("search");
       renderSearchOverlay();
+      if (authenticated && !allMovies.length && !searchLoadInFlight) {
+        if (searchOverlaySummary) searchOverlaySummary.textContent = "Loading your movie index…";
+        searchLoadInFlight = loadLibrary(movieSelect && movieSelect.value ? movieSelect.value : "", { quiet: true })
+          .then(() => {
+            if (activePage === "search") renderSearchOverlay();
+          })
+          .catch((error) => {
+            if (searchOverlaySummary) searchOverlaySummary.textContent = error.message || "Unable to load your movie index.";
+          })
+          .finally(() => {
+            searchLoadInFlight = null;
+          });
+      }
       if (searchInput && hasMethod(searchInput, "focus")) searchInput.focus();
     } else if (searchOverlayPreviousFocus && hasMethod(searchOverlayPreviousFocus, "focus")) {
       if (activePage === "search") setActivePage("home");
@@ -2466,6 +2883,16 @@ function createApp({
       countLabel.textContent = String(count);
       button.append(icon, text, countLabel);
       button.addEventListener("click", () => {
+        const folderMovies = allMovies
+          .filter((movie) => movie && folderPath !== "all"
+            && (folderPath === "" ? !movie.folder : movie.folder === folderPath || String(movie.folder || "").startsWith(`${folderPath}/`)))
+          .filter((movie) => !isSampleMovie(movie))
+          .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")));
+        const firstPlayableMovie = folderMovies.find(isMoviePlayable);
+        if (firstPlayableMovie) {
+          openMovieDetails(firstPlayableMovie);
+          return;
+        }
         activeLibraryView = "movies";
         activeFolder = folderPath;
         renderLibrary();
@@ -3036,11 +3463,12 @@ function createApp({
     void setDetailsHero(movie);
     if (detailsPoster) {
       const detailsFallback = generatedPosterUrl(movie);
-      detailsPoster.onerror = () => {
-        detailsPoster.onerror = null;
-        detailsPoster.src = detailsFallback;
-      };
-      detailsPoster.src = movie.posterUrl || detailsFallback;
+      const detailsPrimary = remoteArtworkUrl(movie);
+      const detailsFallbackSource = movie.posterUrl || movie.posterFallbackUrl || detailsFallback;
+      setImageWithFallback(detailsPoster, detailsFallback, detailsFallback);
+      attachArtworkImage(detailsPoster, detailsPrimary, () => {
+        setImageWithFallback(detailsPoster, detailsFallbackSource, detailsFallback);
+      }, detailsFallbackSource);
       detailsPoster.alt = posterAltText(movie);
     }
     if (detailsTitle) {
@@ -3050,8 +3478,9 @@ function createApp({
       detailsMeta.textContent = [movie.year, movie.rating, movie.runtime].filter(Boolean).join(" • ") || movieFolderLabel(movie);
     }
     if (detailsDescription) {
-      detailsDescription.textContent = movie.description || `Watch ${movie.title || movie.fileName || "this movie"} in your private Movie Room.`;
+      detailsDescription.textContent = "";
     }
+    renderSelectedMovieInfo(movie);
     renderDetailsBrowse(movie);
     if (detailsStatus) {
       detailsStatus.textContent = "";
@@ -3066,6 +3495,78 @@ function createApp({
     if (autoPlayOnTv && nativeTvBridge()) {
       void openNativeTvMovie(movie).catch((error) => updateStatus(error.message));
     }
+    return true;
+  }
+
+  function openMovieInfoPopup(movie) {
+    if (!movie || !documentRef) return false;
+    let popup = documentRef.getElementById("movie-info-popup");
+    if (!popup) {
+      popup = documentRef.createElement("dialog");
+      popup.id = "movie-info-popup";
+      popup.className = "movie-info-popup";
+      documentRef.body.append(popup);
+    }
+    const record = viewerRecord(movie.id);
+    popup.replaceChildren();
+    const art = documentRef.createElement("div");
+    art.className = "movie-info-popup-art";
+    appendPosterImage(art, movie, posterAltText(movie), { preferBackdrop: true });
+    const copy = documentRef.createElement("div");
+    copy.className = "movie-info-popup-copy";
+    const eyebrow = documentRef.createElement("p");
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = [movie.year, movie.rating, movie.runtime].filter(Boolean).join(" • ") || "Movie Room";
+    const title = documentRef.createElement("h2");
+    title.textContent = movie.title || movie.fileName || "Movie";
+    const description = documentRef.createElement("p");
+    description.className = "detail";
+    description.textContent = movie.description || "Open the full details page for description, cast, genres, and source information.";
+    const actions = documentRef.createElement("div");
+    actions.className = "movie-info-popup-actions";
+    const play = documentRef.createElement("button");
+    play.type = "button";
+    play.textContent = "▶ Play fullscreen";
+    play.addEventListener("click", () => {
+      if (hasMethod(popup, "close")) popup.close();
+      moveToMovie(movie);
+    });
+    const readMore = documentRef.createElement("button");
+    readMore.type = "button";
+    readMore.className = "secondary";
+    readMore.textContent = "Read more";
+    readMore.addEventListener("click", () => {
+      if (hasMethod(popup, "close")) popup.close();
+      openMovieDetails(movie, { autoPlayOnTv: false });
+    });
+    const favorite = documentRef.createElement("button");
+    favorite.type = "button";
+    favorite.className = "secondary";
+    favorite.textContent = record && record.favorite ? "★ Remove favorite" : "☆ Add to favorites";
+    favorite.addEventListener("click", async () => {
+      if (!viewerStateClient) return;
+      const current = viewerRecord(movie.id);
+      const nextValue = !(current && current.favorite);
+      viewerState = await viewerStateClient.apply(activeProfile, [{ type: "setFlag", movieId: movie.id, flag: "favorite", value: nextValue }]);
+      favorite.textContent = nextValue ? "★ Remove favorite" : "☆ Add to favorites";
+      renderDiscovery();
+    });
+    const download = documentRef.createElement("button");
+    download.type = "button";
+    download.className = "secondary";
+    download.textContent = "Download";
+    download.addEventListener("click", () => downloadMovieOffline(movie).catch(() => {}));
+    const close = documentRef.createElement("button");
+    close.type = "button";
+    close.className = "secondary";
+    close.textContent = "Close";
+    close.addEventListener("click", () => hasMethod(popup, "close") ? popup.close() : popup.setAttribute("hidden", ""));
+    actions.append(play, readMore, favorite, download, close);
+    copy.append(eyebrow, title, description, actions);
+    popup.append(art, copy);
+    if (hasMethod(popup, "showModal")) popup.showModal();
+    else popup.removeAttribute("hidden");
+    setTimeoutImpl(() => play.focus({ preventScroll: true }), 40);
     return true;
   }
 
@@ -3091,6 +3592,9 @@ function createApp({
     const ready = isMoviePlayable(movie);
     card.type = "button";
     card.className = ready ? "movie-card" : "movie-card unavailable";
+    if (shelfType === "recently-watched") {
+      card.setAttribute("data-video-aware", "true");
+    }
     card.disabled = !ready;
     card.dataset.movieId = movie.id;
     bindFeaturedSelection(card, movie);
@@ -3104,7 +3608,13 @@ function createApp({
     fallbackTitle.textContent = movie.title || movie.fileName || "Movie";
     fallback.append(initials, fallbackTitle);
     poster.append(fallback);
-    appendPosterImage(poster, movie);
+    appendPosterImage(poster, movie, posterAltText(movie), { preferBackdrop: true });
+    if (shelfType === "recently-watched") {
+      const videoBadge = documentRef.createElement("span");
+      videoBadge.className = "video-aware-badge";
+      videoBadge.textContent = "Video preview";
+      poster.append(videoBadge);
+    }
     installHoverPreview(card, poster, movie, ready);
     const info = documentRef.createElement("span");
     info.className = "movie-info";
@@ -3128,15 +3638,69 @@ function createApp({
     }
     card.append(poster, info);
     card.addEventListener("click", () => {
-      openMovieDetails(movie);
+      if (nativeTvBridge()) openMovieInfoPopup(movie);
+      else moveToMovie(movie, { openDetails: true });
     });
     return card;
   }
 
-  function renderShelf(shelf, movies, emptyText) {
-    if (!shelf || typeof shelf.replaceChildren !== "function") {
-      return;
+  function bindRailScrollButtons() {
+    if (!documentRef || !hasMethod(documentRef, "querySelectorAll")) return;
+    const buttons = Array.from(documentRef.querySelectorAll("[data-rail-target][data-rail-direction]"));
+    for (const button of buttons) {
+      const operateRail = () => {
+        const targetId = button.dataset && button.dataset.railTarget;
+        const direction = Number(button.dataset && button.dataset.railDirection) || 1;
+        const rail = targetId && documentRef.getElementById ? documentRef.getElementById(targetId) : null;
+        if (!rail) return;
+        if (shelfWindows.has(rail)) {
+          pageShelf(rail, direction);
+          return;
+        }
+        if (!hasMethod(rail, "scrollBy")) return;
+        const amount = direction * Math.max(rail.clientWidth * 0.82, 320);
+        rail.scrollBy({ left: amount, behavior: "smooth" });
+      };
+      button.addEventListener("click", operateRail);
     }
+  }
+
+  function createViewMoreCard(shelfType, totalCount, collageMovies = []) {
+    const button = documentRef.createElement("button");
+    button.type = "button";
+    button.className = "movie-card view-more-card";
+    button.setAttribute("aria-label", `View more ${shelfType === "continue" ? "continue watching" : "movies"}`);
+    const poster = documentRef.createElement("span");
+    poster.className = "poster view-more-poster";
+    const collage = documentRef.createElement("span");
+    collage.className = "view-more-collage";
+    for (const movie of collageMovies.slice(0, 4)) {
+      const tile = documentRef.createElement("span");
+      tile.className = "view-more-collage-tile";
+      appendPosterImage(tile, movie, posterAltText(movie), { preferBackdrop: true });
+      collage.append(tile);
+    }
+    const plus = documentRef.createElement("span");
+    plus.className = "view-more-plus";
+    plus.textContent = "+";
+    const label = documentRef.createElement("span");
+    label.className = "view-more-label";
+    label.textContent = "View more";
+    const count = documentRef.createElement("span");
+    count.className = "view-more-count";
+    count.textContent = `${Math.max(0, totalCount - 10)} more`;
+    poster.append(collage, plus, label, count);
+    button.append(poster);
+    button.addEventListener("click", () => {
+      selectBrowseDestination(shelfType === "continue" ? "profile" : "library", { resetScroll: true });
+    });
+    return button;
+  }
+
+  function renderShelfWindow(shelf) {
+    const state = shelfWindows.get(shelf);
+    if (!state) return;
+    const { movies, shelfType, emptyText } = state;
     if (!movies.length) {
       const empty = shelf.ownerDocument.createElement("p");
       empty.className = "empty-state";
@@ -3144,13 +3708,61 @@ function createApp({
       shelf.replaceChildren(empty);
       return;
     }
-    const shelfType = shelf === continueWatchingShelf ? "continue" : "recent";
-    shelf.replaceChildren(...movies.map((movie) => createShelfCard(movie, shelf, shelfType)));
+    const maxStart = Math.max(0, movies.length - 10);
+    state.start = Math.max(0, Math.min(state.start || 0, maxStart));
+    const cards = movies.slice(state.start, state.start + 10).map((movie) => createShelfCard(movie, shelf, shelfType));
+    if (movies.length > 10) cards.push(createViewMoreCard(shelfType, movies.length, movies.slice(state.start + 10, state.start + 14)));
+    shelf.replaceChildren(...cards);
+    if (shelf.dataset) {
+      shelf.dataset.rowStart = String(state.start + 1);
+      shelf.dataset.rowTotal = String(movies.length);
+    }
   }
 
-  function renderProfilePage() {
+  function pageShelf(shelf, direction) {
+    const state = shelfWindows.get(shelf);
+    if (!state || !state.movies.length) return;
+    const maxStart = Math.max(0, state.movies.length - 10);
+    const current = Math.max(0, Math.min(state.start || 0, maxStart));
+    state.start = direction > 0
+      ? (current >= maxStart ? 0 : Math.min(current + 10, maxStart))
+      : (current <= 0 ? maxStart : Math.max(current - 10, 0));
+    renderShelfWindow(shelf);
+    const firstCard = shelf.querySelector && shelf.querySelector(".movie-card");
+    if (firstCard && hasMethod(firstCard, "focus")) {
+      setTimeoutImpl(() => firstCard.focus({ preventScroll: true }), 80);
+    }
+  }
+
+  function renderShelf(shelf, movies, emptyText) {
+    if (!shelf || typeof shelf.replaceChildren !== "function") {
+      return;
+    }
+    const shelfType = shelf === continueWatchingShelf
+      ? "continue"
+      : shelf === menuRecentlyWatchedShelf
+        ? "recently-watched"
+        : "recent";
+    const previous = shelfWindows.get(shelf);
+    const previousStart = previous && previous.movies === movies ? previous.start : 0;
+    shelfWindows.set(shelf, { movies, shelfType, emptyText, start: previousStart || 0 });
+    renderShelfWindow(shelf);
+  }
+
+  function renderMovieCatalog() {
+    if (!movieCatalogGrid) return;
+    const catalogMovies = allMovies
+      .filter((movie) => !isSampleMovie(movie))
+      .sort((left, right) => String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || "")));
+    if (movieCatalogSummary) {
+      movieCatalogSummary.textContent = `${catalogMovies.length} movie title${catalogMovies.length === 1 ? "" : "s"} in the private catalog.`;
+    }
+    renderShelf(movieCatalogGrid, catalogMovies, "No movie titles are available yet.");
+  }
+
+  function watchedMoviesForActiveProfile() {
     const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
-    const watched = allMovies
+    return allMovies
       .filter(isMoviePlayable)
       .filter(profile.pick)
       .filter((movie) => {
@@ -3161,6 +3773,35 @@ function createApp({
           || Number(record.lastWatchedAt) > 0
         );
       });
+  }
+
+  function recentlyWatchedMoviesForActiveProfile() {
+    return watchedMoviesForActiveProfile()
+      .sort((left, right) => {
+        const rightRecord = viewerRecord(right.id) || {};
+        const leftRecord = viewerRecord(left.id) || {};
+        return (Number(rightRecord.lastWatchedAt) || 0) - (Number(leftRecord.lastWatchedAt) || 0)
+          || String(left.title || left.fileName || "").localeCompare(String(right.title || right.fileName || ""));
+      })
+      .slice(0, 12);
+  }
+
+  function renderRecentlyWatchedMenu() {
+    if (!menuRecentlyWatchedShelf) return;
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const recentlyWatched = recentlyWatchedMoviesForActiveProfile();
+    if (menuRecentlyWatchedProfile) menuRecentlyWatchedProfile.textContent = profile.label;
+    if (menuRecentlyWatchedSummary) {
+      menuRecentlyWatchedSummary.textContent = recentlyWatched.length
+        ? `${recentlyWatched.length} recent title${recentlyWatched.length === 1 ? "" : "s"} for ${profile.label}.`
+        : `Start a title to build ${profile.label}'s watch history.`;
+    }
+    renderShelf(menuRecentlyWatchedShelf, recentlyWatched, `No watched titles yet for ${profile.label}.`);
+  }
+
+  function renderProfilePage() {
+    const profile = viewerProfiles[activeProfile] || viewerProfiles.home;
+    const watched = watchedMoviesForActiveProfile();
     const recordFor = (movie) => viewerRecord(movie.id) || {};
     const mostWatched = [...watched]
       .sort((left, right) => (
@@ -3185,6 +3826,7 @@ function createApp({
     }
     renderShelf(profileMostWatchedShelf, mostWatched, "No watched titles yet.");
     renderShelf(profileRecentlyWatchedShelf, recentlyWatched, "Start a title and it will appear here.");
+    renderRecentlyWatchedMenu();
     setActivePage("profile");
   }
 
@@ -3199,6 +3841,38 @@ function createApp({
     }
     if (heroMovie && heroMovie.classList) heroMovie.classList.remove("hero-video-active");
     if (libraryPanel && libraryPanel.classList) libraryPanel.classList.remove("hero-focus-mode");
+  }
+
+  function stopHeroRotation() {
+    if (heroRotationTimer !== null) {
+      clearTimeoutImpl(heroRotationTimer);
+      heroRotationTimer = null;
+    }
+  }
+
+  function updateHeroIndicator() {
+    if (heroIndicator) heroIndicator.textContent = `${heroIndex + 1} / ${Math.max(1, heroMovies.length)}`;
+  }
+
+  function startHeroRotation() {
+    stopHeroRotation();
+    if (activePage !== "home" || heroMovies.length <= 1) return;
+    heroRotationTimer = setTimeoutImpl(() => {
+      heroRotationTimer = null;
+      if (activePage !== "home") return;
+      showHeroMovieAtIndex(heroIndex + 1);
+    }, heroRotationIntervalMs);
+  }
+
+  function showHeroMovieAtIndex(index, { restartRotation = true } = {}) {
+    if (!heroMovies.length) return false;
+    heroIndex = ((index % heroMovies.length) + heroMovies.length) % heroMovies.length;
+    const featured = heroMovies[heroIndex];
+    if (!featured) return false;
+    setFeaturedMovie(featured);
+    updateHeroIndicator();
+    if (restartRotation) startHeroRotation();
+    return true;
   }
 
   function stopSiteBackgroundVideo() {
@@ -3325,7 +3999,10 @@ function createApp({
       const profile = viewerProfiles[profileId] || viewerProfiles.home;
       const movie = allMovies.find((candidate) => !isSampleMovie(candidate) && profile.pick(candidate))
         || allMovies.find((candidate) => !isSampleMovie(candidate));
-      return createImageTab(label, movie, `profile-image-tab profile-${profileId}`, () => openProfilePage(profileId), tabArtworkFallbacks[profileId]);
+      return createImageTab(label, movie, `profile-image-tab profile-${profileId}`, () => {
+        if (profileAccessEnabled) selectServerProfile(profileId);
+        else openProfilePage(profileId);
+      }, tabArtworkFallbacks[profileId]);
     }).filter(Boolean);
     if (homeProfileTabs && typeof homeProfileTabs.replaceChildren === "function") {
       homeProfileTabs.replaceChildren(...profileButtons);
@@ -3401,14 +4078,9 @@ function createApp({
   }
 
   async function startHeroPreview(movie) {
-    const heroRect = heroMovie && hasMethod(heroMovie, "getBoundingClientRect") ? heroMovie.getBoundingClientRect() : null;
-    const viewportHeight = Number(windowRef && windowRef.innerHeight)
-      || Number(documentRef && documentRef.documentElement && documentRef.documentElement.clientHeight)
-      || 0;
-    const heroVisible = heroRect && viewportHeight
-      ? heroRect.bottom > 0 && heroRect.top < viewportHeight
-      : Boolean(heroMovie && !heroMovie.hidden);
-    const previewVideo = heroVisible ? heroPreviewVideo : (libraryBackgroundPreview || heroPreviewVideo);
+    const previewVideo = activePage === "home" && heroPreviewVideo
+      ? heroPreviewVideo
+      : (libraryBackgroundPreview || heroPreviewVideo);
     if (!previewVideo || !movie || !isMoviePlayable(movie)) return;
     if ((windowRef && hasMethod(windowRef, "matchMedia") && windowRef.matchMedia("(prefers-reduced-motion: reduce)").matches)
       || (navigatorRef && navigatorRef.connection && navigatorRef.connection.saveData)) return;
@@ -3465,15 +4137,18 @@ function createApp({
     // Jellyfin's DateCreated is carried through as dateAdded by the provider;
     // premiere/year are only fallbacks when a library item has no created date.
     heroMovies = recentMovies.slice(0, 5);
-    if (heroMovies.length && !heroSelectionInitialized) {
-      heroIndex = Math.floor(Math.random() * heroMovies.length);
-      heroSelectionInitialized = true;
-    }
-    heroIndex = Math.min(heroIndex, Math.max(0, heroMovies.length - 1));
+    const nextTopFiveSignature = heroMovies.map((movie) => movie.id || movie.fileName || movie.title || "").join("|");
+    heroIndex = nextTopFiveSignature === heroTopFiveSignature
+      ? Math.min(heroIndex, Math.max(0, heroMovies.length - 1))
+      : 0;
+    heroTopFiveSignature = nextTopFiveSignature;
     const featured = heroMovies[heroIndex] || browseable[0] || playable[0];
     if (featured) {
       setFeaturedMovie(featured);
-      if (heroIndicator) heroIndicator.textContent = `${heroIndex + 1} / ${Math.max(1, heroMovies.length)}`;
+      updateHeroIndicator();
+      startHeroRotation();
+    } else {
+      stopHeroRotation();
     }
     if (upNextPanel) {
       const next = (viewerState.queue || []).map((id) => playable.find((movie) => movie.id === id)).find(Boolean);
@@ -3481,6 +4156,10 @@ function createApp({
       if (next && upNextTitle) upNextTitle.textContent = next.title || next.fileName || "Next movie";
       if (next && upNextPlay) upNextPlay.onclick = () => moveToMovie(next);
     }
+  }
+
+  function selectHeroMovie(direction) {
+    return showHeroMovieAtIndex(heroIndex + direction);
   }
 
   function focusInitialHero() {
@@ -3526,6 +4205,7 @@ function createApp({
     renderFolderShelf();
     renderMovieGrid();
     renderDiscovery();
+    renderRecentlyWatchedMenu();
     setActivePage(activePage);
   }
 
@@ -3550,12 +4230,18 @@ function createApp({
   }
 
   async function savePlaybackProgress(reason = "checkpoint") {
-    if (!viewerStateClient || !authenticated || !movieSelect.value || !Number.isFinite(player.currentTime)) return null;
-    const movieId = movieSelect.value;
-    const durationSeconds = Number.isFinite(player.duration) ? Math.max(0, player.duration) : 0;
+    const savedCast = readActiveCastSession();
+    const movieId = savedCast && savedCast.movieId ? savedCast.movieId : movieSelect.value;
+    const positionSeconds = savedCast && savedCast.movieId
+      ? Math.max(0, Number(savedCast.positionSeconds) || 0)
+      : Number.isFinite(player.currentTime) ? player.currentTime : 0;
+    if (!viewerStateClient || !authenticated || !movieId || !Number.isFinite(positionSeconds)) return null;
+    const durationSeconds = savedCast && Number.isFinite(savedCast.durationSeconds) && savedCast.durationSeconds > 0
+      ? Math.max(0, savedCast.durationSeconds)
+      : Number.isFinite(player.duration) ? Math.max(0, player.duration) : 0;
     if (durationSeconds <= 0) return null;
-    const completed = reason === "ended" || player.ended || player.currentTime >= durationSeconds * 0.9;
-    const operations = [{ type: "progress", movieId, positionSeconds: player.currentTime, durationSeconds, playbackStatus: completed ? "completed" : player.paused ? "paused" : "playing" }];
+    const completed = reason === "ended" || (!savedCast && player.ended) || positionSeconds >= durationSeconds * 0.9;
+    const operations = [{ type: "progress", movieId, positionSeconds, durationSeconds, playbackStatus: completed ? "completed" : savedCast ? "casting" : player.paused ? "paused" : "playing" }];
     if (completed) operations.push({ type: "setCompleted", movieId, value: true });
     if (progressWriteInFlight) await progressWriteInFlight;
     progressWriteInFlight = viewerStateClient.apply(activeProfile, operations)
@@ -3612,7 +4298,14 @@ function createApp({
     return response;
   }
 
-  async function requestPlaybackLink(movieId, fallbackMessage = "Unable to start playback.") {
+  function movieById(movieId) {
+    return allMovies.find((movie) => movie && movie.id === movieId) || null;
+  }
+
+  async function requestPlaybackLink(movieId, fallbackMessage = "Unable to start playback.", options = {}) {
+    const movie = movieById(movieId);
+    const previewPlayback = options.preview === true || previewAccessMode || Boolean(movie && movie.previewOnly);
+    const playbackRequest = previewPlayback ? { movieId, preview: true } : { movieId };
     const response = await handleApiResponse(
       await fetchImpl("/api/playback", {
         method: "POST",
@@ -3620,7 +4313,7 @@ function createApp({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ movieId }),
+        body: JSON.stringify(playbackRequest),
       }),
       fallbackMessage,
     );
@@ -3690,8 +4383,11 @@ function createApp({
     let library;
     let usingCachedLibrary = false;
     try {
+      const libraryUrl = previewAccessMode
+        ? "/api/preview"
+        : forceRefresh ? "/api/library?refresh=1" : "/api/library";
       const response = await handleApiResponse(
-        await fetchImpl(forceRefresh ? "/api/library?refresh=1" : "/api/library", { credentials: "same-origin" }),
+        await fetchImpl(libraryUrl, { credentials: "same-origin" }),
         "Unable to load movie library.",
       );
       library = normalizeLibraryPayload(await response.json());
@@ -3721,7 +4417,6 @@ function createApp({
       player.load();
       updateNowPlaying(null);
       if (!quiet) updateStatus("No movie files found yet. When the files finish showing up in the Downloads folder, they will appear here.");
-      markRemoteUiReady();
       return [];
     }
 
@@ -3745,7 +4440,6 @@ function createApp({
       player.load();
       updateNowPlaying(null);
       if (!quiet) updateStatus("Movie files are listed, but they are still uploading to OneDrive.");
-      markRemoteUiReady();
       return [];
     }
 
@@ -3776,8 +4470,8 @@ function createApp({
       }
     }
     renderLibrary();
+    restoreCastSessionAfterLibraryLoad();
     if (!playerVisible && !quiet && activePage === "home") focusInitialHero();
-    markRemoteUiReady();
     return playableMovies;
   }
 
@@ -3833,6 +4527,7 @@ function createApp({
       ? playback.url
       : new URL(playback.url, locationOrigin).toString();
     player.load();
+    armPublicPreviewLimit(playback);
     rememberMovieForProfile(movieId);
     updateNowPlaying(selectedMovie(), playback);
     updateMediaSession(selectedMovie());
@@ -3922,6 +4617,19 @@ function createApp({
 
   async function loadSession() {
     const requestVersion = authTransitionVersion;
+    const accessState = await loadAccessState();
+    if (accessState) {
+      if (requestVersion !== authTransitionVersion) return authenticated;
+      const unlocked = accessState.state === "home_unlocked" || accessState.state === "profile_unlocked";
+      previewAccessMode = !unlocked;
+      setAuthenticated(true);
+      if (!unlocked) {
+        updateStatus(accessState.state === "profile_locked"
+          ? "Profile is locked. Public previews stay available until the PIN is entered."
+          : "Preview mode: create an account to unlock full playback.");
+      }
+      return true;
+    }
     const response = await fetchImpl("/api/session", { credentials: "same-origin" });
     if (requestVersion !== authTransitionVersion) {
       return authenticated;
@@ -3950,6 +4658,7 @@ function createApp({
       return authenticated;
     }
     publicAccess = Boolean(session.publicAccess);
+    previewAccessMode = false;
     if (publicAccess) {
       setAuthenticated(true);
       return true;
@@ -4141,16 +4850,12 @@ function createApp({
       documentRef.body.dataset.tvDevice = "true";
     }
     if (windowRef) {
-      windowRef.MovieRoomBack = handleNativeBack;
-      windowRef.MovieRoomHandleRemoteKey = handleRemoteCommand;
       windowRef.MovieRoomFocusInitialHero = () => {
         const active = documentRef && documentRef.activeElement;
         const isHeaderFocus = active && active.closest && active.closest(".primary-nav, .profile-toggle, .search-wrap");
         if (!active || active === documentRef.body || isHeaderFocus) return focusInitialHero();
         return false;
       };
-      windowRef.MovieRoomMenu = () => handleRemoteCommand("Menu");
-      windowRef.MovieRoomTogglePlayback = () => handleRemoteCommand("MediaPlayPause");
       windowRef.MovieRoomNativePlayerClosed = handleNativePlayerClosed;
     }
     if (navigatorRef && navigatorRef.serviceWorker && typeof navigatorRef.serviceWorker.register === "function") {
@@ -4197,15 +4902,23 @@ function createApp({
         });
       }
       for (const button of documentRef.querySelectorAll("[data-browse-destination]")) {
-        button.addEventListener("click", () => {
-          const destination = button.dataset ? button.dataset.browseDestination : "home";
-          selectBrowseDestination(destination);
+        button.addEventListener("click", (event) => {
+          if (button.tagName === "A" && event && hasMethod(event, "preventDefault")) event.preventDefault();
+          const data = button.dataset || {};
+          selectBrowseDestination(data.browseDestination, {
+            homeTarget: data.homeTarget,
+            savedFilter: data.savedFilter,
+          });
         });
       }
       for (const button of documentRef.querySelectorAll("[data-profile-navigation]")) {
         button.addEventListener("click", () => {
           const profileId = button.dataset ? button.dataset.profileNavigation : "home";
-          openProfilePage(profileId);
+          if (profileAccessEnabled) {
+            selectServerProfile(profileId);
+          } else {
+            openProfilePage(profileId);
+          }
         });
       }
     }
@@ -4228,7 +4941,7 @@ function createApp({
         if (action) invokeAndroidSetting(action[0], action[1]);
       });
     }
-    setMenuTab("browse", false);
+    setMenuTab("recent", false);
     if (closePlayerPage) {
       closePlayerPage.addEventListener("click", () => {
         savePlaybackProgress("pause").catch(() => {});
@@ -4337,6 +5050,31 @@ function createApp({
         reloadButton.click();
       });
     }
+    if (settingsResetProfileButton) {
+      settingsResetProfileButton.addEventListener("click", async () => {
+        const response = await fetchImpl("/api/account/reset", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (!response.ok) {
+          updateStatus("Movie Room profile reset could not be completed.");
+          return;
+        }
+        try {
+          if (localStorageRef && hasMethod(localStorageRef, "removeItem")) localStorageRef.removeItem(profileStorageKey);
+          if (localStorageRef && hasMethod(localStorageRef, "removeItem")) localStorageRef.removeItem(libraryStorageKey);
+        } catch {
+          // Local storage may be unavailable; the server session is still reset.
+        }
+        serverProfiles = [];
+        profileAccessState = "needs_setup";
+        profileAccessEnabled = true;
+        setAuthenticated(false);
+        updateStatus("Movie Room reset. Complete setup to continue.");
+      });
+    }
     if (playerSettingsButton) {
       playerSettingsButton.addEventListener("click", openSettings);
     }
@@ -4399,6 +5137,15 @@ function createApp({
           renderSearchOverlay();
         }
       });
+      searchInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        if (hasMethod(event, "stopPropagation")) event.stopPropagation();
+        searchTerm = searchInput.value.trim().toLowerCase();
+        rememberSearchForProfile(searchInput.value);
+        setSearchOverlayVisible(true);
+        renderSearchOverlay();
+      });
     }
     if (searchScopeSelect) {
       searchScopeSelect.addEventListener("change", () => {
@@ -4440,27 +5187,18 @@ function createApp({
     }
 
     if (heroPrev) heroPrev.addEventListener("click", () => {
-      if (!heroMovies.length) return;
-      heroIndex = (heroIndex - 1 + heroMovies.length) % heroMovies.length;
-      renderDiscovery();
+      selectHeroMovie(-1);
     });
     if (heroNext) heroNext.addEventListener("click", () => {
-      if (!heroMovies.length) return;
-      heroIndex = (heroIndex + 1) % heroMovies.length;
-      renderDiscovery();
+      selectHeroMovie(1);
     });
+    bindRailScrollButtons();
 
     if (theaterModeButton) theaterModeButton.addEventListener("click", () => setPlayerMode(playerMode === "theater" ? "normal" : "theater"));
     if (miniplayerModeButton) miniplayerModeButton.addEventListener("click", () => setPlayerMode(playerMode === "miniplayer" ? "normal" : "miniplayer"));
     if (upNextPlay) upNextPlay.addEventListener("click", () => playNextFromQueue());
 
     if (documentRef && typeof documentRef.addEventListener === "function") {
-      documentRef.addEventListener("keydown", (event) => {
-        const command = event && (event.key || event.code);
-        if (!handleRemoteCommand(command)) return;
-        event.preventDefault();
-        event.stopPropagation();
-      });
       documentRef.addEventListener("fullscreenchange", () => {
         const fullscreenElement = documentRef.fullscreenElement || documentRef.webkitFullscreenElement;
         setVideoFullscreenOrientation(Boolean(fullscreenElement));
@@ -4477,10 +5215,68 @@ function createApp({
       });
     }
 
+    if (accountCreateButton) {
+      accountCreateButton.addEventListener("click", () => openAccountSetup());
+    }
+
+    if (accountLoginButton) {
+      accountLoginButton.addEventListener("click", () => openAccountLogin());
+    }
+
+    if (profileAvatarUpload) {
+      profileAvatarUpload.addEventListener("change", handleAvatarUpload);
+    }
+
+    for (const button of profileAvatarChoices) {
+      if (!button || !hasMethod(button, "addEventListener")) continue;
+      button.addEventListener("click", () => {
+        selectedSetupAvatar = (button.dataset && button.dataset.profileAvatar) || "home-family";
+        selectedSetupAvatarImage = "";
+        if (profileAvatarPreview) {
+          profileAvatarPreview.hidden = true;
+          profileAvatarPreview.removeAttribute("src");
+        }
+        for (const candidate of profileAvatarChoices) {
+          if (candidate && typeof candidate.setAttribute === "function") {
+            candidate.setAttribute("aria-pressed", candidate === button ? "true" : "false");
+          }
+        }
+      });
+    }
+
+    if (profileSetupForm) {
+      profileSetupForm.addEventListener("submit", (event) => {
+        handleProfileSetup(event).catch((error) => {
+          if (profileSetupStatus) profileSetupStatus.textContent = error.message;
+        });
+      });
+    }
+    if (profilePinForm) {
+      profilePinForm.addEventListener("submit", (event) => {
+        handleProfilePin(event).catch((error) => {
+          if (profilePinStatus) profilePinStatus.textContent = error.message;
+        });
+      });
+    }
+    if (profilePinCancel) {
+      profilePinCancel.addEventListener("click", () => {
+        pendingProfileId = "";
+        loadAccessState().then((state) => {
+          const unlocked = state && (state.state === "home_unlocked" || state.state === "profile_unlocked");
+          setAuthenticated(Boolean(unlocked));
+        }).catch(() => {});
+      });
+    }
+
     for (const button of profileButtons) {
       button.addEventListener("click", () => {
         const profileId = button.dataset ? button.dataset.viewerProfile : "home";
-        openProfilePage(profileId);
+        if (profileAccessEnabled) {
+          if (profileMenu) profileMenu.hidden = true;
+          selectServerProfile(profileId);
+        } else {
+          openProfilePage(profileId);
+        }
       });
     }
     if (documentRef && typeof documentRef.querySelectorAll === "function") {
@@ -4518,9 +5314,16 @@ function createApp({
 
     if (castButton) {
       castButton.addEventListener("click", () => {
+        showCastGuide();
         promptRemotePlayback().catch((error) => {
           updateStatus(error.message);
         });
+      });
+    }
+
+    if (castStopButton) {
+      castStopButton.addEventListener("click", () => {
+        stopCasting().catch((error) => updateStatus(error.message));
       });
     }
 
@@ -4598,7 +5401,7 @@ function createApp({
     player.addEventListener("webkitplaybacktargetavailabilitychanged", (event) => {
       safariAirPlayAvailable = event.availability === "available";
       updateCastButton();
-      updateTvGuide();
+      if (castGuide && !castGuide.hidden) updateTvGuide();
     });
     player.addEventListener("webkitbeginfullscreen", () => setVideoFullscreenOrientation(true));
     player.addEventListener("webkitendfullscreen", () => setVideoFullscreenOrientation(false));
@@ -4606,8 +5409,20 @@ function createApp({
     if (documentRef && hasMethod(documentRef, "addEventListener")) {
       documentRef.addEventListener("visibilitychange", () => {
         if (documentRef.visibilityState === "hidden" && activePreviewCancel) activePreviewCancel();
+        if (documentRef.visibilityState === "hidden" && readActiveCastSession()) {
+          persistCastCheckpoint(null);
+          savePlaybackProgress("cast-page-hidden").catch(() => {});
+        }
         if (documentRef.visibilityState === "visible" && keepAwakeWanted && !wakeLock && !player.paused) {
           requestWakeLock().catch(() => {});
+        }
+      });
+    }
+
+    if (windowRef && hasMethod(windowRef, "addEventListener")) {
+      windowRef.addEventListener("beforeunload", () => {
+        if (readActiveCastSession()) {
+          persistCastCheckpoint(null);
         }
       });
     }
@@ -4615,13 +5430,13 @@ function createApp({
     allowRemotePlayback();
     updateKeepAwakeButton();
     updateCastButton();
-    updateTvGuide();
+    hideCastGuide();
     updateBufferStatus();
     showPermissionPanelIfNeeded();
     initializeGoogleCast().catch(() => {
       googleCastReady = false;
       updateCastButton();
-      updateTvGuide();
+      hideCastGuide();
     });
 
     player.addEventListener("waiting", () => {
@@ -4694,6 +5509,7 @@ function createApp({
           stableRefreshPosition = null;
       }
 
+      enforcePublicPreviewLimit();
       updateBufferStatus();
       updateTimeline();
       scheduleProgressSave();
@@ -4709,6 +5525,7 @@ function createApp({
       isSeeking = false;
       updatePlayerPlayPauseButton();
       clearStallRecovery();
+      clearPublicPreviewLimit();
       updatePlaybackState("none");
       releaseWakeLock().catch(() => {});
       savePlaybackProgress("ended").catch(() => {});
@@ -4812,6 +5629,10 @@ if (typeof document !== "undefined") {
     searchScopeSelect: document.getElementById("search-scope"),
     searchYearSelect: document.getElementById("search-year"),
     searchSortSelect: document.getElementById("search-sort"),
+    movieCatalogPage: document.getElementById("movie-catalog-page"),
+    movieCatalogGrid: document.getElementById("movie-catalog-grid"),
+    movieCatalogSummary: document.getElementById("movie-catalog-summary"),
+    pageFooter: document.getElementById("page-footer"),
     navigationPage: document.getElementById("navigation-page"),
     menuTabButtons: Array.from(document.querySelectorAll("[data-menu-tab]")),
     menuTabPanels: Array.from(document.querySelectorAll("[data-menu-panel]")),
@@ -4850,6 +5671,8 @@ if (typeof document !== "undefined") {
     openStorageSettingsButton: document.getElementById("open-storage-settings"),
     permissionStatus: document.getElementById("permission-status"),
     castButton: document.getElementById("cast-tv"),
+    castStopButton: document.getElementById("stop-casting"),
+    castGuide: document.getElementById("cast-tv-guide"),
     tvGuideTitle: document.getElementById("tv-guide-title"),
     tvGuideSteps: document.getElementById("tv-guide-steps"),
     tvGuideStatus: document.getElementById("tv-guide-status"),
@@ -4867,6 +5690,21 @@ if (typeof document !== "undefined") {
     profileMenu: document.getElementById("profile-menu"),
     profileLabel: document.getElementById("profile-label"),
     profileAvatar: document.getElementById("profile-avatar"),
+    accountCreateButton: document.getElementById("account-create"),
+    accountLoginButton: document.getElementById("account-login"),
+    profileSetupPanel: document.getElementById("profile-setup-panel"),
+    profileSetupForm: document.getElementById("profile-setup-form"),
+    profileSetupName: document.getElementById("profile-setup-name"),
+    profileSetupStatus: document.getElementById("profile-setup-status"),
+    profileAvatarUpload: document.getElementById("profile-avatar-upload"),
+    profileAvatarPreview: document.getElementById("profile-avatar-preview"),
+    profileAvatarChoices: Array.from(document.querySelectorAll("[data-profile-avatar]")),
+    profilePinPanel: document.getElementById("profile-pin-panel"),
+    profilePinForm: document.getElementById("profile-pin-form"),
+    profilePinInput: document.getElementById("profile-pin-input"),
+    profilePinStatus: document.getElementById("profile-pin-status"),
+    profilePinCancel: document.getElementById("profile-pin-cancel"),
+    profilePinSummary: document.getElementById("profile-pin-summary"),
     viewerHeaderLabel: document.getElementById("viewer-header-label"),
     pageHeaderLabel: document.getElementById("page-header-label"),
     profileButtons: Array.from(document.querySelectorAll("[data-viewer-profile]")),
@@ -4896,6 +5734,9 @@ if (typeof document !== "undefined") {
     profilePageSummary: document.getElementById("profile-page-summary"),
     profileMostWatchedShelf: document.getElementById("profile-most-watched-shelf"),
     profileRecentlyWatchedShelf: document.getElementById("profile-recently-watched-shelf"),
+    menuRecentlyWatchedShelf: document.getElementById("menu-recently-watched-shelf"),
+    menuRecentlyWatchedSummary: document.getElementById("menu-recently-watched-summary"),
+    menuRecentlyWatchedProfile: document.getElementById("menu-recently-watched-profile"),
     movieDetailsDialog: document.getElementById("movie-details-page"),
     detailsClose: document.getElementById("details-close"),
     detailsBackdrop: document.getElementById("details-backdrop"),
@@ -4904,6 +5745,11 @@ if (typeof document !== "undefined") {
     detailsTitle: document.getElementById("details-title"),
     detailsMeta: document.getElementById("details-meta"),
     detailsDescription: document.getElementById("details-description"),
+    detailsInfoDescription: document.getElementById("details-info-description"),
+    detailsInfoGenres: document.getElementById("details-info-genres"),
+    detailsInfoCast: document.getElementById("details-info-cast"),
+    detailsInfoSource: document.getElementById("details-info-source"),
+    detailsInfoAvailability: document.getElementById("details-info-availability"),
     detailsPlay: document.getElementById("details-play"),
     detailsOffline: document.getElementById("details-offline"),
     detailsWatchLater: document.getElementById("details-watch-later"),
@@ -4925,6 +5771,7 @@ if (typeof document !== "undefined") {
     settingsSystemButton: document.getElementById("settings-system"),
     settingsUpdatesButton: document.getElementById("settings-updates"),
     settingsReloadButton: document.getElementById("settings-reload"),
+    settingsResetProfileButton: document.getElementById("settings-reset-profile"),
     settingsCloseButton: document.getElementById("settings-close"),
     menuHomeButton: document.getElementById("menu-home"),
     menuLibraryButton: document.getElementById("menu-library"),

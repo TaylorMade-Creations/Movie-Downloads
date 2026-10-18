@@ -16,7 +16,6 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -79,6 +78,7 @@ public class MainActivity extends Activity {
     private String activeProfile = "Home";
     private TextView shellProfileLabel;
     private WebView webSearchView;
+    private boolean shellSettingsOpen = false;
     private final List<List<View>> tvFocusRows = new ArrayList<>();
 
     @Override
@@ -122,6 +122,8 @@ public class MainActivity extends Activity {
     private void setScreen() {
         stopKeepScreenOn();
         leavePlayerFullscreen();
+        shellSettingsOpen = false;
+        tvFocusRows.clear();
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pagePadding = isTelevision() ? 42 : 18;
@@ -285,20 +287,6 @@ public class MainActivity extends Activity {
             for (int column = 0; column < row.size(); column++) {
                 View current = row.get(column);
                 if (current.getId() == View.NO_ID) current.setId(View.generateViewId());
-                current.setNextFocusLeftId(row.get(Math.max(0, column - 1)).getId());
-                current.setNextFocusRightId(row.get(Math.min(row.size() - 1, column + 1)).getId());
-                if (rowIndex > 0) {
-                    List<View> above = tvFocusRows.get(rowIndex - 1);
-                    if (above != null && !above.isEmpty()) {
-                        current.setNextFocusUpId(above.get(Math.min(column, above.size() - 1)).getId());
-                    }
-                }
-                if (rowIndex + 1 < tvFocusRows.size()) {
-                    List<View> below = tvFocusRows.get(rowIndex + 1);
-                    if (below != null && !below.isEmpty()) {
-                        current.setNextFocusDownId(below.get(Math.min(column, below.size() - 1)).getId());
-                    }
-                }
             }
         }
     }
@@ -334,6 +322,11 @@ public class MainActivity extends Activity {
         Button retry = button("New Code");
         retry.setOnClickListener(view -> showPairingScreen());
         root.addView(retry);
+        Button online = button("Open online Movie Room");
+        online.setOnClickListener(view -> showMobileWebApp());
+        root.addView(online);
+        retry.requestFocus();
+        retry.post(retry::requestFocus);
 
         new Thread(() -> {
             try {
@@ -503,9 +496,6 @@ public class MainActivity extends Activity {
         TextView subtitle = text("MOVIE ROOM  •  YOUR PRIVATE CINEMA", 16);
         subtitle.setTextColor(0xffbdb5a2);
         root.addView(subtitle);
-        TextView remoteHint = text("REMOTE READY  •  ▲ ▼ ◀ ▶ move  •  Select open  •  Back return  •  Menu settings  •  Play/Pause video", 14);
-        remoteHint.setTextColor(0xffbdb5a2);
-        root.addView(remoteHint);
         TextView hero = text("NEWEST FROM JELLYFIN\nThe five most recently added titles in Movie Room.", 24);
         hero.setTextColor(0xfff5f5f5);
         hero.setPadding(0, dp(16), 0, dp(14));
@@ -731,11 +721,65 @@ public class MainActivity extends Activity {
     }
 
     private void showShellSettings() {
-        new AlertDialog.Builder(this)
-                .setTitle("Movie Room TV shell")
-                .setMessage("Profile: " + activeProfile + "\n\nRemote-first navigation is active. Player sizing is centered and fitted to the screen.\n\nMore Movie Room layout and theme controls can be added here without changing Fire OS.")
-                .setPositiveButton("Done", null)
-                .show();
+        setScreen();
+        shellSettingsOpen = true;
+        root.setGravity(Gravity.NO_GRAVITY);
+        root.setPadding(dp(56), dp(38), dp(56), dp(38));
+        TextView brand = text("MOVIE ROOM TV SHELL", 30);
+        brand.setTextColor(0xffffd166);
+        brand.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(brand);
+        TextView heading = text("Remote & display settings", 24);
+        heading.setTextColor(0xfff5f5f5);
+        root.addView(heading);
+        TextView summary = text("Profile: " + activeProfile + "\nRemote-first navigation is active. This settings page is drawn inside the TV safe area so it will not hang half off the screen.", 16);
+        summary.setTextColor(0xffd7d0c0);
+        root.addView(summary);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(0, dp(18), 0, dp(18));
+        List<View> settingsRows = new ArrayList<>();
+        settingsRows.add(settingsButton("Back to Movie Room", view -> showLibraryScreen()));
+        settingsRows.add(settingsButton("Switch profile", view -> cycleShellProfile()));
+        settingsRows.add(settingsButton("Open web search", view -> showWebSearchScreen()));
+        settingsRows.add(settingsButton("Refresh library", view -> showLibraryScreen()));
+        settingsRows.add(settingsButton("Remote help", view -> Toast.makeText(this, "Use ▲ ▼ ◀ ▶, Select, Back, Menu, Play/Pause, Rewind, Fast-forward, Channel/Page Up/Down.", Toast.LENGTH_LONG).show()));
+        for (View row : settingsRows) {
+            content.addView(row, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(62)));
+        }
+        scroll.addView(content);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f));
+        tvFocusRows.add(settingsRows);
+        connectTvFocusRows();
+        if (!settingsRows.isEmpty()) settingsRows.get(0).requestFocus();
+    }
+
+    private Button settingsButton(String label, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setTextColor(0xfff7efe0);
+        button.setTextSize(18);
+        button.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+        button.setPadding(dp(18), 0, dp(18), 0);
+        button.setFocusable(true);
+        button.setFocusableInTouchMode(false);
+        button.setBackground(roundedBackground(0xff17120a, 0xffffd166, 1));
+        button.setOnFocusChangeListener((view, hasFocus) -> {
+            view.setScaleX(hasFocus ? 1.02f : 1.0f);
+            view.setScaleY(hasFocus ? 1.02f : 1.0f);
+            view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff17120a, 0xffffd166, hasFocus ? 3 : 1));
+        });
+        button.setOnClickListener(listener);
+        return button;
     }
 
     private void showSearchDialog() {
@@ -784,29 +828,6 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT, dp(58), Gravity.BOTTOM);
         posterFrame.addView(title, titleParams);
 
-        String compactMetadata = MovieCardPresentation.compactMetadata(movie.year, movie.rating);
-        TextView meta = text(compactMetadata, 12);
-        meta.setGravity(Gravity.CENTER);
-        meta.setPadding(dp(8), dp(4), dp(8), dp(4));
-        meta.setEllipsize(TextUtils.TruncateAt.END);
-        meta.setTextColor(0xffffd166);
-        if (!compactMetadata.isEmpty()) {
-            meta.setBackground(roundedBackground(0xcc17120a, 0x99ffd166, 1));
-            FrameLayout.LayoutParams metaParams = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT, dp(30), Gravity.TOP | Gravity.RIGHT);
-            metaParams.setMargins(0, dp(8), dp(8), 0);
-            posterFrame.addView(meta, metaParams);
-        }
-        if (!movie.isPlayable()) {
-            TextView uploading = text("UPLOADING", 10);
-            uploading.setGravity(Gravity.CENTER);
-            uploading.setTextColor(0xff17120a);
-            uploading.setBackground(roundedBackground(0xffffd88a, 0xffffd88a, 1));
-            FrameLayout.LayoutParams uploadingParams = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT, dp(26), Gravity.BOTTOM | Gravity.RIGHT);
-            uploadingParams.setMargins(0, 0, dp(8), dp(8));
-            posterFrame.addView(uploading, uploadingParams);
-        }
         card.addView(posterFrame, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(isTelevision() ? MovieCardPresentation.TV_CARD_HEIGHT_DP : 180)));
@@ -817,16 +838,6 @@ public class MainActivity extends Activity {
             view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff141414, hasFocus ? 0xffffd166 : 0xff3b3424, 2));
             if (hasFocus) view.post(() -> centerFocusedCard(view));
         });
-        card.setOnKeyListener((view, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN
-                    && event.getRepeatCount() == 0
-                    && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                    || keyCode == KeyEvent.KEYCODE_ENTER)) {
-                view.performClick();
-                return true;
-            }
-            return false;
-        });
         card.setOnClickListener(view -> {
             if (movie.isPlayable()) {
                 startMovie(movie, status);
@@ -836,6 +847,20 @@ public class MainActivity extends Activity {
         });
 
         loadPosterIntoCard(movie, posterFrame, fallback);
+        return card;
+    }
+
+    private View viewMoreCard(String title, List<MovieRoomModels.Movie> movies) {
+        Button card = new Button(this);
+        card.setAllCaps(false);
+        card.setText("View more\n" + title);
+        card.setTextColor(0xffffffff);
+        card.setTextSize(16);
+        card.setGravity(Gravity.CENTER);
+        card.setFocusable(true);
+        card.setFocusableInTouchMode(false);
+        card.setBackground(roundedBackground(0xff18110a, 0xffffd166, 2));
+        card.setOnClickListener(view -> showGroupedMovies(title, movies));
         return card;
     }
 
@@ -870,7 +895,8 @@ public class MainActivity extends Activity {
         row.setFocusable(false);
         row.setPadding(dp(8), dp(4), dp(12), dp(12));
         List<View> shelfCards = new ArrayList<>();
-        for (MovieRoomModels.Movie movie : movies) {
+        int visibleCount = Math.min(10, movies.size());
+        for (MovieRoomModels.Movie movie : movies.subList(0, visibleCount)) {
             View card = movieCard(movie, status);
             LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
                     dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150),
@@ -878,6 +904,15 @@ public class MainActivity extends Activity {
             cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
             row.addView(card, cardParams);
             shelfCards.add(card);
+        }
+        if (movies.size() > 10) {
+            View more = viewMoreCard(title, movies);
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                    dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150),
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
+            row.addView(more, cardParams);
+            shelfCards.add(more);
         }
         tvFocusRows.add(shelfCards);
         scroll.addView(row);
@@ -1009,16 +1044,6 @@ public class MainActivity extends Activity {
             view.setScaleY(hasFocus ? MovieCardPresentation.FOCUSED_SCALE : 1.0f);
             view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff171717, hasFocus ? 0xffffd166 : 0xff6d5420, 2));
             if (hasFocus) view.post(() -> centerFocusedCard(view));
-        });
-        card.setOnKeyListener((view, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN
-                    && event.getRepeatCount() == 0
-                    && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                    || keyCode == KeyEvent.KEYCODE_ENTER)) {
-                view.performClick();
-                return true;
-            }
-            return false;
         });
         card.setOnClickListener(view -> showGroupedMovies(collectionGroupTitle(key), members));
         return card;
@@ -1253,68 +1278,4 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private boolean seekBy(long offsetMs) {
-        if (player == null || !player.isCurrentMediaItemSeekable()) {
-            return false;
-        }
-        long duration = player.getDuration();
-        long target = Math.max(0L, player.getCurrentPosition() + offsetMs);
-        if (duration != androidx.media3.common.C.TIME_UNSET) {
-            target = Math.min(target, duration);
-        }
-        player.seekTo(target);
-        return true;
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webSearchView != null) {
-            if (webSearchView.canGoBack()) {
-                webSearchView.goBack();
-            } else {
-                webSearchView = null;
-                showLibraryScreen();
-            }
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
-            showShellSettings();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && player != null) {
-            if (player.isPlaying()) {
-                player.pause();
-            } else {
-                player.play();
-            }
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY && player != null) {
-            player.play();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE && player != null) {
-            player.pause();
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD && seekBy(30_000L)) {
-            return true;
-        }
-            if (keyCode == KeyEvent.KEYCODE_MEDIA_REWIND && seekBy(-10_000L)) {
-                return true;
-            }
-            if (keyCode == KeyEvent.KEYCODE_BACK && player != null) {
-            if (playerFullscreen) {
-                leavePlayerFullscreen();
-                return true;
-            }
-            player.release();
-            flushProgress(activeMovie, false);
-            player = null;
-            playerOverlay = null;
-            showLibraryScreen();
-            return true;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
 }

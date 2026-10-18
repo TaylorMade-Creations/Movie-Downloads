@@ -1,5 +1,5 @@
 {
-  "name": "movie-downloads",
+  "name": "movie-room-master",
   "version": "1.1.0",
   "description": "Simple browser-based movie streaming app for a shared personal library",
   "main": "server.js",
@@ -10,6 +10,8 @@
     "metadata:sync": "node scripts/sync-jellyfin-metadata.mjs",
     "metadata:export:onedrive": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/export-movie-metadata-to-onedrive.mjs",
     "metadata:watch": "node scripts/sync-jellyfin-metadata.mjs --watch",
+    "master:control": "node movie-workflow-blueprint/control.mjs",
+    "master:inventory": "node scripts/master/create-preservation-inventory.mjs --output inventories/local/pre-conversion.json",
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local server.js",
     "test": "node --test"
   },
@@ -18,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/taylormade02471/Movie-Downloads.git"
+    "url": "https://github.com/taylormade02471/Movie-Room-Master.git"
   },
   "keywords": [],
   "author": "",

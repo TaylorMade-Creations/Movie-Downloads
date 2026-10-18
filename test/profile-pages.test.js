@@ -20,6 +20,43 @@ test("profile selection navigates to a dedicated page with watched rails", () =>
   assert.match(app, /playCount/);
 });
 
+test("web startup uses an online profile setup gate instead of a shared password", () => {
+  assert.match(html, /id="account-create"/);
+  assert.match(html, /id="account-login"/);
+  assert.match(html, /id="profile-setup-panel"/);
+  assert.match(html, /id="profile-setup-form"/);
+  assert.match(html, /id="profile-setup-name"/);
+  assert.match(html, /id="profile-avatar-upload"/);
+  assert.match(html, /id="profile-avatar-preview"/);
+  assert.match(html, /data-profile-avatar="home-family"/);
+  assert.match(html, /data-profile-avatar="mom"/);
+  assert.match(html, /data-profile-avatar="morganne"/);
+  assert.match(html, /data-profile-avatar="kids"/);
+  assert.match(html, /id="profile-pin-panel"/);
+  assert.match(html, /id="profile-pin-form"/);
+  assert.match(html, /id="profile-pin-input"/);
+  assert.match(app, /function loadAccessState/);
+  assert.match(app, /\/api\/access-state/);
+  assert.match(app, /\/api\/account\/setup/);
+  assert.match(app, /\/api\/profiles\//);
+  assert.match(app, /function openAccountSetup/);
+  assert.match(app, /function openAccountLogin/);
+  assert.match(app, /function handleAvatarUpload/);
+  assert.match(app, /function handleProfileSetup/);
+  assert.match(app, /function handleProfilePin/);
+  assert.doesNotMatch(html, /id="auth-panel"|id="password-form"|Enter shared password/);
+});
+
+test("new browsers stay on Home in three minute public preview mode until an account is created", () => {
+  assert.match(app, /previewAccessMode/);
+  assert.match(app, /\/api\/preview/);
+  assert.match(app, /previewOnly/);
+  assert.match(app, /previewLimitSeconds/);
+  assert.match(app, /Create an account to unlock full playback/);
+  assert.match(app, /const playbackRequest = previewPlayback \? \{ movieId, preview: true \} : \{ movieId \}/);
+  assert.match(app, /body: JSON\.stringify\(playbackRequest\)/);
+});
+
 test("profile themes use home black and gold, kids orange, mom emerald, and Morganne pink", () => {
   assert.match(html, /body\[data-viewer-profile="home"\][^}]*--gold:\s*#f0c45b/i);
   assert.match(html, /body\[data-viewer-profile="kids"\][^}]*--gold:\s*#f59e0b/i);
@@ -103,4 +140,24 @@ test("the library exposes common genre selectors including soap", () => {
   assert.match(app, /\["soap", "Soap"\]/);
   assert.match(app, /\["comedy", "Comedy"\]/);
   assert.match(app, /\["action", "Action"\]/);
+});
+
+test("the Movies Index Catalog is a footer-only destination", () => {
+  const primaryNav = html.match(/<nav class="primary-nav"[\s\S]*?<\/nav>/)?.[0] || "";
+  assert.match(html, /id="movie-catalog-page"[^>]*class="page movie-catalog-page"[^>]*hidden/);
+  assert.match(html, /id="movie-catalog-grid"/);
+  assert.match(html, /class="page-footer"[\s\S]*data-browse-destination="catalog"[\s\S]*>Movies Index Catalog<\/a>/);
+  assert.doesNotMatch(primaryNav, /data-browse-destination="catalog"/);
+  assert.match(app, /activePage = \["home", "library", "profile", "user", "search", "menu", "details", "settings", "catalog"\]/);
+  assert.match(app, /function renderMovieCatalog/);
+  assert.match(app, /target === "catalog"/);
+});
+
+test("folder selection opens a title hero and search has an explicit submit path", () => {
+  assert.match(app, /function openMovieDetails/);
+  assert.match(app, /folderMovies/);
+  assert.match(app, /searchInput\.addEventListener\("keydown"/);
+  assert.match(app, /event\.key !== "Enter"/);
+  assert.match(app, /event\.stopPropagation\(\)/);
+  assert.match(app, /loadLibrary\([\s\S]*?quiet: true/);
 });
