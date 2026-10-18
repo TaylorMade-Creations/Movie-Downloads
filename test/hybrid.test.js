@@ -95,6 +95,30 @@ test("hybrid provider ignores zero-byte upload placeholders when matching playba
   assert.deepEqual(playbackRequests, ["healthy-mkv"]);
 });
 
+test("hybrid provider hides zero-byte cloud uploads until the upload is ready", async () => {
+  const provider = createHybridProvider({
+    jellyfinProvider: { async listLibrary() { return { movies: [], folders: [] }; } },
+    oneDriveProvider: {
+      async listLibrary() {
+        return {
+          movies: [{
+            id: "still-uploading",
+            fileName: "Fifty Shades Freed 2018.firetv.mp4",
+            folder: "Movies/Fifty Shades Collection/Fifty Shades Freed 2018",
+            size: 0,
+          }],
+          folders: [],
+        };
+      },
+      async resolvePlayback() { throw new Error("zero-byte upload must not be playable"); },
+    },
+  });
+
+  const library = await provider.listLibrary();
+  assert.equal(library.movies.length, 0);
+  await assert.rejects(provider.resolvePlayback("still-uploading"), /could not be matched/);
+});
+
 test("hybrid provider uses Jellyfin compatibility playback for browser-hostile containers", async () => {
   const compatibilityRequests = [];
   const provider = createHybridProvider({
