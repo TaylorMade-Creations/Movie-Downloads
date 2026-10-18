@@ -1,0 +1,6 @@
+{
+  "versionCode": 18,
+  "versionName": "1.0.17",
+  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/TaylorMade-Movies-Android-v1.0.17.apk",
+  "releaseNotes": "Normal Android/Fire TV APK: Fire OS now controls D-pad, Select, Back, Menu, and media keys directly while Movie Room keeps native thumbnail focus, fixed TV headers, autoplay previews, storage, and network features."
+}
