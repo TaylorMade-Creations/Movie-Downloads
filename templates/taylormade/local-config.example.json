@@ -1,0 +1,18 @@
+{
+  "taylormadeEastKidsRoot": "C:\\path\\to\\TaylorMade\\East Kids Shows Automation",
+  "agentFolders": {
+    "agent1": "agent-1",
+    "agent2": "agent-2",
+    "agent3": "agent-3"
+  },
+  "youtubeOAuth": {
+    "clientSecretPath": "scripts/taylormade/youtube/private/client_secret.json",
+    "tokenPath": "scripts/taylormade/youtube/tokens/youtube-token.json"
+  },
+  "rules": {
+    "commitGeneratedVideos": false,
+    "commitOAuthTokens": false,
+    "runGeminiBrowserAutomationOnVercel": false,
+    "requireExplicitApprovalForPaidGeneration": true
+  }
+}

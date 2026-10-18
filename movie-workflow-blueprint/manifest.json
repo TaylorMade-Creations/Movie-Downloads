@@ -1,0 +1,104 @@
+{
+  "name": "Movie Room Master",
+  "version": 2,
+  "sourceOfTruth": {
+    "label": "Movie Room Master repository",
+    "repository": "https://github.com/taylormade02471/Movie-Room-Master",
+    "branch": "main",
+    "rule": "GitHub stores source control, application modules, deployment configuration, generated inventories, and recovery instructions. The movie library and private credentials stay outside Git."
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "productionUrl": "https://movie-downloads-six.vercel.app",
+    "project": "movie-downloads",
+    "target": "production"
+  },
+  "libraryConfigPath": "config/library.local.json",
+  "paths": {
+    "libraryConfigPath": "config/library.local.json",
+    "repositoryRelativeBuildRoot": "firetv/build/outputs/apk",
+    "applicationArtifactsPolicy": "Installable APKs and release artifacts are copied to the configured applicationsRoot from the ignored local library config, not stored as large generated media in Git."
+  },
+  "applications": [
+    {
+      "id": "web",
+      "kind": "pwa",
+      "path": "public",
+      "packageName": "pwa",
+      "productionUrl": "https://movie-downloads-six.vercel.app"
+    },
+    {
+      "id": "android",
+      "kind": "android-webview",
+      "path": "movieroom-web",
+      "packageName": "com.movieroom.web",
+      "updateManifest": "public/apk/update.json"
+    },
+    {
+      "id": "firetv",
+      "kind": "android-tv",
+      "path": "firetv",
+      "packageName": "com.movieroom.firetv",
+      "updateManifest": "public/apk/firetv-update.json"
+    },
+    {
+      "id": "shell",
+      "kind": "launcher-shell",
+      "path": "movieroom-shell",
+      "packageName": "com.movieroom.shell",
+      "updateManifest": "public/apk/os-update.json",
+      "distinctFrom": "com.movieroom.firetv"
+    },
+    {
+      "id": "aospPrototype",
+      "kind": "aosp-prototype",
+      "path": "movie-room-os",
+      "packageName": "prototype",
+      "releaseEligible": false
+    },
+    {
+      "id": "taylormade-creations",
+      "kind": "local-automation-module",
+      "path": "scripts/taylormade",
+      "docs": "docs/taylormade-creations",
+      "packageName": "taylormade-video-pipeline",
+      "releaseEligible": false,
+      "runtimeState": "external-local-only",
+      "secretsPolicy": "OAuth client secrets, refresh tokens, browser sessions, generated videos, logs, and queue state stay outside Git and outside Vercel."
+    }
+  ],
+  "artifactManifests": [
+    {
+      "id": "android",
+      "path": "public/apk/update.json"
+    },
+    {
+      "id": "firetv",
+      "path": "public/apk/firetv-update.json"
+    },
+    {
+      "id": "shell",
+      "path": "public/apk/os-update.json"
+    }
+  ],
+  "buildCommands": {
+    "test": "npm.cmd test",
+    "androidDebug": ".\\gradlew.bat :movieroom-web:assembleDebug",
+    "fireTvDebug": ".\\gradlew.bat :firetv:assembleDebug",
+    "shellDebug": ".\\gradlew.bat :movieroom-shell:assembleDebug",
+    "allDebug": ".\\gradlew.bat :firetv:assembleDebug :movieroom-web:assembleDebug :movieroom-shell:assembleDebug --no-daemon --no-parallel --no-build-cache --no-watch-fs"
+  },
+  "animationBuckets": {
+    "storage": "object-storage",
+    "metadata": "sql-catalog",
+    "policy": "Store generated Runway, bucket, tile, menu, and app animation binaries in object storage. Store only URLs, hashes, durations, variants, ownership, profile targeting, and catalog pointers in SQL or a lightweight catalog.",
+    "costControl": "Use cached generated assets and app-side local caching before running new billable generations."
+  },
+  "verificationGates": [
+    "Run the Node test suite before claiming the web app is ready.",
+    "Build Android, Fire TV, and shell APK modules before publishing APK artifacts.",
+    "Verify the production Vercel URL after deployment.",
+    "Keep credentials, refresh tokens, API keys, cookies, and private local movie paths out of Git.",
+    "Keep TaylorMade generated videos, Gemini/browser state, YouTube OAuth tokens, upload queues, and local automation logs out of Git and Vercel."
+  ]
+}
