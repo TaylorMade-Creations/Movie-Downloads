@@ -1,0 +1,163 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = path.resolve(__dirname, "..");
+const html = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
+const app = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
+
+test("profile selection navigates to a dedicated page with watched rails", () => {
+  assert.match(html, /id="profile-page"/);
+  assert.match(html, /id="profile-most-watched-shelf"/);
+  assert.match(html, /id="profile-recently-watched-shelf"/);
+  assert.match(app, /function openProfilePage/);
+  assert.match(app, /function renderProfilePage/);
+  assert.match(app, /setActivePage\("profile"\)/);
+  assert.match(app, /profileMostWatchedShelf/);
+  assert.match(app, /profileRecentlyWatchedShelf/);
+  assert.match(app, /lastWatchedAt/);
+  assert.match(app, /playCount/);
+});
+
+test("web startup uses an online profile setup gate instead of a shared password", () => {
+  assert.match(html, /id="account-create"/);
+  assert.match(html, /id="account-login"/);
+  assert.match(html, /id="profile-setup-panel"/);
+  assert.match(html, /id="profile-setup-form"/);
+  assert.match(html, /id="profile-setup-name"/);
+  assert.match(html, /id="profile-avatar-upload"/);
+  assert.match(html, /id="profile-avatar-preview"/);
+  assert.match(html, /data-profile-avatar="home-family"/);
+  assert.match(html, /data-profile-avatar="mom"/);
+  assert.match(html, /data-profile-avatar="morganne"/);
+  assert.match(html, /data-profile-avatar="kids"/);
+  assert.match(html, /id="profile-pin-panel"/);
+  assert.match(html, /id="profile-pin-form"/);
+  assert.match(html, /id="profile-pin-input"/);
+  assert.match(app, /function loadAccessState/);
+  assert.match(app, /\/api\/access-state/);
+  assert.match(app, /\/api\/account\/setup/);
+  assert.match(app, /\/api\/profiles\//);
+  assert.match(app, /function openAccountSetup/);
+  assert.match(app, /function openAccountLogin/);
+  assert.match(app, /function handleAvatarUpload/);
+  assert.match(app, /function handleProfileSetup/);
+  assert.match(app, /function handleProfilePin/);
+  assert.doesNotMatch(html, /id="auth-panel"|id="password-form"|Enter shared password/);
+});
+
+test("new browsers stay on Home in three minute public preview mode until an account is created", () => {
+  assert.match(app, /previewAccessMode/);
+  assert.match(app, /\/api\/preview/);
+  assert.match(app, /previewOnly/);
+  assert.match(app, /previewLimitSeconds/);
+  assert.match(app, /Create an account to unlock full playback/);
+  assert.match(app, /const playbackRequest = previewPlayback \? \{ movieId, preview: true \} : \{ movieId \}/);
+  assert.match(app, /body: JSON\.stringify\(playbackRequest\)/);
+});
+
+test("profile themes use home black and gold, kids orange, mom emerald, and Morganne pink", () => {
+  assert.match(html, /body\[data-viewer-profile="home"\][^}]*--gold:\s*#f0c45b/i);
+  assert.match(html, /body\[data-viewer-profile="kids"\][^}]*--gold:\s*#f59e0b/i);
+  assert.match(html, /body\[data-viewer-profile="mom"\][^}]*--gold:\s*#28c48f/i);
+  assert.match(html, /body\[data-viewer-profile="morganne"\][^}]*--gold:\s*#ff74ad/i);
+});
+
+test("profile menu destinations use the profile page instead of returning home", () => {
+  const profileBranch = app.match(/if \(target\.startsWith\("profile-"\)\)\s*\{([\s\S]*?)\n    \}/);
+  assert.ok(profileBranch, "profile browse branch should exist");
+  assert.match(profileBranch[1], /openProfilePage\(/);
+  assert.doesNotMatch(profileBranch[1], /setActivePage\("home"\)/);
+});
+
+test("search, menu, library, and genres are full page destinations", () => {
+  assert.match(html, /id="search-page"[^>]*class="page search-page"/);
+  assert.doesNotMatch(html, /id="search-page"[^>]*role="dialog"/);
+  assert.match(html, /id="navigation-page"[^>]*class="page navigation-page"/);
+  assert.match(html, /data-browse-destination="search"/);
+  assert.match(html, /data-browse-destination="genres"/);
+  assert.match(app, /activePage === "search"/);
+  assert.match(app, /activePage === "menu"/);
+  assert.match(app, /function setSearchOverlayVisible/);
+  assert.match(app, /viewerStateClient\.load\(activeProfile\)/);
+});
+
+test("a selected movie opens its own hero page instead of a modal dialog", () => {
+  assert.match(html, /id="movie-details-page"[^>]*class="page movie-details-page"/);
+  assert.doesNotMatch(html, /<dialog[^>]*id="movie-details-page"/);
+  assert.match(html, /id="details-backdrop"/);
+  assert.match(html, /id="details-preview-video"/);
+  assert.match(app, /activePage === "details"/);
+  assert.match(app, /activePage === "details"\s*\n\s*\?\s*`Title details`/);
+  assert.match(app, /function setDetailsHero/);
+  assert.doesNotMatch(app, /movieDetailsDialog\.showModal/);
+});
+
+test("the selected movie page keeps its description and exposes library choices underneath", () => {
+  assert.match(html, /id="details-library-choices"/);
+  assert.match(html, /id="details-next-movies-shelf"/);
+  assert.match(html, /data-details-destination="library"/);
+  assert.match(html, /data-details-destination="search"/);
+  assert.match(app, /function renderDetailsBrowse/);
+  assert.match(app, /detailsNextMoviesShelf/);
+  assert.match(app, /detailsDescription\.textContent/);
+});
+
+test("profile navigation has separate persisted local state and profile-scoped library picks", () => {
+  assert.match(app, /profileNavigationPrefix/);
+  assert.match(app, /writeLocalValue\(`\$\{profileNavigationPrefix\}/);
+  assert.match(app, /viewerProfiles\[activeProfile\]/);
+  assert.match(app, /movieMatchesFilter[\s\S]*profile\.pick/);
+  assert.match(html, /data-profile-navigation="home"/);
+  assert.match(html, /data-profile-navigation="mom"/);
+  assert.match(html, /data-profile-navigation="kids"/);
+  assert.match(html, /data-profile-navigation="morganne"/);
+});
+
+test("home keeps a visible profile library rail and page shortcuts", () => {
+  assert.match(html, /id="home-library-section"/);
+  assert.match(html, /id="home-library-shelf"/);
+  assert.match(html, /data-browse-destination="library"/);
+  assert.match(app, /homeLibraryShelf/);
+  assert.match(app, /renderShelf\(homeLibraryShelf/);
+});
+
+test("the shared header exposes page tabs and Settings is a standalone destination", () => {
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="home"/);
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="library"/);
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="genres"/);
+  assert.match(html, /<nav class="primary-nav"[\s\S]*?data-browse-destination="menu"/);
+  assert.match(html, /id="settings-dialog" class="page settings-page"[^>]*hidden/);
+  assert.match(html, /data-browse-destination="settings"/);
+  assert.match(app, /activePage === "settings"/);
+  assert.match(app, /function openSettings/);
+  assert.match(app, /function closeSettings/);
+});
+
+test("the library exposes common genre selectors including soap", () => {
+  assert.match(app, /soap: \/\\b\(\?:soap/);
+  assert.match(app, /\["soap", "Soap"\]/);
+  assert.match(app, /\["comedy", "Comedy"\]/);
+  assert.match(app, /\["action", "Action"\]/);
+});
+
+test("the Movies Index Catalog is a footer-only destination", () => {
+  const primaryNav = html.match(/<nav class="primary-nav"[\s\S]*?<\/nav>/)?.[0] || "";
+  assert.match(html, /id="movie-catalog-page"[^>]*class="page movie-catalog-page"[^>]*hidden/);
+  assert.match(html, /id="movie-catalog-grid"/);
+  assert.match(html, /class="page-footer"[\s\S]*data-browse-destination="catalog"[\s\S]*>Movies Index Catalog<\/a>/);
+  assert.doesNotMatch(primaryNav, /data-browse-destination="catalog"/);
+  assert.match(app, /activePage = \["home", "library", "profile", "user", "search", "menu", "details", "settings", "catalog"\]/);
+  assert.match(app, /function renderMovieCatalog/);
+  assert.match(app, /target === "catalog"/);
+});
+
+test("folder selection opens a title hero and search has an explicit submit path", () => {
+  assert.match(app, /function openMovieDetails/);
+  assert.match(app, /folderMovies/);
+  assert.match(app, /searchInput\.addEventListener\("keydown"/);
+  assert.match(app, /event\.key !== "Enter"/);
+  assert.match(app, /event\.stopPropagation\(\)/);
+  assert.match(app, /loadLibrary\([\s\S]*?quiet: true/);
+});

@@ -1,0 +1,7 @@
+{
+  "packageName": "com.movieroom.shell",
+  "versionCode": 11,
+  "versionName": "0.8.2",
+  "downloadUrl": "https://movie-downloads-six.vercel.app/downloads/MovieRoom-Optional-TV-v0.8.2.apk",
+  "releaseNotes": "Optional Movie Room OS shell now uses widescreen app art and lets Fire OS / Android TV focus move between controls without custom remote key routing."
+}

@@ -1,7 +1,10 @@
 package com.movieroom.firetv;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.res.Configuration;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -13,13 +16,15 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -34,6 +39,7 @@ import androidx.media3.common.Player;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.AspectRatioFrameLayout;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
@@ -62,8 +68,18 @@ public class MainActivity extends Activity {
     private boolean playerFullscreen = false;
     private int pairingGeneration = 0;
     private final PlaybackProgressStore progressStore = new PlaybackProgressStore();
+    private final Map<String, Bitmap> posterCache = new LinkedHashMap<String, Bitmap>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+            return size() > 80;
+        }
+    };
     private ViewerState viewerState;
     private MovieRoomModels.Movie activeMovie;
+    private String activeProfile = "Home";
+    private TextView shellProfileLabel;
+    private WebView webSearchView;
+    private boolean shellSettingsOpen = false;
+    private final List<List<View>> tvFocusRows = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -106,6 +122,8 @@ public class MainActivity extends Activity {
     private void setScreen() {
         stopKeepScreenOn();
         leavePlayerFullscreen();
+        shellSettingsOpen = false;
+        tvFocusRows.clear();
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pagePadding = isTelevision() ? 42 : 18;
@@ -173,6 +191,7 @@ public class MainActivity extends Activity {
 
     private Button button(String label) {
         Button button = new Button(this);
+        button.setId(View.generateViewId());
         button.setText(label);
         button.setTextSize(22);
         button.setAllCaps(false);
@@ -247,6 +266,31 @@ public class MainActivity extends Activity {
         return builder.toString();
     }
 
+    private void centerFocusedCard(View view) {
+        ViewParent parent = view.getParent();
+        while (parent instanceof View) {
+            if (parent instanceof HorizontalScrollView) {
+                HorizontalScrollView shelf = (HorizontalScrollView) parent;
+                int target = view.getLeft() - Math.max(0, (shelf.getWidth() - view.getWidth()) / 2);
+                shelf.smoothScrollTo(Math.max(0, target), 0);
+                return;
+            }
+            parent = parent.getParent();
+        }
+        view.requestRectangleOnScreen(new android.graphics.Rect(0, 0, view.getWidth(), view.getHeight()), true);
+    }
+
+    private void connectTvFocusRows() {
+        for (int rowIndex = 0; rowIndex < tvFocusRows.size(); rowIndex++) {
+            List<View> row = tvFocusRows.get(rowIndex);
+            if (row == null || row.isEmpty()) continue;
+            for (int column = 0; column < row.size(); column++) {
+                View current = row.get(column);
+                if (current.getId() == View.NO_ID) current.setId(View.generateViewId());
+            }
+        }
+    }
+
     private Bitmap createPairingQrBitmap(String pairingUrl, int size) throws WriterException {
         BitMatrix matrix = new QRCodeWriter().encode(pairingUrl, BarcodeFormat.QR_CODE, size, size);
         int[] pixels = new int[size * size];
@@ -278,6 +322,11 @@ public class MainActivity extends Activity {
         Button retry = button("New Code");
         retry.setOnClickListener(view -> showPairingScreen());
         root.addView(retry);
+        Button online = button("Open online Movie Room");
+        online.setOnClickListener(view -> showMobileWebApp());
+        root.addView(online);
+        retry.requestFocus();
+        retry.post(retry::requestFocus);
 
         new Thread(() -> {
             try {
@@ -413,11 +462,37 @@ public class MainActivity extends Activity {
 
     private void showLibraryScreen() {
         pairingGeneration += 1;
+        tvFocusRows.clear();
         setScreen();
-        TextView brand = text("TAYLOR-MADE MOVIES", 32);
+        LinearLayout shellBar = new LinearLayout(this);
+        shellBar.setGravity(Gravity.CENTER_VERTICAL);
+        shellBar.setPadding(0, 0, 0, dp(10));
+        TextView brand = text("TAYLOR-MADE MOVIES", 26);
         brand.setTextColor(0xffffd166);
         brand.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(brand);
+        shellBar.addView(brand, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        List<View> topControls = new ArrayList<>();
+        topControls.add(shellNavButton("HOME", view -> showLibraryScreen()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        topControls.add(shellNavButton("SEARCH", view -> showSearchDialog()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        topControls.add(shellNavButton("ALEXA", view -> launchAlexa()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        topControls.add(shellNavButton("WEB SEARCH", view -> showWebSearchScreen()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        shellProfileLabel = text(activeProfile.toUpperCase(Locale.US), 15);
+        shellProfileLabel.setTextColor(0xffffd166);
+        shellProfileLabel.setGravity(Gravity.CENTER);
+        shellProfileLabel.setFocusable(true);
+        shellProfileLabel.setClickable(true);
+        shellProfileLabel.setPadding(dp(16), dp(8), dp(16), dp(8));
+        shellProfileLabel.setOnClickListener(view -> cycleShellProfile());
+        shellBar.addView(shellProfileLabel);
+        topControls.add(shellProfileLabel);
+        topControls.add(shellNavButton("SETTINGS", view -> showShellSettings()));
+        shellBar.addView(topControls.get(topControls.size() - 1));
+        tvFocusRows.add(topControls);
+        root.addView(shellBar);
         TextView subtitle = text("MOVIE ROOM  •  YOUR PRIVATE CINEMA", 16);
         subtitle.setTextColor(0xffbdb5a2);
         root.addView(subtitle);
@@ -441,22 +516,18 @@ public class MainActivity extends Activity {
         });
         actions.addView(refresh);
         actions.addView(unpair);
+        List<View> actionControls = new ArrayList<>();
+        actionControls.add(refresh);
+        actionControls.add(unpair);
+        tvFocusRows.add(actionControls);
         root.addView(actions);
 
         ScrollView scrollView = new ScrollView(this);
+        scrollView.setFocusable(false);
+        scrollView.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         LinearLayout shelfColumn = new LinearLayout(this);
         shelfColumn.setOrientation(LinearLayout.VERTICAL);
-        GridLayout heroGrid = new GridLayout(this);
-        heroGrid.setColumnCount(isTelevision() ? 3 : 2);
-        heroGrid.setPadding(0, dp(4), 0, dp(12));
-        shelfColumn.addView(heroGrid);
         TextView allHeading = text("ALL MOVIES  •  BROWSE BY GENRE", 22);
-        allHeading.setTextColor(0xffffd166);
-        shelfColumn.addView(allHeading);
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(isTelevision() ? 3 : 2);
-        grid.setPadding(0, dp(4), 0, dp(24));
-        shelfColumn.addView(grid);
         scrollView.addView(shelfColumn);
         root.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -485,13 +556,17 @@ public class MainActivity extends Activity {
                     List<MovieRoomModels.Movie> newest = new ArrayList<>(library.movies);
                     newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.dateAdded == null ? "" : movie.dateAdded).reversed()
                             .thenComparing(movie -> movie.title == null ? "" : movie.title));
-                    heroGrid.removeAllViews();
-                    for (int index = 0; index < Math.min(5, newest.size()); index++) {
-                        heroGrid.addView(movieCard(newest.get(index), status));
+                    shelfColumn.removeAllViews();
+                    List<MovieRoomModels.Movie> continueWatching = new ArrayList<>();
+                    if (loadedState != null) {
+                        for (MovieRoomModels.Movie movie : library.movies) {
+                            ViewerState.MovieRecord record = loadedState.movies.get(movie.id);
+                            if (record != null && record.positionSeconds > 0 && !record.completed) continueWatching.add(movie);
+                        }
                     }
-                    newest.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.genres == null ? "" : movie.genres)
-                            .thenComparing(movie -> movie.title == null ? "" : movie.title));
-                    grid.removeAllViews();
+                    continueWatching.sort(Comparator.comparing((MovieRoomModels.Movie movie) -> movie.title == null ? "" : movie.title));
+                    addMovieShelf(shelfColumn, "CONTINUE WATCHING", continueWatching, status);
+                    addMovieShelf(shelfColumn, "FEATURED - NEWEST FROM JELLYFIN", newest.subList(0, Math.min(5, newest.size())), status);
                     Map<String, List<MovieRoomModels.Movie>> groups = new LinkedHashMap<>();
                     for (MovieRoomModels.Movie movie : newest) {
                         String groupKey = collectionGroupKey(movie);
@@ -500,10 +575,9 @@ public class MainActivity extends Activity {
                         }
                     }
                     Set<String> groupedIds = new HashSet<>();
-                    if (!groups.isEmpty()) grid.addView(gridSectionHeading("COLLECTIONS & SERIES", grid.getColumnCount()));
                     for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : groups.entrySet()) {
                         for (MovieRoomModels.Movie movie : entry.getValue()) groupedIds.add(movie.id);
-                        grid.addView(groupCard(entry.getKey(), entry.getValue(), status));
+                        addCollectionShelf(shelfColumn, collectionGroupTitle(entry.getKey()), entry.getValue(), status);
                     }
                     Map<String, List<MovieRoomModels.Movie>> genreGroups = new LinkedHashMap<>();
                     for (MovieRoomModels.Movie movie : newest) {
@@ -511,11 +585,14 @@ public class MainActivity extends Activity {
                             genreGroups.computeIfAbsent(nativeGenre(movie), key -> new ArrayList<>()).add(movie);
                         }
                     }
-                    if (!genreGroups.isEmpty()) grid.addView(gridSectionHeading("ALL MOVIES", grid.getColumnCount()));
                     for (Map.Entry<String, List<MovieRoomModels.Movie>> entry : genreGroups.entrySet()) {
-                        grid.addView(gridSectionHeading(entry.getKey(), grid.getColumnCount()));
-                        for (MovieRoomModels.Movie movie : entry.getValue()) grid.addView(movieCard(movie, status));
+                        addMovieShelf(shelfColumn, entry.getKey(), entry.getValue(), status);
                     }
+                    connectTvFocusRows();
+                    shelfColumn.post(() -> {
+                        View firstCard = findFirstFocusableCard(shelfColumn);
+                        if (firstCard != null) firstCard.requestFocus();
+                    });
                 });
             } catch (MovieRoomApi.MovieRoomApiException error) {
                 handler.post(() -> {
@@ -532,61 +609,345 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+    /**
+     * Opens the Alexa assistant exposed by Fire OS. The assistant is a system
+     * feature and remains installed independently of Movie Room.
+     */
+    private void launchAlexa() {
+        Intent[] assistantIntents = new Intent[] {
+                new Intent(Intent.ACTION_ASSIST),
+                new Intent("android.intent.action.VOICE_COMMAND"),
+                new Intent("com.amazon.intent.action.ALEXA")
+        };
+        for (Intent intent : assistantIntents) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                return;
+            } catch (ActivityNotFoundException ignored) {
+                // Try the next Fire OS assistant entry point.
+            }
+        }
+        Toast.makeText(this, "Alexa is available from the Fire TV remote or Home screen.", Toast.LENGTH_LONG).show();
+    }
+
+    private void showWebSearchScreen() {
+        webSearchView = null;
+        setScreen();
+        TextView brand = text("TAYLOR-MADE MOVIES", 30);
+        brand.setTextColor(0xffffd166);
+        brand.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(brand);
+        TextView heading = text("SEARCH THE WEB FOR MOVIES", 24);
+        heading.setTextColor(0xfff5f5f5);
+        root.addView(heading);
+        TextView explanation = text("Search opens in the Fire TV web browser. Alexa and the rest of Fire OS stay installed.", 17);
+        explanation.setTextColor(0xffbdb5a2);
+        root.addView(explanation);
+
+        EditText query = new EditText(this);
+        query.setSingleLine(true);
+        query.setHint("Movie title, trailer, or actor");
+        query.setTextColor(0xffffffff);
+        query.setHintTextColor(0xffaaa39a);
+        query.setTextSize(21);
+        query.setSelectAllOnFocus(false);
+        root.addView(query, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(64)));
+
+        Button search = button("Search on the Web");
+        search.setTextColor(0xff17120a);
+        search.setBackground(roundedBackground(0xffffd166, 0xffffd166, 1));
+        search.setOnClickListener(view -> openWebMovieSearch(query.getText().toString()));
+        root.addView(search);
+
+        Button back = button("Back to Movie Room");
+        back.setOnClickListener(view -> showLibraryScreen());
+        root.addView(back);
+        query.requestFocus();
+    }
+
+    private void openWebMovieSearch(String rawQuery) {
+        String query = rawQuery == null ? "" : rawQuery.trim();
+        if (query.isEmpty()) {
+            Toast.makeText(this, "Enter a movie search first.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Uri searchUri = Uri.parse("https://www.google.com/search?q=" + Uri.encode(query + " movie"));
+        Intent browser = new Intent(Intent.ACTION_VIEW, searchUri);
+        browser.addCategory(Intent.CATEGORY_BROWSABLE);
+        try {
+            startActivity(browser);
+        } catch (ActivityNotFoundException error) {
+            showWebSearchFallback(searchUri.toString());
+        }
+    }
+
+    private void showWebSearchFallback(String url) {
+        WebView webView = new WebView(this);
+        webSearchView = webView;
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        webView.setBackgroundColor(0xff090a0b);
+        webView.loadUrl(url);
+        setContentView(webView);
+    }
+
+    private Button shellNavButton(String label, View.OnClickListener listener) {
+        Button nav = button(label);
+        nav.setTextSize(14);
+        nav.setMinHeight(0);
+        nav.setMinWidth(0);
+        nav.setPadding(dp(12), dp(7), dp(12), dp(7));
+        nav.setBackground(roundedBackground(0xff151a20, 0xff3b3424, 1));
+        nav.setOnClickListener(listener);
+        return nav;
+    }
+
+    private void cycleShellProfile() {
+        String[] profiles = {"Home", "Mom", "Morganne", "Kids"};
+        int current = 0;
+        for (int index = 0; index < profiles.length; index++) {
+            if (profiles[index].equals(activeProfile)) {
+                current = index;
+                break;
+            }
+        }
+        activeProfile = profiles[(current + 1) % profiles.length];
+        if (shellProfileLabel != null) shellProfileLabel.setText(activeProfile.toUpperCase(Locale.US));
+        Toast.makeText(this, activeProfile + " profile selected", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showShellSettings() {
+        setScreen();
+        shellSettingsOpen = true;
+        root.setGravity(Gravity.NO_GRAVITY);
+        root.setPadding(dp(56), dp(38), dp(56), dp(38));
+        TextView brand = text("MOVIE ROOM TV SHELL", 30);
+        brand.setTextColor(0xffffd166);
+        brand.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(brand);
+        TextView heading = text("Remote & display settings", 24);
+        heading.setTextColor(0xfff5f5f5);
+        root.addView(heading);
+        TextView summary = text("Profile: " + activeProfile + "\nRemote-first navigation is active. This settings page is drawn inside the TV safe area so it will not hang half off the screen.", 16);
+        summary.setTextColor(0xffd7d0c0);
+        root.addView(summary);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(0, dp(18), 0, dp(18));
+        List<View> settingsRows = new ArrayList<>();
+        settingsRows.add(settingsButton("Back to Movie Room", view -> showLibraryScreen()));
+        settingsRows.add(settingsButton("Switch profile", view -> cycleShellProfile()));
+        settingsRows.add(settingsButton("Open web search", view -> showWebSearchScreen()));
+        settingsRows.add(settingsButton("Refresh library", view -> showLibraryScreen()));
+        settingsRows.add(settingsButton("Remote help", view -> Toast.makeText(this, "Use ▲ ▼ ◀ ▶, Select, Back, Menu, Play/Pause, Rewind, Fast-forward, Channel/Page Up/Down.", Toast.LENGTH_LONG).show()));
+        for (View row : settingsRows) {
+            content.addView(row, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(62)));
+        }
+        scroll.addView(content);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f));
+        tvFocusRows.add(settingsRows);
+        connectTvFocusRows();
+        if (!settingsRows.isEmpty()) settingsRows.get(0).requestFocus();
+    }
+
+    private Button settingsButton(String label, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setTextColor(0xfff7efe0);
+        button.setTextSize(18);
+        button.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+        button.setPadding(dp(18), 0, dp(18), 0);
+        button.setFocusable(true);
+        button.setFocusableInTouchMode(false);
+        button.setBackground(roundedBackground(0xff17120a, 0xffffd166, 1));
+        button.setOnFocusChangeListener((view, hasFocus) -> {
+            view.setScaleX(hasFocus ? 1.02f : 1.0f);
+            view.setScaleY(hasFocus ? 1.02f : 1.0f);
+            view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff17120a, 0xffffd166, hasFocus ? 3 : 1));
+        });
+        button.setOnClickListener(listener);
+        return button;
+    }
+
+    private void showSearchDialog() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("Search Movie Room");
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(0xffaaa39a);
+        input.setPadding(dp(18), dp(12), dp(18), dp(12));
+        new AlertDialog.Builder(this)
+                .setTitle("Search Movie Room")
+                .setView(input)
+                .setMessage("Use the remote keyboard to search titles, folders, or genres. The full browse/search experience remains available in the web app.")
+                .setPositiveButton("Done", null)
+                .show();
+    }
+
     private View movieCard(MovieRoomModels.Movie movie, TextView status) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setFocusable(true);
-        card.setClickable(movie.isPlayable());
-        card.setEnabled(movie.isPlayable());
-        card.setPadding(dp(10), dp(10), dp(10), dp(10));
+        card.setFocusableInTouchMode(false);
+        card.setClickable(true);
+        card.setEnabled(true);
+        card.setPadding(dp(4), dp(4), dp(4), dp(4));
         card.setBackground(roundedBackground(0xff141414, 0xff3b3424, 1));
 
-        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = dp(isTelevision() ? 270 : 160);
-        params.height = GridLayout.LayoutParams.WRAP_CONTENT;
-        params.setMargins(dp(8), dp(8), dp(8), dp(12));
-        card.setLayoutParams(params);
-
+        FrameLayout posterFrame = new FrameLayout(this);
+        posterFrame.setClipToOutline(true);
+        posterFrame.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
         TextView fallback = text(initials(movie.title), 42);
         fallback.setGravity(Gravity.CENTER);
-        fallback.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
         fallback.setTextColor(0xffffd166);
-        card.addView(fallback, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(isTelevision() ? 152 : 112)));
+        posterFrame.addView(fallback, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
-        TextView title = text(movie.title, 18);
-        title.setGravity(Gravity.LEFT);
-        title.setMaxLines(2);
+        TextView title = text(movie.title, 16);
+        title.setTextColor(0xffffffff);
+        title.setGravity(Gravity.BOTTOM | Gravity.LEFT);
+        title.setMaxLines(MovieCardPresentation.MAX_TITLE_LINES);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(title);
+        title.setPadding(dp(10), dp(28), dp(10), dp(8));
+        title.setBackgroundColor(0xcc090a0b);
+        FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(58), Gravity.BOTTOM);
+        posterFrame.addView(title, titleParams);
 
-        TextView meta = text(displayMetadata(movie) + "  •  " + displayFolder(movie), 14);
-        meta.setMaxLines(2);
-        meta.setEllipsize(TextUtils.TruncateAt.END);
-        meta.setTextColor(movie.isPlayable() ? 0xffa7f3c6 : 0xffffd88a);
-        card.addView(meta);
-        if (movie.overview != null && !movie.overview.isEmpty()) {
-            TextView overview = text(movie.overview, 12);
-            overview.setMaxLines(2);
-            overview.setEllipsize(TextUtils.TruncateAt.END);
-            overview.setTextColor(0xffbdb5a2);
-            card.addView(overview);
-        }
+        card.addView(posterFrame, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(isTelevision() ? MovieCardPresentation.TV_CARD_HEIGHT_DP : 180)));
 
         card.setOnFocusChangeListener((view, hasFocus) -> {
-            view.setScaleX(hasFocus ? 1.04f : 1.0f);
-            view.setScaleY(hasFocus ? 1.04f : 1.0f);
+            view.setScaleX(hasFocus ? MovieCardPresentation.FOCUSED_SCALE : 1.0f);
+            view.setScaleY(hasFocus ? MovieCardPresentation.FOCUSED_SCALE : 1.0f);
             view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff141414, hasFocus ? 0xffffd166 : 0xff3b3424, 2));
+            if (hasFocus) view.post(() -> centerFocusedCard(view));
         });
         card.setOnClickListener(view -> {
             if (movie.isPlayable()) {
                 startMovie(movie, status);
+            } else {
+                status.setText("This movie is still uploading.");
             }
         });
 
-        loadPosterIntoCard(movie, card, fallback);
+        loadPosterIntoCard(movie, posterFrame, fallback);
         return card;
+    }
+
+    private View viewMoreCard(String title, List<MovieRoomModels.Movie> movies) {
+        Button card = new Button(this);
+        card.setAllCaps(false);
+        card.setText("View more\n" + title);
+        card.setTextColor(0xffffffff);
+        card.setTextSize(16);
+        card.setGravity(Gravity.CENTER);
+        card.setFocusable(true);
+        card.setFocusableInTouchMode(false);
+        card.setBackground(roundedBackground(0xff18110a, 0xffffd166, 2));
+        card.setOnClickListener(view -> showGroupedMovies(title, movies));
+        return card;
+    }
+
+    private View findFirstFocusableCard(ViewGroup parent) {
+        for (int index = 0; index < parent.getChildCount(); index++) {
+            View child = parent.getChildAt(index);
+            if (child.isFocusable() && child.isClickable() && child.isEnabled()) {
+                return child;
+            }
+            if (child instanceof ViewGroup) {
+                View nested = findFirstFocusableCard((ViewGroup) child);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
+    }
+
+    private void addMovieShelf(LinearLayout shelfColumn, String title, List<MovieRoomModels.Movie> movies, TextView status) {
+        if (movies == null || movies.isEmpty()) return;
+        TextView heading = text(title, 19);
+        heading.setTextColor(0xffffd166);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        heading.setPadding(dp(8), dp(12), dp(8), dp(2));
+        shelfColumn.addView(heading);
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setFocusable(false);
+        scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setFocusable(false);
+        row.setPadding(dp(8), dp(4), dp(12), dp(12));
+        List<View> shelfCards = new ArrayList<>();
+        int visibleCount = Math.min(10, movies.size());
+        for (MovieRoomModels.Movie movie : movies.subList(0, visibleCount)) {
+            View card = movieCard(movie, status);
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                    dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150),
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
+            row.addView(card, cardParams);
+            shelfCards.add(card);
+        }
+        if (movies.size() > 10) {
+            View more = viewMoreCard(title, movies);
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                    dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150),
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
+            row.addView(more, cardParams);
+            shelfCards.add(more);
+        }
+        tvFocusRows.add(shelfCards);
+        scroll.addView(row);
+        shelfColumn.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void addCollectionShelf(LinearLayout shelfColumn, String title, List<MovieRoomModels.Movie> members, TextView status) {
+        if (members == null || members.isEmpty()) return;
+        TextView heading = text(title, 22);
+        heading.setTextColor(0xffffd166);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        heading.setPadding(dp(8), dp(18), dp(8), dp(4));
+        shelfColumn.addView(heading);
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setFocusable(false);
+        scroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setFocusable(false);
+        row.setPadding(dp(8), dp(4), dp(12), dp(12));
+        View card = groupCard(title, members, status);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                dp(isTelevision() ? MovieCardPresentation.TV_CARD_WIDTH_DP : 150), LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, 0, dp(isTelevision() ? MovieCardPresentation.TV_CARD_GAP_DP : 10), 0);
+        row.addView(card, cardParams);
+        List<View> shelfCards = new ArrayList<>();
+        shelfCards.add(card);
+        tvFocusRows.add(shelfCards);
+        scroll.addView(row);
+        shelfColumn.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
     private String collectionGroupKey(MovieRoomModels.Movie movie) {
@@ -644,33 +1005,45 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setFocusable(true);
+        card.setFocusableInTouchMode(false);
         card.setClickable(true);
-        card.setPadding(dp(10), dp(10), dp(10), dp(10));
+        card.setPadding(dp(4), dp(4), dp(4), dp(4));
         card.setBackground(roundedBackground(0xff171717, 0xff6d5420, 1));
-        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = dp(isTelevision() ? 270 : 160);
-        params.height = GridLayout.LayoutParams.WRAP_CONTENT;
-        params.setMargins(dp(8), dp(8), dp(8), dp(12));
-        card.setLayoutParams(params);
-
+        FrameLayout posterFrame = new FrameLayout(this);
+        posterFrame.setClipToOutline(true);
+        posterFrame.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
         TextView cover = text(initials(collectionGroupTitle(key)), 42);
         cover.setGravity(Gravity.CENTER);
         cover.setTextColor(0xffffd166);
-        cover.setBackground(roundedBackground(0xff352b16, 0xffffd166, 1));
-        card.addView(cover, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(isTelevision() ? 152 : 112)));
+        posterFrame.addView(cover, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
         TextView title = text(collectionGroupTitle(key), 18);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(title);
-        TextView meta = text(members.size() + (key.startsWith("SERIES|") ? " episodes" : " movies") + "  •  Open folder", 14);
+        title.setGravity(Gravity.BOTTOM | Gravity.LEFT);
+        title.setPadding(dp(10), dp(28), dp(10), dp(8));
+        title.setBackgroundColor(0xcc090a0b);
+        posterFrame.addView(title, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(58), Gravity.BOTTOM));
+        TextView meta = text(members.size() + (key.startsWith("SERIES|") ? " episodes" : " movies"), 12);
+        meta.setGravity(Gravity.CENTER);
+        meta.setPadding(dp(8), dp(4), dp(8), dp(4));
         meta.setTextColor(0xffffd166);
-        card.addView(meta);
+        meta.setBackground(roundedBackground(0xcc17120a, 0x99ffd166, 1));
+        FrameLayout.LayoutParams metaParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, dp(30), Gravity.TOP | Gravity.RIGHT);
+        metaParams.setMargins(0, dp(8), dp(8), 0);
+        posterFrame.addView(meta, metaParams);
+        card.addView(posterFrame, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(isTelevision() ? MovieCardPresentation.TV_CARD_HEIGHT_DP : 180)));
+        loadPosterIntoCard(members.get(0), posterFrame, cover);
         card.setOnFocusChangeListener((view, hasFocus) -> {
-            view.setScaleX(hasFocus ? 1.04f : 1.0f);
-            view.setScaleY(hasFocus ? 1.04f : 1.0f);
+            view.setScaleX(hasFocus ? MovieCardPresentation.FOCUSED_SCALE : 1.0f);
+            view.setScaleY(hasFocus ? MovieCardPresentation.FOCUSED_SCALE : 1.0f);
             view.setBackground(roundedBackground(hasFocus ? 0xff282218 : 0xff171717, hasFocus ? 0xffffd166 : 0xff6d5420, 2));
+            if (hasFocus) view.post(() -> centerFocusedCard(view));
         });
         card.setOnClickListener(view -> showGroupedMovies(collectionGroupTitle(key), members));
         return card;
@@ -703,39 +1076,57 @@ public class MainActivity extends Activity {
         root.addView(scrollView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
     }
 
-    private void loadPosterIntoCard(MovieRoomModels.Movie movie, LinearLayout card, TextView fallback) {
-        if (movie.posterUrl == null || movie.posterUrl.isEmpty()) {
+    private void loadPosterIntoCard(MovieRoomModels.Movie movie, FrameLayout posterFrame, TextView fallback) {
+        List<String> artworkUrls = api.artworkUrls(movie.posterUrl, movie.title, movie.year);
+        if (artworkUrls.isEmpty()) {
+            return;
+        }
+
+        Bitmap cached;
+        synchronized (posterCache) {
+            cached = posterCache.get(artworkUrls.get(0));
+        }
+        if (cached != null) {
+            applyPoster(posterFrame, fallback, cached);
             return;
         }
 
         new Thread(() -> {
             try {
-                byte[] bytes = api.downloadPoster(movie.posterUrl);
-                if (bytes.length == 0) {
-                    return;
-                }
-                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                if (bitmap == null) {
-                    return;
-                }
-                handler.post(() -> {
-                    int index = card.indexOfChild(fallback);
-                    if (index < 0) {
-                        return;
+                Bitmap bitmap = null;
+                for (String artworkUrl : artworkUrls) {
+                    byte[] bytes = api.downloadPoster(artworkUrl, tokenStore.getDeviceToken());
+                    if (bytes.length == 0) {
+                        continue;
                     }
-                    ImageView poster = new ImageView(this);
-                    poster.setImageBitmap(bitmap);
-                    poster.setBackgroundColor(0xff050505);
-                    poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    card.removeView(fallback);
-                    card.addView(poster, index, new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            dp(isTelevision() ? 152 : 112)));
-                });
+                    bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    if (bitmap != null) {
+                        break;
+                    }
+                }
+                if (bitmap == null) return;
+                synchronized (posterCache) {
+                    posterCache.put(artworkUrls.get(0), bitmap);
+                }
+                Bitmap loadedBitmap = bitmap;
+                handler.post(() -> applyPoster(posterFrame, fallback, loadedBitmap));
             } catch (Exception ignored) {
                 // Keep the clean initials fallback when no poster is available yet.
             }
         }).start();
+    }
+
+    private void applyPoster(FrameLayout posterFrame, TextView fallback, Bitmap bitmap) {
+        int index = posterFrame.indexOfChild(fallback);
+        if (index < 0) return;
+        ImageView poster = new ImageView(this);
+        poster.setImageBitmap(bitmap);
+        poster.setBackgroundColor(0xff050505);
+        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        posterFrame.removeView(fallback);
+        posterFrame.addView(poster, index, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
     }
 
     private void startMovie(MovieRoomModels.Movie movie, TextView status) {
@@ -771,6 +1162,9 @@ public class MainActivity extends Activity {
         playerScreen.setBackgroundColor(0xff000000);
         PlayerView playerView = new PlayerView(this);
         playerView.setKeepScreenOn(true);
+        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        playerView.setUseController(true);
+        playerView.setBackgroundColor(Color.BLACK);
         startKeepScreenOn();
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(60_000, 300_000, 5_000, 10_000)
@@ -884,39 +1278,4 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private boolean seekBy(long offsetMs) {
-        if (player == null || !player.isCurrentMediaItemSeekable()) {
-            return false;
-        }
-        long duration = player.getDuration();
-        long target = Math.max(0L, player.getCurrentPosition() + offsetMs);
-        if (duration != androidx.media3.common.C.TIME_UNSET) {
-            target = Math.min(target, duration);
-        }
-        player.seekTo(target);
-        return true;
-    }
-
-    @Override
-        public boolean onKeyDown(int keyCode, KeyEvent event) {
-            if (keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD && seekBy(30_000L)) {
-                return true;
-            }
-            if (keyCode == KeyEvent.KEYCODE_MEDIA_REWIND && seekBy(-10_000L)) {
-                return true;
-            }
-            if (keyCode == KeyEvent.KEYCODE_BACK && player != null) {
-            if (playerFullscreen) {
-                leavePlayerFullscreen();
-                return true;
-            }
-            player.release();
-            flushProgress(activeMovie, false);
-            player = null;
-            playerOverlay = null;
-            showLibraryScreen();
-            return true;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
 }

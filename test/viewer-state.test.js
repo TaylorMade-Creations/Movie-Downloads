@@ -17,9 +17,9 @@ const movies = [
 ];
 
 test("creates a versioned empty viewer state", () => {
-  assert.deepEqual({ ...createDefaultViewerState("family", 1_000), movies: {} }, {
+  assert.deepEqual({ ...createDefaultViewerState("mom", 1_000), movies: {} }, {
     schemaVersion: 1,
-    profileId: "family",
+    profileId: "mom",
     revision: 0,
     updatedAt: 1_000,
     settings: {
@@ -33,7 +33,7 @@ test("creates a versioned empty viewer state", () => {
 });
 
 test("applies progress, flags, queue, and settings operations", () => {
-  const initial = createDefaultViewerState("family", 1_000);
+  const initial = createDefaultViewerState("mom", 1_000);
   const result = applyViewerOperations(initial, [
     {
       type: "progress",
@@ -74,7 +74,7 @@ test("completion is explicit and late progress does not clear it", () => {
 });
 
 test("derives continue watching and history without completed titles", () => {
-  let state = createDefaultViewerState("family", 1_000);
+  let state = createDefaultViewerState("mom", 1_000);
   state = applyViewerOperations(state, [
     { type: "progress", movieId: "movie-1", positionSeconds: 120, durationSeconds: 600 },
   ], { movieIds: new Set(["movie-1", "movie-2"]), now: 1_500 }).state;
@@ -88,7 +88,7 @@ test("derives continue watching and history without completed titles", () => {
 });
 
 test("rejects unknown movies, invalid numbers, and dangerous keys", () => {
-  const initial = createDefaultViewerState("guest", 1_000);
+  const initial = createDefaultViewerState("kids", 1_000);
   assert.throws(
     () => applyViewerOperations(initial, [{ type: "queueAdd", movieId: "missing" }], {
       movieIds: new Set(["movie-1"]),
@@ -120,7 +120,7 @@ test("normalizes corrupt or cross-profile state to a safe snapshot", () => {
 
   const otherProfile = normalizeViewerState(JSON.stringify({
     schemaVersion: 1,
-    profileId: "family",
+    profileId: "mom",
     revision: 4,
     updatedAt: 2_000,
     settings: {},
@@ -145,10 +145,10 @@ test("viewer-state manager isolates profiles and retries concurrent updates", as
     manager.apply("home", [{ type: "queueAdd", movieId: "movie-1" }]),
     manager.apply("home", [{ type: "queueAdd", movieId: "movie-2" }]),
   ]);
-  await manager.apply("family", [{ type: "queueAdd", movieId: "movie-2" }]);
+  await manager.apply("mom", [{ type: "queueAdd", movieId: "movie-2" }]);
 
   const home = await manager.get("home");
-  const family = await manager.get("family");
+  const family = await manager.get("mom");
   assert.deepEqual(home.queue.sort(), ["movie-1", "movie-2"]);
   assert.deepEqual(family.queue, ["movie-2"]);
 });

@@ -5,7 +5,32 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { createLocalProvider } = require("../lib/providers/local");
-const { isSampleVideo } = require("../lib/library");
+const { isSampleVideo, inferSeriesInfo } = require("../lib/library");
+
+test("infers the series name from an episode filename in a generic Movies folder", () => {
+  const info = inferSeriesInfo(
+    "Movies/Rick.and.Morty.S09E01.Theres.Something.About.Morty.1080p.WEBRip.mkv",
+    "Rick.and.Morty.S09E01.Theres.Something.About.Morty.1080p.WEBRip.mkv",
+  );
+  assert.deepEqual(
+    {
+      contentType: info.contentType,
+      seriesName: info.seriesName,
+      seriesPath: info.seriesPath,
+      seasonName: info.seasonName,
+      seasonNumber: info.seasonNumber,
+      episodeNumber: info.episodeNumber,
+    },
+    {
+      contentType: "episode",
+      seriesName: "Rick and Morty",
+      seriesPath: "Movies",
+      seasonName: "Season 9",
+      seasonNumber: 9,
+      episodeNumber: 1,
+    },
+  );
+});
 
 test("local provider recursively scans the canonical root and groups seasons", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "movie-room-library-"));
@@ -36,10 +61,12 @@ test("local provider excludes application, recovery, and known release duplicate
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "movie-room-dedup-"));
   fs.mkdirSync(path.join(root, "Movies"), { recursive: true });
   fs.mkdirSync(path.join(root, "Applications"), { recursive: true });
+  fs.mkdirSync(path.join(root, ".incomplete"), { recursive: true });
   fs.mkdirSync(path.join(root, "_Recovery", "duplicates-2026-09-26"), { recursive: true });
   fs.mkdirSync(path.join(root, "www.Torrenting.com - Bomb.Girls.Facing.the.Enemy.2014.1080p.WEB.H264-DiMEPiECE"), { recursive: true });
   fs.writeFileSync(path.join(root, "Movies", "Bomb Girls Facing the Enemy.mkv"), "organized");
   fs.writeFileSync(path.join(root, "Applications", "old.apk"), "not media");
+  fs.writeFileSync(path.join(root, ".incomplete", "Bomb.Girls.Facing.the.Enemy.2014.mkv"), "unfinished");
   fs.writeFileSync(path.join(root, "_Recovery", "duplicates-2026-09-26", "Bomb Girls Facing the Enemy.mkv"), "backup");
   fs.writeFileSync(path.join(root, "www.Torrenting.com - Bomb.Girls.Facing.the.Enemy.2014.1080p.WEB.H264-DiMEPiECE", "Bomb.Girls.mkv"), "duplicate");
 

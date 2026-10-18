@@ -6,15 +6,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MovieRoomApi {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
-    private static final int READ_TIMEOUT_MS = 30_000;
+    private static final int READ_TIMEOUT_MS = 60_000;
 
     private final String baseUrl;
 
@@ -42,7 +45,13 @@ public final class MovieRoomApi {
     }
 
     public MovieRoomModels.Library loadLibrary(String deviceToken) throws Exception {
-        return MovieRoomModels.Library.fromJson(request("GET", "/api/tv/library", deviceToken, ""));
+        try {
+            return MovieRoomModels.Library.fromJson(request("GET", "/api/tv/library", deviceToken, ""));
+        } catch (IOException firstNetworkFailure) {
+            // Catalog refresh can briefly overlap a Jellyfin/OneDrive refresh.
+            // Retry the idempotent GET once before showing a network error.
+            return MovieRoomModels.Library.fromJson(request("GET", "/api/tv/library", deviceToken, ""));
+        }
     }
 
     public MovieRoomModels.Playback startPlayback(String deviceToken, String movieId) throws Exception {
@@ -64,6 +73,41 @@ public final class MovieRoomApi {
     }
 
     public byte[] downloadPoster(String posterUrl) throws Exception {
+        return downloadPoster(posterUrl, "");
+    }
+
+    public List<String> artworkUrls(String posterUrl, String title, String year) {
+        List<String> urls = new ArrayList<>();
+        if (posterUrl != null && !posterUrl.trim().isEmpty()) {
+            urls.add(posterUrl.trim());
+        }
+        if (title != null && !title.trim().isEmpty()) {
+            StringBuilder fallback = new StringBuilder(baseUrl)
+                    .append("/api/artwork?title=")
+                    .append(encodeQuery(title.trim()));
+            if (year != null && !year.trim().isEmpty() && !"0".equals(year.trim())) {
+                fallback.append("&year=")
+                        .append(encodeQuery(year.trim()));
+            }
+            String fallbackUrl = fallback.toString();
+            if (!urls.contains(fallbackUrl)) {
+                urls.add(fallbackUrl);
+            }
+        }
+        return urls;
+    }
+
+    private static String encodeQuery(String value) {
+        try {
+            // Use the String charset-name overload: Fire OS does not expose the
+            // newer Charset overload on every Android API level we support.
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (java.io.UnsupportedEncodingException error) {
+            return value;
+        }
+    }
+
+    public byte[] downloadPoster(String posterUrl, String deviceToken) throws Exception {
         if (posterUrl == null || posterUrl.isEmpty()) {
             return new byte[0];
         }
@@ -75,6 +119,10 @@ public final class MovieRoomApi {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty("Accept", "image/avif,image/webp,image/jpeg,image/png,*/*");
+        String bearer = bearerValue(deviceToken);
+        if (!bearer.isEmpty()) {
+            connection.setRequestProperty("Authorization", bearer);
+        }
         int status = connection.getResponseCode();
         if (status < 200 || status >= 300) {
             return new byte[0];
@@ -89,6 +137,10 @@ public final class MovieRoomApi {
             }
             return output.toByteArray();
         }
+    }
+
+    static String bearerValue(String token) {
+        return token == null || token.isEmpty() ? "" : "Bearer " + token;
     }
 
     private String request(String method, String path, String bearerToken, String body) throws Exception {

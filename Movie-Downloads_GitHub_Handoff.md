@@ -1,5 +1,7 @@
 # GitHub Copilot handoff: Movie-Downloads cloud hosting and shared password
 
+> Current project control: see [`movie-workflow-blueprint/HANDOFF.md`](movie-workflow-blueprint/HANDOFF.md) and [`movie-workflow-blueprint/manifest.json`](movie-workflow-blueprint/manifest.json) for the authoritative repository/branch, Movie downloads root, provider boundary, sync commands, and verification gates. Do not copy secrets or system-managed plugins into the repository.
+
 Prepared September 24, 2026, for Kyle Taylor.
 
 ## Task

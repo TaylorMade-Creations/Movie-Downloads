@@ -1,9 +1,25 @@
-# Movie-Downloads
+# Movie Room Master
 
-A lightweight browser app for browsing and streaming a shared movie library behind one shared password.
+Movie Room Master is the source-control home for TaylorMade Movies: the web/PWA app, Android APK, Fire TV APK, optional shell APK, library indexing/conversion scripts, metadata/artwork references, deployment configuration, and recovery documentation.
+
+GitHub stores source control, not the movie library. Large movie files, downloaded media, private credentials, local Jellyfin/API secrets, and personal device paths stay outside the repository and are referenced through ignored local configuration such as `config/library.local.json`.
+
+## Movie Room as an installable TV-style PWA
+
+Movie Room is also packaged as an original Progressive Web App using standard web platform features, not Amazon source code or Amazon branding. The PWA manifest enables a standalone, landscape-oriented app window with Movie Room artwork, and the service worker keeps the shell available during short network interruptions while leaving authenticated catalog, artwork, and playback requests online-only.
+
+To install it, open the running Movie Room site in a browser that supports installation, choose the browser's `Install app` or `Add to home screen` command, and launch the resulting `Movie Room` app. The `Browse Movie Room` shortcut opens the library view directly. This creates the Movie Room experience as the visible app shell; it does not replace, reflash, or modify Android/Fire OS firmware.
+
+The Fire TV APK uses the same Movie Room service and secure TV pairing flow, but remains a native Android TV launcher/player so playback controls, remote navigation, and device-token storage work reliably on Fire TV. Replacing the TV firmware would require an unlocked device boot chain and a separately built Android image, which is outside the scope of a PWA and is not part of this application.
+
+## Project workflow source of truth
+
+The project-owned repository control point is [`movie-workflow-blueprint/`](movie-workflow-blueprint/). Its [`manifest.json`](movie-workflow-blueprint/manifest.json) names the authoritative `Movie-Room-Master` source repository, client modules, artifact manifests, deployment target, animation bucket policy, and verification gates; [`control.mjs`](movie-workflow-blueprint/control.mjs) exposes and validates those values for project tooling. All Codex, GPT, plugin, skill, web, Android, Fire TV, and shell work for this app should reference Movie Room Master rather than creating a parallel project. Secrets and personal local paths are intentionally excluded.
 
 ## What changed
 
+- Version 1.1.0 adds separate Home, Library, User, and dedicated full-screen player surfaces. Selecting a ready title opens and loads its player immediately without moving the catalog scroll position.
+- Every title now renders a cover: Jellyfin artwork remains the first choice, then synced/provider artwork, then a generated TaylorMade cover built from the title when no external poster is available.
 - Password-protected catalog access with signed HttpOnly sessions
 - Recursive movie discovery for local files and OneDrive-backed libraries
 - Server-issued playback links so the browser can stream directly from the configured provider
@@ -59,6 +75,7 @@ Copy `.env.example` to a local `.env` file or configure the same values in Verce
 - `ONEDRIVE_REFRESH_TOKEN`
 - `ONEDRIVE_DRIVE_ID`
 - `ONEDRIVE_ROOT_ITEM_ID`
+- `ONEDRIVE_LIBRARY_REFRESH_TIMEOUT_MS` (optional; defaults to 15 seconds and bounds a Graph catalog refresh)
 - `KV_REST_API_URL`
 - `KV_REST_API_TOKEN`
 
@@ -79,6 +96,8 @@ Jellyfin can stay on the Windows computer as the library, metadata, artwork, and
    JELLYFIN_URL=http://127.0.0.1:8096
    JELLYFIN_API_KEY=your-local-jellyfin-api-key
    JELLYFIN_LIBRARY_ID=
+   # optional: pin the Jellyfin user used for compatibility playback
+   JELLYFIN_USER_ID=
    MOVIE_PASSWORD=yourpassword
    SESSION_SECRET=replace-with-a-long-random-secret
    APP_ORIGIN=http://192.168.1.169:3000
@@ -98,13 +117,19 @@ Vercel cannot reach `127.0.0.1` on the Windows computer. Keep the hosted deploym
 
 ### Jellyfin metadata with OneDrive cloud playback
 
-Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descriptions, ratings, and organization while resolving playback from the matching OneDrive file. Configure both the `JELLYFIN_*` and `ONEDRIVE_*` values shown above. Movie Room keeps Jellyfin item IDs for viewer history and UI state, matches them to OneDrive by the underlying filename, proxies artwork from Jellyfin, and returns a fresh OneDrive playback URL when a movie is selected.
+Set `MOVIE_PROVIDER=hybrid` to use Jellyfin for titles, seasons, posters, descriptions, ratings, and organization while resolving playback from the matching OneDrive file. Configure both the `JELLYFIN_*` and `ONEDRIVE_*` values shown above. Movie Room keeps Jellyfin item IDs for viewer history and UI state, matches them to OneDrive by the underlying filename, proxies artwork from Jellyfin, and returns a fresh OneDrive playback URL when a movie is selected. For AVI, MKV, MOV, WMV, and TS entries, the local hybrid app automatically routes playback through Jellyfin's H.264/AAC compatibility stream so browsers and Fire TV can decode the audio and video; direct MP4 playback remains cloud-backed. Set `JELLYFIN_REQUEST_TIMEOUT_MS` (1,000–120,000 ms, default 30,000) if a large Jellyfin library needs more time to answer its catalog request.
+
+The six-hour watcher also bounds its background work: `SYNC_JELLYFIN_TIMEOUT_MS` controls the Jellyfin metadata request (5,000–120,000 ms, default 60,000), and `MOVIE_ARTWORK_FETCH_TIMEOUT_MS` controls each remote artwork lookup (3,000–60,000 ms, default 15,000). A timeout preserves existing sidecars/artwork and lets the scheduled run finish instead of waiting indefinitely on an online-only OneDrive placeholder or an unavailable metadata service. The unattended path creates missing sidecars/artwork without opening existing cloud-only files; use `--force` on `scripts/sync-jellyfin-metadata.mjs` or `scripts/sync-jellyfin-artwork.mjs` for an intentional full refresh when the source files are available locally.
+
+The player also includes a shared accessible timeline (`#timeline`) tied to the media element's metadata, time updates, and seek events. It supplements device-specific native controls, so desktop Chrome, mobile browsers, Safari, and Fire TV have the same seek surface when the selected source exposes a duration.
 
 To keep matching metadata beside the locally synced OneDrive files, run `npm run metadata:sync` after a Jellyfin scan. It writes generated `*.jellyfin.json` sidecars next to matching video files, so OneDrive can sync the metadata without copying media into Jellyfin. Run `npm run artwork:sync` to place validated portrait posters and landscape backdrops beside each movie and in the deployable web bundle. The installed Windows library task runs every six hours. Metadata refresh requires a current local `JELLYFIN_API_KEY`; a 401 means the key needs to be refreshed in the private local environment file. Artwork sync can still reuse existing sidecars and retry locally accessible Jellyfin artwork without the stale key.
 
 For a one-time cloud export of the already-synchronized library, run `npm run metadata:export:onedrive`. This uploads each Jellyfin sidecar and the matching poster, folder, thumb, and backdrop files from the configured `Movie downloads` root into the corresponding OneDrive folders. The export is idempotent and only replaces files with the same name; it does not upload or delete video media. The Microsoft app registration must have delegated `Files.ReadWrite` consent. The six-hour Windows library task also marks only `Movies` and `TV Shows` online-only after each sync, so new sidecars and artwork remain cloud-backed without pinning the application or recovery folders.
 
 When those sidecars are synchronized into OneDrive, the hosted OneDrive provider reads them as Jellyfin metadata. This lets the live Movie Room show Jellyfin titles, dates, descriptions, ratings, genres, and series fields without requiring Vercel to reach the Windows Jellyfin server.
+
+The hosted provider is cache-first: when a complete persisted catalog exists, `/api/library` returns it immediately and coalesces a bounded background refresh. New uploads appear after that refresh updates the durable cache; a failed or timed-out refresh keeps the last complete catalog available instead of holding the page in `Loading library`.
 
 ## Canonical home library
 
@@ -151,6 +176,8 @@ To install or update the APK over the same Wi-Fi network, enable ADB debugging o
 
 This sideloads the private app; it does not replace or "flash" Fire OS firmware. The same APK can be installed on another Fire Stick by running the command with that device's IP address and pairing that installation once.
 
+The Fire TV build keeps the existing Fire OS experience available. Its Movie Room home bar includes an `ALEXA` action that hands off to the Fire OS assistant and a `WEB SEARCH` action that opens the installed Fire TV browser for movie searches. These actions link to the system features; they do not bundle, remove, or replace Alexa, Silk, or Fire OS.
+
 ## Getting started
 
 Use Node.js 22.9 or newer. `npm start` loads `.env` and then the ignored `.env.local` override when either exists, and otherwise uses the current process environment.
@@ -173,6 +200,7 @@ Use Node.js 22.9 or newer. `npm start` loads `.env` and then the ignored `.env.l
 - Set `APP_ORIGIN` to the exact deployed site origin for CSRF checks
 - `TRUST_PROXY=true` is an optional override for non-Vercel trusted-proxy deployments; Vercel is auto-detected
 - Configure both `KV_REST_API_URL` and `KV_REST_API_TOKEN`; Vercel Marketplace Upstash supplies them automatically. Standalone Upstash `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` aliases also remain supported. Vercel authentication fails closed without durable shared storage
+- Set `MOVIE_ROOM_PUBLIC=true` only when the site should omit the sign-in screen and serve the catalog/playback routes to anyone with the URL. This is intentionally public and should not be used for private libraries.
 - Protected API responses use `Cache-Control: private, no-store`
 - For production, configure the environment variables in Vercel before testing
 
@@ -195,4 +223,4 @@ This repository now includes the app-side OneDrive integration points, but the d
 - The correct `ONEDRIVE_DRIVE_ID` and `ONEDRIVE_ROOT_ITEM_ID`
 - Vercel Marketplace Upstash Redis REST credentials for required Vercel session/throttle/token storage
 
-If those values are missing, protected routes fail closed instead of allowing anonymous access.
+If those values are missing, protected routes fail closed instead of allowing anonymous access. Public mode is the explicit exception: `MOVIE_ROOM_PUBLIC=true` removes the browser login gate and makes the library public.
