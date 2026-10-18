@@ -7,6 +7,7 @@
     "posters": "node scripts/fetch-posters.mjs",
     "artwork:sync": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/sync-jellyfin-artwork.mjs",
     "library:normalize": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/normalize-movie-library.ps1 -Apply -FolderizeMovies -OrganizeSeries",
+    "jellyfin:refresh": "node scripts/refresh-jellyfin-library.mjs",
     "metadata:sync": "node scripts/sync-jellyfin-metadata.mjs",
     "metadata:export:onedrive": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/export-movie-metadata-to-onedrive.mjs",
     "metadata:watch": "node scripts/sync-jellyfin-metadata.mjs --watch",

@@ -15,6 +15,13 @@ try {
     # normalizer used. This prevents metadata/artwork from falling back to a
     # repository-local movies directory when the watcher runs unattended.
     $env:MOVIE_LIBRARY_ROOT = [IO.Path]::GetFullPath($LibraryRoot)
+    $refreshScript = Join-Path $repoRoot 'scripts\refresh-jellyfin-library.mjs'
+    if (Test-Path -LiteralPath $refreshScript -PathType Leaf) {
+        & node $refreshScript
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Jellyfin library refresh failed with exit code $LASTEXITCODE. Continuing with local metadata and artwork sync."
+        }
+    }
     & node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/sync-jellyfin-metadata.mjs
     if ($LASTEXITCODE -ne 0) { Write-Warning "Jellyfin metadata sync failed with exit code $LASTEXITCODE. Existing sidecars will still be used for artwork." }
     & node --env-file-if-exists=.env --env-file-if-exists=.env.local --env-file-if-exists=.env.jellyfin.local scripts/sync-jellyfin-artwork.mjs
